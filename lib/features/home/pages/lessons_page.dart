@@ -2,123 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
+import '../../../core/services/lessons_service.dart';
 import '../widgets/lesson_card.dart';
 import 'lesson_detail_page.dart';
 
-class LessonsPage extends StatelessWidget {
+class LessonsPage extends StatefulWidget {
   const LessonsPage({super.key});
 
-  List<Lesson> get _allLessons {
-    return [
-      Lesson(
-        id: '1',
-        name: 'Türkçe',
-        category: 'genel_yetenek',
-        icon: 'menu_book',
-        color: 'orange',
-        topicCount: 12,
-        questionCount: 450,
-        description: 'Sözcükte anlam, cümlede anlam, paragraf ve dil bilgisi',
-      ),
-      Lesson(
-        id: '2',
-        name: 'Matematik',
-        category: 'genel_yetenek',
-        icon: 'calculate',
-        color: 'blue',
-        topicCount: 15,
-        questionCount: 520,
-        description: 'Temel matematik, geometri ve sayısal mantık',
-      ),
-      Lesson(
-        id: '3',
-        name: 'Tarih',
-        category: 'genel_kultur',
-        icon: 'history',
-        color: 'red',
-        topicCount: 18,
-        questionCount: 680,
-        description: 'Türk tarihi, Osmanlı tarihi ve dünya tarihi',
-      ),
-      Lesson(
-        id: '4',
-        name: 'Coğrafya',
-        category: 'genel_kultur',
-        icon: 'map',
-        color: 'green',
-        topicCount: 14,
-        questionCount: 420,
-        description: 'Türkiye coğrafyası ve genel coğrafya bilgileri',
-      ),
-      Lesson(
-        id: '5',
-        name: 'Vatandaşlık',
-        category: 'genel_kultur',
-        icon: 'gavel',
-        color: 'purple',
-        topicCount: 8,
-        questionCount: 280,
-        description: 'Anayasa, hukuk ve vatandaşlık bilgileri',
-      ),
-      Lesson(
-        id: '6',
-        name: 'Eğitim Bilimleri',
-        category: 'alan_dersleri',
-        icon: 'school',
-        color: 'teal',
-        topicCount: 20,
-        questionCount: 750,
-        description: 'Gelişim psikolojisi, öğrenme psikolojisi ve öğretim yöntemleri',
-      ),
-      Lesson(
-        id: '7',
-        name: 'Öğretmenlik Alan Bilgisi',
-        category: 'alan_dersleri',
-        icon: 'person',
-        color: 'indigo',
-        topicCount: 16,
-        questionCount: 580,
-        description: 'Alan bilgisi ve öğretim teknikleri',
-      ),
-      Lesson(
-        id: '8',
-        name: 'Rehberlik',
-        category: 'alan_dersleri',
-        icon: 'psychology',
-        color: 'pink',
-        topicCount: 10,
-        questionCount: 320,
-        description: 'Rehberlik ve psikolojik danışmanlık',
-      ),
-    ];
-  }
+  @override
+  State<LessonsPage> createState() => _LessonsPageState();
+}
 
-  List<Lesson> _getLessonsByCategory(String category) {
-    return _allLessons.where((lesson) => lesson.category == category).toList();
-  }
+class _LessonsPageState extends State<LessonsPage> {
+  final LessonsService _lessonsService = LessonsService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  // Mock progress data - will be replaced with real data later
+  // Mock progress data - will be replaced with real user progress data later
   double _getProgress(String lessonId) {
-    switch (lessonId) {
-      case '1':
-        return 0.35; // 35% completed
-      case '2':
-        return 0.42;
-      case '3':
-        return 0.28;
-      case '4':
-        return 0.55;
-      case '5':
-        return 0.18;
-      case '6':
-        return 0.38;
-      case '7':
-        return 0.45;
-      case '8':
-        return 0.22;
-      default:
-        return 0.0;
-    }
+    // TODO: Replace with real user progress from Firestore
+    return 0.0;
   }
 
   String _getCategoryTitle(String category) {
@@ -132,6 +35,23 @@ class LessonsPage extends StatelessWidget {
       default:
         return '';
     }
+  }
+
+  List<Lesson> _filterLessons(List<Lesson> lessons) {
+    if (_searchQuery.isEmpty) {
+      return lessons;
+    }
+    return lessons
+        .where((lesson) =>
+            lesson.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            lesson.description.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -212,13 +132,19 @@ class LessonsPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              '${_allLessons.length} ders • Tüm konular',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 12 : 13,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white.withOpacity(0.9),
-                              ),
+                            StreamBuilder<List<Lesson>>(
+                              stream: _lessonsService.streamAllLessons(),
+                              builder: (context, snapshot) {
+                                final count = snapshot.hasData ? snapshot.data!.length : 0;
+                                return Text(
+                                  '$count ders • Tüm konular',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 12 : 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -241,6 +167,12 @@ class LessonsPage extends StatelessWidget {
                       ],
                     ),
                     child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -267,34 +199,135 @@ class LessonsPage extends StatelessWidget {
             ),
             // Content
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-            _buildCategorySection(
-              context: context,
-              title: _getCategoryTitle('genel_yetenek'),
-              lessons: _getLessonsByCategory('genel_yetenek'),
-              isSmallScreen: isSmallScreen,
-                    isTablet: isTablet,
-            ),
-                  const SizedBox(height: 16),
-            _buildCategorySection(
-              context: context,
-              title: _getCategoryTitle('genel_kultur'),
-              lessons: _getLessonsByCategory('genel_kultur'),
-              isSmallScreen: isSmallScreen,
-                    isTablet: isTablet,
-            ),
-                  const SizedBox(height: 16),
-            _buildCategorySection(
-              context: context,
-              title: _getCategoryTitle('alan_dersleri'),
-              lessons: _getLessonsByCategory('alan_dersleri'),
-              isSmallScreen: isSmallScreen,
-                    isTablet: isTablet,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+              child: StreamBuilder<List<Lesson>>(
+                stream: _lessonsService.streamAllLessons(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Veriler yüklenirken bir hata oluştu',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {});
+                            },
+                            child: const Text('Tekrar Dene'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.menu_book_outlined,
+                            size: 64,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Henüz ders eklenmemiş',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final allLessons = _filterLessons(snapshot.data!);
+                  final genelYetenek = _filterLessons(
+                      allLessons.where((l) => l.category == 'genel_yetenek').toList());
+                  final genelKultur = _filterLessons(
+                      allLessons.where((l) => l.category == 'genel_kultur').toList());
+                  final alanDersleri = _filterLessons(
+                      allLessons.where((l) => l.category == 'alan_dersleri').toList());
+
+                  return ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      if (genelYetenek.isNotEmpty)
+                        _buildCategorySection(
+                          context: context,
+                          title: _getCategoryTitle('genel_yetenek'),
+                          lessons: genelYetenek,
+                          isSmallScreen: isSmallScreen,
+                          isTablet: isTablet,
+                        ),
+                      if (genelYetenek.isNotEmpty && genelKultur.isNotEmpty)
+                        const SizedBox(height: 16),
+                      if (genelKultur.isNotEmpty)
+                        _buildCategorySection(
+                          context: context,
+                          title: _getCategoryTitle('genel_kultur'),
+                          lessons: genelKultur,
+                          isSmallScreen: isSmallScreen,
+                          isTablet: isTablet,
+                        ),
+                      if (genelKultur.isNotEmpty && alanDersleri.isNotEmpty)
+                        const SizedBox(height: 16),
+                      if (alanDersleri.isNotEmpty)
+                        _buildCategorySection(
+                          context: context,
+                          title: _getCategoryTitle('alan_dersleri'),
+                          lessons: alanDersleri,
+                          isSmallScreen: isSmallScreen,
+                          isTablet: isTablet,
+                        ),
+                      if (allLessons.isEmpty && _searchQuery.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 48,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Aradığınız ders bulunamadı',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                    ],
+                  );
+                },
               ),
             ),
           ],

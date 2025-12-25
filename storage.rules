@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow read access to all files (for development)
+    // TODO: Update these rules for production
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if true; // For development - restrict in production
+    }
+    
+    // Production rules (commented out for now)
+    // match /podcasts/{topicId}/{fileName} {
+    //   allow read: if request.auth != null;
+    //   allow write: if false; // Only admins can write
+    // }
+  }
+}
+

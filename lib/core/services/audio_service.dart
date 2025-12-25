@@ -1,162 +1,151 @@
-import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
-import 'podcast_audio_handler.dart';
 
+/// Audio player service with native media notification
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
   AudioPlayerService._internal();
 
-  PodcastAudioHandler? _audioHandler;
+  final AudioPlayer _player = AudioPlayer();
+  final MethodChannel _channel = const MethodChannel('com.example.kpss_ags_2026/media');
   bool _isInitialized = false;
+  String? _currentTitle;
+  String? _currentArtist;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<bool>? _playingSubscription;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
     
-    _audioHandler = await AudioService.init(
-      builder: () => PodcastAudioHandler(),
-      config: AudioServiceConfig(
-        androidNotificationChannelId: 'com.kpssags2026.audio',
-        androidNotificationChannelName: 'KPSS Podcast',
-        androidNotificationChannelDescription: 'Podcast oynatma bildirimleri',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
-        androidShowNotificationBadge: true,
-        androidNotificationIcon: 'mipmap/ic_launcher',
-        fastForwardInterval: const Duration(seconds: 10),
-        rewindInterval: const Duration(seconds: 10),
-      ),
-    );
+    // Listen to media actions from notification
+    _channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'mediaAction':
+          final action = call.arguments as String;
+          switch (action) {
+            case 'PLAY_PAUSE':
+              if (_player.playing) {
+                await pause();
+              } else {
+                await resume();
+              }
+              break;
+            case 'STOP':
+              await stop();
+              break;
+            case 'NEXT':
+              // Implement next logic
+              break;
+            case 'PREVIOUS':
+              // Implement previous logic
+              break;
+          }
+          break;
+      }
+    });
+    
+    // Listen to position and playing state to update notification
+    _positionSubscription = _player.positionStream.listen((position) {
+      _updateNotification();
+    });
+    
+    _playingSubscription = _player.playingStream.listen((playing) {
+      _updateNotification();
+    });
     
     _isInitialized = true;
+    print('✅ Audio service initialized with native notification');
+  }
+
+  Future<void> _updateNotification() async {
+    if (_currentTitle == null) return;
+    
+    try {
+      await _channel.invokeMethod('updateNotification', {
+        'title': _currentTitle ?? 'Podcast',
+        'artist': _currentArtist ?? 'KPSS & AGS 2026',
+        'isPlaying': _player.playing,
+        'position': _player.position.inMilliseconds,
+        'duration': (_player.duration?.inMilliseconds ?? 0),
+      });
+    } catch (e) {
+      print('❌ Error updating notification: $e');
+    }
   }
 
   Future<void> play(String url, {String? title, String? artist, Duration? duration}) async {
     if (!_isInitialized) await initialize();
     
+    _currentTitle = title;
+    _currentArtist = artist;
+    
     try {
-      final mediaItem = MediaItem(
-        id: url,
-        title: title ?? 'Podcast',
-        artist: artist ?? 'KPSS & AGS 2026',
-        duration: duration,
-        artUri: null,
-        album: 'KPSS & AGS 2026',
-      );
+      await _player.setUrl(url);
+      await _player.play();
       
-      await _audioHandler?.setMediaItem(mediaItem);
-      await _audioHandler?.play();
+      // Start notification service
+      await _channel.invokeMethod('startService', {
+        'title': title ?? 'Podcast',
+        'artist': artist ?? 'KPSS & AGS 2026',
+        'isPlaying': true,
+        'position': 0,
+        'duration': duration?.inMilliseconds ?? 0,
+      });
+      
+      print('✅ Playing: $title');
     } catch (e) {
-      print('Error playing audio: $e');
+      print('❌ Error: $e');
       rethrow;
     }
   }
 
   Future<void> pause() async {
-    if (!_isInitialized) return;
-    await _audioHandler?.pause();
+    await _player.pause();
+    await _updateNotification();
   }
 
   Future<void> resume() async {
-    if (!_isInitialized) return;
-    await _audioHandler?.play();
+    await _player.play();
+    await _updateNotification();
   }
 
   Future<void> stop() async {
-    if (!_isInitialized) return;
-    await _audioHandler?.stop();
+    await _player.stop();
+    _currentTitle = null;
+    _currentArtist = null;
+    try {
+      await _channel.invokeMethod('stopService');
+    } catch (e) {
+      print('❌ Error stopping service: $e');
+    }
   }
 
   Future<void> seek(Duration position) async {
-    if (!_isInitialized) return;
-    await _audioHandler?.seek(position);
+    await _player.seek(position);
+    await _updateNotification();
   }
 
   Future<void> setSpeed(double speed) async {
-    if (!_isInitialized) return;
-    await _audioHandler?.setSpeed(speed);
+    await _player.setSpeed(speed);
   }
 
-  Stream<Duration> get positionStream {
-    if (!_isInitialized || _audioHandler == null) return Stream.value(Duration.zero);
-    return _audioHandler!.playbackState.stream
-        .map((state) => state.updatePosition ?? Duration.zero)
-        .distinct();
-  }
-  
-  Stream<Duration?> get durationStream {
-    if (!_isInitialized || _audioHandler == null) return Stream.value(null);
-    // Duration comes from media item, approximate from position
-    return _audioHandler!.playbackState.stream
-        .map((state) => state.bufferedPosition)
-        .distinct();
-  }
-  
-  Stream<bool> get playingStream {
-    if (!_isInitialized || _audioHandler == null) return Stream.value(false);
-    return _audioHandler!.playbackState.stream
-        .map((state) => state.playing)
-        .distinct();
-  }
+  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration?> get durationStream => _player.durationStream;
+  Stream<bool> get playingStream => _player.playingStream;
+  Stream<ProcessingState> get processingStateStream => _player.processingStateStream;
 
-  Duration? get duration {
-    if (!_isInitialized || _audioHandler == null) return null;
-    final state = _audioHandler!.playbackState.value;
-    return state.bufferedPosition;
-  }
-  
-  Duration get position {
-    if (!_isInitialized || _audioHandler == null) return Duration.zero;
-    final state = _audioHandler!.playbackState.value;
-    return state.updatePosition ?? Duration.zero;
-  }
-  
-  bool get playing {
-    if (!_isInitialized || _audioHandler == null) return false;
-    final state = _audioHandler!.playbackState.value;
-    return state.playing;
-  }
-  
-  double get speed {
-    if (!_isInitialized || _audioHandler == null) return 1.0;
-    final state = _audioHandler!.playbackState.value;
-    return state.speed;
-  }
-  
-  ProcessingState get processingState {
-    if (!_isInitialized || _audioHandler == null) return ProcessingState.idle;
-    final state = _audioHandler!.playbackState.value;
-    return _convertProcessingState(state.processingState);
-  }
-
-  ProcessingState _convertProcessingState(AudioProcessingState state) {
-    switch (state) {
-      case AudioProcessingState.idle:
-        return ProcessingState.idle;
-      case AudioProcessingState.loading:
-        return ProcessingState.loading;
-      case AudioProcessingState.buffering:
-        return ProcessingState.buffering;
-      case AudioProcessingState.ready:
-        return ProcessingState.ready;
-      case AudioProcessingState.completed:
-        return ProcessingState.completed;
-      case AudioProcessingState.error:
-        return ProcessingState.idle;
-    }
-  }
+  Duration? get duration => _player.duration;
+  Duration get position => _player.position;
+  bool get playing => _player.playing;
+  double get speed => _player.speed;
+  ProcessingState get processingState => _player.processingState;
 
   Future<void> dispose() async {
-    if (_isInitialized) {
-      try {
-        await _audioHandler?.disposePlayer();
-        await AudioService.stop();
-        _isInitialized = false;
-      } catch (e) {
-        print('Error disposing audio service: $e');
-        _isInitialized = false;
-      }
-    }
+    _positionSubscription?.cancel();
+    _playingSubscription?.cancel();
+    await stop();
+    await _player.dispose();
   }
 }

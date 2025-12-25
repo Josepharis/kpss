@@ -9,7 +9,6 @@ import 'features/home/pages/weaknesses_page.dart';
 import 'features/home/pages/study_page.dart';
 import 'features/home/pages/profile_page.dart';
 import 'core/widgets/custom_bottom_nav_bar.dart';
-import 'core/services/audio_service.dart';
 import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/register_page.dart';
@@ -22,9 +21,22 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    print('✅ Firebase initialized successfully');
+    
+    // Data upload completed - removed upload code
+    // If you need to upload data again, uncomment the code below:
+    /*
+    try {
+      print('📤 Uploading Tarih lesson data to Firebase...');
+      await uploadData();
+    } catch (e) {
+      print('❌ Data upload error: $e');
+    }
+    */
   } catch (e) {
     // Continue even if Firebase fails to initialize
-    print('Firebase initialization error: $e');
+    print('❌ Firebase initialization error: $e');
+    print('Error type: ${e.runtimeType}');
   }
   
   // Initialize date formatting for Turkish locale
@@ -33,14 +45,6 @@ void main() async {
   } catch (e) {
     // Continue even if date formatting fails
     print('Date formatting initialization error: $e');
-  }
-  
-  // Initialize audio service for background playback
-  try {
-    await AudioPlayerService().initialize();
-  } catch (e) {
-    // Continue even if audio service fails to initialize
-    print('Audio service initialization error: $e');
   }
   
   runApp(const MyApp());

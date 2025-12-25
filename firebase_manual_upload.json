@@ -1,0 +1,44 @@
+{
+  "instructions": "Bu dosyayı Firebase Console'dan manuel olarak yüklemek için kullanın",
+  "lessons": {
+    "tarih_lesson": {
+      "name": "Tarih",
+      "category": "genel_kultur",
+      "icon": "history",
+      "color": "red",
+      "topicCount": 1,
+      "questionCount": 25,
+      "description": "Türk tarihi, Osmanlı tarihi ve dünya tarihi",
+      "order": 1
+    }
+  },
+  "topics": {
+    "islamiyet_oncesi_turk_tarihi": {
+      "lessonId": "tarih_lesson",
+      "name": "İslamiyet Öncesi Türk Tarihi",
+      "subtitle": "Türklerin İslamiyet öncesi dönemdeki devlet yapısı, kültürü ve yaşamı",
+      "duration": "4h 30min",
+      "averageQuestionCount": 25,
+      "testCount": 1,
+      "podcastCount": 0,
+      "videoCount": 0,
+      "noteCount": 0,
+      "progress": 0.0,
+      "order": 1
+    }
+  },
+  "questions": {
+    "note": "25 soru için ayrı ayrı dökümanlar oluşturulmalı",
+    "example_question_1": {
+      "question": "İslamiyet öncesi Türklerde devlet anlayışını ifade eden kavram aşağıdakilerden hangisidir?",
+      "options": ["Boy", "İl", "Toy", "Kut", "Töre"],
+      "correctAnswerIndex": 1,
+      "explanation": "İslamiyet öncesi Türklerde devlet kavramı 'il' sözcüğüyle ifade edilmiştir. İl; siyasi egemenliğe sahip, bağımsız ve teşkilatlanmış yapıyı anlatır. Boy ve oba daha küçük sosyal birimlerdir, toy meclistir, kut yönetme yetkisini, töre ise hukuk sistemini ifade eder.",
+      "timeLimitSeconds": 60,
+      "topicId": "islamiyet_oncesi_turk_tarihi",
+      "lessonId": "tarih_lesson",
+      "order": 1
+    }
+  }
+}
+

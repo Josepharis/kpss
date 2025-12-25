@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to all documents (for development)
+    // TODO: Update these rules for production
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Production rules (commented out for now)
+    // match /lessons/{lessonId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if false; // Only admins can write
+    // }
+    // 
+    // match /topics/{topicId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if false; // Only admins can write
+    // }
+    // 
+    // match /questions/{questionId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if false; // Only admins can write
+    // }
+  }
+}
+

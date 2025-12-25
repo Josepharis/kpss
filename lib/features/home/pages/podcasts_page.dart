@@ -5,15 +5,21 @@ import 'package:just_audio/just_audio.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/podcast.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/services/storage_service.dart';
+import '../../../core/services/podcast_cache_service.dart';
 
 class PodcastsPage extends StatefulWidget {
   final String topicName;
   final int podcastCount;
+  final String topicId; // Storage'dan podcast çekmek için
+  final String lessonId; // Ders ID'si (Storage yolunu oluşturmak için)
 
   const PodcastsPage({
     super.key,
     required this.topicName,
     required this.podcastCount,
+    required this.topicId,
+    required this.lessonId,
   });
 
   @override
@@ -23,7 +29,12 @@ class PodcastsPage extends StatefulWidget {
 class _PodcastsPageState extends State<PodcastsPage>
     with TickerProviderStateMixin {
   final AudioPlayerService _audioService = AudioPlayerService();
+  final StorageService _storageService = StorageService();
+  List<Podcast> _podcasts = [];
+  bool _isLoading = true;
   bool _isPlaying = false;
+  bool _isBuffering = false; // Podcast yükleniyor mu?
+  String? _currentPlayingUrl; // Şu anda çalan podcast URL'i (cache için)
   bool _ignoreStreamUpdate = false;
   double _playbackSpeed = 1.0;
   Duration _currentPosition = Duration.zero;
@@ -31,13 +42,15 @@ class _PodcastsPageState extends State<PodcastsPage>
   int _selectedPodcastIndex = 0;
   late AnimationController _waveController;
   late AnimationController _pulseController;
-  StreamSubscription<Duration>? _positionSubscription;
-  StreamSubscription<Duration?>? _durationSubscription;
-  StreamSubscription<bool>? _playingSubscription;
+    StreamSubscription<Duration>? _positionSubscription;
+    StreamSubscription<Duration?>? _durationSubscription;
+    StreamSubscription<bool>? _playingSubscription;
+    StreamSubscription<ProcessingState>? _processingStateSubscription;
 
   @override
   void initState() {
     super.initState();
+    _loadPodcasts();
     _initializeAudio();
     _waveController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -47,6 +60,156 @@ class _PodcastsPageState extends State<PodcastsPage>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
+    
+    // İlk podcast'i önceden yükle (preload)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_podcasts.isNotEmpty) {
+        _preloadPodcast(_podcasts[0].audioUrl);
+      }
+    });
+  }
+
+  Future<void> _loadPodcasts() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      print('🔍 Loading podcasts from Storage for topicId: ${widget.topicId}');
+      
+      // Storage yolunu oluştur: podcast/{lessonName}
+      // lessonId'den ders adını çıkar (örn: "tarih_lesson" -> "tarih")
+      final lessonName = widget.lessonId.replaceAll('_lesson', '').replaceAll('_', '');
+      final storagePath = 'podcast/$lessonName';
+      
+      print('📂 Storage path: $storagePath');
+      
+      // Storage'dan dosyaları listele
+      final audioUrls = await _storageService.listAudioFiles(storagePath);
+      
+      // Önce hızlıca podcast listesini oluştur (duration olmadan)
+      _podcasts = [];
+      for (int index = 0; index < audioUrls.length; index++) {
+        final url = audioUrls[index];
+        
+        // URL'den dosya adını çıkar ve decode et
+        try {
+          final uri = Uri.parse(url);
+          var fileName = uri.pathSegments.last;
+          // URL decode et
+          fileName = Uri.decodeComponent(fileName);
+          
+          // Sadece dosya adını al (uzantıyı kaldır)
+          final title = fileName
+              .replaceAll('.m4a', '')
+              .replaceAll('.mp3', '')
+              .replaceAll('.mp4', '')
+              .replaceAll('_', ' ')
+              .trim();
+          
+          // Önce cache'den duration'ı kontrol et
+          final cachedDuration = await PodcastCacheService.getDuration(url);
+          
+          _podcasts.add(Podcast(
+            id: 'podcast_${widget.topicId}_$index',
+            title: title,
+            description: '${widget.topicName} podcast',
+            audioUrl: url,
+            durationMinutes: cachedDuration ?? 0, // Cache'den veya 0
+            topicId: widget.topicId,
+            lessonId: widget.lessonId,
+            order: index,
+          ));
+        } catch (e) {
+          print('⚠️ Error processing podcast $index: $e');
+        }
+      }
+      
+      print('✅ Found ${_podcasts.length} podcasts from Storage');
+      
+      // Listeyi hemen göster
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      
+      // Arka planda duration'ları yükle (non-blocking)
+      _loadDurationsInBackground();
+    } catch (e) {
+      print('❌ Error loading podcasts: $e');
+      print('Error stack: ${e.toString()}');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Arka planda duration'ları paralel yükle (çok daha hızlı)
+  Future<void> _loadDurationsInBackground() async {
+    final futures = <Future<void>>[];
+    
+    for (int index = 0; index < _podcasts.length; index++) {
+      final podcast = _podcasts[index];
+      if (podcast.durationMinutes > 0) continue; // Zaten yüklenmiş
+      
+      futures.add(_loadDurationForPodcast(index, podcast));
+    }
+    
+    // Tüm duration'ları paralel yükle
+    await Future.wait(futures);
+  }
+  
+  // Tek bir podcast için duration yükle
+  Future<void> _loadDurationForPodcast(int index, Podcast podcast) async {
+    // Eğer zaten cache'de varsa, tekrar yükleme
+    if (podcast.durationMinutes > 0) {
+      final cached = await PodcastCacheService.getDuration(podcast.audioUrl);
+      if (cached != null && cached > 0) {
+        return; // Zaten cache'de var
+      }
+    }
+    
+    try {
+      final audioPlayer = AudioPlayer();
+      // Sadece metadata'yı yükle
+      await audioPlayer.setUrl(podcast.audioUrl);
+      
+      // Duration'ı bekle (maksimum 2 saniye - daha hızlı)
+      Duration? duration;
+      try {
+        duration = await audioPlayer.durationStream
+            .firstWhere((d) => d != null)
+            .timeout(const Duration(seconds: 2));
+      } catch (e) {
+        duration = audioPlayer.duration;
+      }
+      
+      if (duration != null && duration.inMinutes > 0) {
+        // Cache'e kaydet
+        await PodcastCacheService.saveDuration(podcast.audioUrl, duration.inMinutes);
+        
+        if (mounted) {
+          final updatedPodcast = Podcast(
+            id: podcast.id,
+            title: podcast.title,
+            description: podcast.description,
+            audioUrl: podcast.audioUrl,
+            durationMinutes: duration.inMinutes,
+            topicId: podcast.topicId,
+            lessonId: podcast.lessonId,
+            order: podcast.order,
+          );
+          _podcasts[index] = updatedPodcast;
+          setState(() {}); // UI'ı güncelle
+        }
+      }
+      await audioPlayer.dispose();
+    } catch (e) {
+      print('⚠️ Could not get duration for ${podcast.title}: $e');
+    }
   }
 
   Future<void> _initializeAudio() async {
@@ -80,6 +243,15 @@ class _PodcastsPageState extends State<PodcastsPage>
         }
       }
     });
+    
+    // Listen to processing state for buffering
+    _processingStateSubscription = _audioService.processingStateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isBuffering = (state == ProcessingState.loading || state == ProcessingState.buffering);
+        });
+      }
+    });
   }
 
   @override
@@ -87,6 +259,7 @@ class _PodcastsPageState extends State<PodcastsPage>
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
+    _processingStateSubscription?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
     // Don't dispose audio service here - it should persist for background playback
@@ -94,6 +267,11 @@ class _PodcastsPageState extends State<PodcastsPage>
   }
 
   Future<void> _togglePlayPause() async {
+    // Eğer buffering varsa, butona basmayı engelle
+    if (_isBuffering) {
+      return;
+    }
+    
     // Optimistic update - immediately update UI
     final wasPlaying = _isPlaying;
     setState(() {
@@ -106,6 +284,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         await _audioService.pause();
       } else {
         if (_currentPosition == Duration.zero || _audioService.processingState == ProcessingState.completed) {
+          // Hemen başlat - await yap, setUrl tamamlanmasını bekle
           await _loadAndPlayCurrentPodcast();
         } else {
           await _audioService.resume();
@@ -123,36 +302,157 @@ class _PodcastsPageState extends State<PodcastsPage>
       // Revert on error
       setState(() {
         _isPlaying = wasPlaying;
+        _isBuffering = false;
         _ignoreStreamUpdate = false;
       });
     }
   }
 
   Future<void> _loadAndPlayCurrentPodcast() async {
-    final podcasts = _getPodcasts();
-    final currentPodcast = podcasts[_selectedPodcastIndex];
+    if (_podcasts.isEmpty || _selectedPodcastIndex >= _podcasts.length) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Podcast bulunamadı'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
     
-    // Use a mock URL for now - replace with actual podcast URL
-    final audioUrl = currentPodcast.audioUrl.isNotEmpty 
-        ? currentPodcast.audioUrl 
-        : 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'; // Mock URL
+    final currentPodcast = _podcasts[_selectedPodcastIndex];
+    
+    if (currentPodcast.audioUrl.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Podcast ses dosyası bulunamadı'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    // Cache kontrolü - aynı podcast ise yeniden yükleme
+    if (_currentPlayingUrl == currentPodcast.audioUrl) {
+      // Aynı podcast zaten yüklü (cache'de)
+      if (_isPlaying) {
+        // Çalıyorsa sadece resume et
+        await _audioService.resume();
+        return;
+      } else {
+        // Pause durumundaysa, sadece play et (yeniden yükleme yok)
+        // Pozisyonu koru, sadece play et
+        await _audioService.resume();
+        if (mounted) {
+          setState(() {
+            _isPlaying = true;
+            _isBuffering = false;
+          });
+        }
+        return;
+      }
+    }
     
     try {
-      // Calculate duration from podcast durationMinutes
-      final duration = Duration(minutes: currentPodcast.durationMinutes);
+      // Buffering durumunu göster
+      if (mounted) {
+        setState(() {
+          _isBuffering = true;
+          _currentPlayingUrl = currentPodcast.audioUrl;
+        });
+      }
       
+      // Önce cache'den duration'ı kontrol et (eğer podcast'te yoksa)
+      int? durationMinutes = currentPodcast.durationMinutes;
+      if (durationMinutes == 0) {
+        final cached = await PodcastCacheService.getDuration(currentPodcast.audioUrl);
+        if (cached != null && cached > 0) {
+          durationMinutes = cached;
+          // Podcast'i güncelle
+          final updatedPodcast = Podcast(
+            id: currentPodcast.id,
+            title: currentPodcast.title,
+            description: currentPodcast.description,
+            audioUrl: currentPodcast.audioUrl,
+            durationMinutes: cached,
+            topicId: currentPodcast.topicId,
+            lessonId: currentPodcast.lessonId,
+            order: currentPodcast.order,
+          );
+          _podcasts[_selectedPodcastIndex] = updatedPodcast;
+          if (mounted) {
+            setState(() {});
+          }
+        }
+      }
+      
+      // Duration'ı hesapla
+      final duration = durationMinutes > 0 
+          ? Duration(minutes: durationMinutes)
+          : null;
+      
+      // Oynat - setUrl tamamlandığında play() çağrılacak
       await _audioService.play(
-        audioUrl,
+        currentPodcast.audioUrl,
         title: currentPodcast.title,
         artist: widget.topicName,
         duration: duration,
       );
-    } catch (e) {
+      
+      // Eğer duration hala yoksa, arka planda yükle
+      if (duration == null || durationMinutes == 0) {
+        _loadDurationForPodcast(_selectedPodcastIndex, currentPodcast);
+      }
+    } catch (e, stackTrace) {
+      print('❌❌❌ ERROR IN _loadAndPlayCurrentPodcast ❌❌❌');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('Full error: ${e.toString()}');
+      print('Stack trace:');
+      print(stackTrace);
+      
       if (mounted) {
+        setState(() {
+          _isBuffering = false;
+          _isPlaying = false;
+        });
+        
+        // Detaylı hata mesajı göster
+        final errorMessage = '''
+HATA DETAYLARI:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Hata Tipi: ${e.runtimeType}
+Hata Mesajı: $e
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tam Hata: ${e.toString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Stack Trace (ilk 500 karakter):
+${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : stackTrace.toString().length)}...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ''';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Podcast yüklenirken hata oluştu: $e'),
+            content: SingleChildScrollView(
+              child: Text(
+                errorMessage,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 10),
+            action: SnackBarAction(
+              label: 'Kapat',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
       }
@@ -160,12 +460,15 @@ class _PodcastsPageState extends State<PodcastsPage>
   }
 
   Future<void> _reset() async {
-    await _audioService.stop();
+    // Stop çağırma - sadece pozisyonu sıfırla ve pause yap
+    // Böylece cache korunur ve tekrar play'e basınca hemen başlar
+    await _audioService.pause();
     await _audioService.seek(Duration.zero);
     if (mounted) {
       setState(() {
         _isPlaying = false;
         _currentPosition = Duration.zero;
+        // _currentPlayingUrl'i temizleme - cache'i koru
       });
     }
   }
@@ -180,6 +483,29 @@ class _PodcastsPageState extends State<PodcastsPage>
       _currentPosition = Duration.zero;
       _totalDuration = null;
     });
+    
+    // Seçilen podcast'i önceden yükle (preload) - kullanıcı play'e basmadan önce
+    if (index < _podcasts.length) {
+      final podcast = _podcasts[index];
+      if (podcast.audioUrl.isNotEmpty) {
+        // Arka planda önceden yükle
+        _preloadPodcast(podcast.audioUrl);
+      }
+    }
+  }
+  
+  // Podcast'i önceden yükle (preload)
+  Future<void> _preloadPodcast(String audioUrl) async {
+    try {
+      // just_audio'da preload için setUrl çağır ama play() çağırma
+      // Bu sayede dosya önceden yüklenir ve play'e basınca hemen başlar
+      final audioPlayer = AudioPlayer();
+      await audioPlayer.setUrl(audioUrl);
+      // Preload tamamlandı, dispose et
+      await audioPlayer.dispose();
+    } catch (e) {
+      print('⚠️ Error preloading podcast: $e');
+    }
   }
 
   Future<void> _seekTo(Duration position) async {
@@ -199,18 +525,6 @@ class _PodcastsPageState extends State<PodcastsPage>
     return '$minutes:$secs';
   }
 
-  List<Podcast> _getPodcasts() {
-    return List.generate(
-      widget.podcastCount,
-      (index) => Podcast(
-        id: '${index + 1}',
-        title: '${widget.topicName} - Bölüm ${index + 1}',
-        description: 'Bu konu hakkında detaylı bilgiler ve açıklamalar',
-        audioUrl: '',
-        durationMinutes: 15 + (index * 5),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -222,8 +536,66 @@ class _PodcastsPageState extends State<PodcastsPage>
         final isSmallScreen = screenHeight < 700;
         final isVerySmallScreen = screenWidth < 360;
 
-        final podcasts = _getPodcasts();
-        final currentPodcast = podcasts[_selectedPodcastIndex];
+        if (_isLoading) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundLight,
+            appBar: AppBar(
+              backgroundColor: AppColors.gradientPurpleStart,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Text(
+                widget.topicName,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            body: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (_podcasts.isEmpty) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundLight,
+            appBar: AppBar(
+              backgroundColor: AppColors.gradientPurpleStart,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Text(
+                widget.topicName,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.podcasts_outlined,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Bu konu için henüz podcast eklenmemiş',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final currentPodcast = _podcasts[_selectedPodcastIndex];
 
         return Scaffold(
           backgroundColor: AppColors.backgroundLight,
@@ -466,16 +838,28 @@ class _PodcastsPageState extends State<PodcastsPage>
                                           ),
                                           SizedBox(width: 4),
                                           Flexible(
-                                            child: Text(
-                                              '${currentPodcast.durationMinutes} dk',
-                                              style: TextStyle(
-                                                fontSize: isSmallScreen ? 11 : 12,
-                                                color: Colors.white.withValues(alpha: 0.9),
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                            child: _isBuffering
+                                                ? Text(
+                                                    'Podcast hazırlanıyor...',
+                                                    style: TextStyle(
+                                                      fontSize: isSmallScreen ? 11 : 12,
+                                                      color: Colors.white.withValues(alpha: 0.9),
+                                                      fontWeight: FontWeight.w500,
+                                                      fontStyle: FontStyle.italic,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  )
+                                                : Text(
+                                                    '${currentPodcast.durationMinutes} dk',
+                                                    style: TextStyle(
+                                                      fontSize: isSmallScreen ? 11 : 12,
+                                                      color: Colors.white.withValues(alpha: 0.9),
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
                                           ),
                                         ],
                                       ),
@@ -682,13 +1066,22 @@ class _PodcastsPageState extends State<PodcastsPage>
                                                       ],
                                                     ),
                                                   ),
-                                                  child: Icon(
-                                                    _isPlaying
-                                                        ? Icons.pause_rounded
-                                                        : Icons.play_arrow_rounded,
-                                                    color: Colors.white,
-                                                    size: isSmallScreen ? 26 : 30,
-                                                  ),
+                                                  child: _isBuffering
+                                                      ? SizedBox(
+                                                          width: isSmallScreen ? 26 : 30,
+                                                          height: isSmallScreen ? 26 : 30,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2.5,
+                                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                          ),
+                                                        )
+                                                      : Icon(
+                                                          _isPlaying
+                                                              ? Icons.pause_rounded
+                                                              : Icons.play_arrow_rounded,
+                                                          color: Colors.white,
+                                                          size: isSmallScreen ? 26 : 30,
+                                                        ),
                                                 ),
                                               ),
                                             ),
@@ -826,9 +1219,9 @@ class _PodcastsPageState extends State<PodcastsPage>
                     right: isTablet ? 20 : 12,
                     bottom: isSmallScreen ? 12 : 16,
                   ),
-                  itemCount: podcasts.length,
+                  itemCount: _podcasts.length,
                   itemBuilder: (context, index) {
-                    final podcast = podcasts[index];
+                    final podcast = _podcasts[index];
                     final isSelected = index == _selectedPodcastIndex;
                     return GestureDetector(
                       onTap: () => _selectPodcast(index),

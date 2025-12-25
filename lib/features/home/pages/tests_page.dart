@@ -4,17 +4,20 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/models/test_question.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
+import '../../../core/services/questions_service.dart';
 
 class TestsPage extends StatefulWidget {
   final String topicName;
   final int testCount;
   final String lessonId; // Ders ID
+  final String topicId; // Konu ID (Firebase'den soruları çekmek için)
 
   const TestsPage({
     super.key,
     required this.topicName,
     required this.testCount,
     required this.lessonId,
+    required this.topicId,
   });
 
   @override
@@ -22,6 +25,9 @@ class TestsPage extends StatefulWidget {
 }
 
 class _TestsPageState extends State<TestsPage> {
+  final QuestionsService _questionsService = QuestionsService();
+  List<TestQuestion> _questions = [];
+  bool _isLoading = true;
   int _currentQuestionIndex = 0;
   int _score = 0;
   int? _selectedAnswerIndex;
@@ -29,74 +35,60 @@ class _TestsPageState extends State<TestsPage> {
   Timer? _timer;
   int _remainingSeconds = 60; // Default 60 seconds per question
   bool _isAnswered = false;
-  bool _isInWeaknesses = false; // Mevcut soru eksiklerde mi?
-
-  List<TestQuestion> get _questions {
-    // Mock data - will be replaced with real data later
-    return [
-      TestQuestion(
-        id: '1',
-        question: 'Aşağıdaki cümlelerden hangisinde "de" bağlacı yanlış yazılmıştır?',
-        options: [
-          'A) O da buraya gelecek.',
-          'B) Sen de mi gideceksin?',
-          'C) Bende bir şeyler var.',
-          'D) O da benim gibi düşünüyor.',
-        ],
-        correctAnswerIndex: 2,
-        explanation: '"de" bağlacı ayrı yazılır. Cümlede "Bende" yerine "Bende de" yazılmalıydı.',
-        timeLimitSeconds: 60,
-      ),
-      TestQuestion(
-        id: '2',
-        question: 'Aşağıdaki kelimelerden hangisi büyük ünlü uyumuna uymaz?',
-        options: [
-          'A) Kitap',
-          'B) Kalem',
-          'C) Araba',
-          'D) Kardeş',
-        ],
-        correctAnswerIndex: 1,
-        explanation: '"Kalem" kelimesi büyük ünlü uyumuna uymaz çünkü ilk hecede "a", ikinci hecede "e" ünlüsü vardır.',
-        timeLimitSeconds: 60,
-      ),
-      TestQuestion(
-        id: '3',
-        question: 'Hangi cümlede yazım yanlışı vardır?',
-        options: [
-          'A) Herşey yolunda gidiyor.',
-          'B) Hiçbir şey yapamadım.',
-          'C) Bir şey söylemedim.',
-          'D) Her şey tamam.',
-        ],
-        correctAnswerIndex: 0,
-        explanation: '"Herşey" kelimesi ayrı yazılmalıdır: "Her şey".',
-        timeLimitSeconds: 60,
-      ),
-    ];
-  }
+  bool _showExplanationManually = false; // Açıklama manuel olarak gösteriliyor mu?
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
-    _checkIfInWeaknesses();
+    _loadQuestions();
   }
 
-  // Sorunun eksiklerde olup olmadığını kontrol et
-  Future<void> _checkIfInWeaknesses() async {
-    final currentQuestion = _questions[_currentQuestionIndex];
-    final isInWeaknesses = await WeaknessesService.isQuestionInWeaknesses(
-      currentQuestion.id,
-      widget.topicName,
-      lessonId: widget.lessonId,
-    );
-    if (mounted) {
+  Future<void> _loadQuestions() async {
+    try {
       setState(() {
-        _isInWeaknesses = isInWeaknesses;
+        _isLoading = true;
       });
+      
+      final questions = await _questionsService.getQuestionsByTopicId(widget.topicId);
+      
+      if (mounted) {
+        setState(() {
+          _questions = questions;
+          _isLoading = false;
+        });
+        
+        if (_questions.isNotEmpty) {
+          _startTimer();
+        } else {
+          // Soru yoksa kullanıcıya bilgi ver
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Bu konu için henüz soru eklenmemiş.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading questions: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sorular yüklenirken bir hata oluştu: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
+
+
 
   @override
   void dispose() {
@@ -131,7 +123,7 @@ class _TestsPageState extends State<TestsPage> {
   }
 
   void _selectAnswer(int index) {
-    if (_isAnswered) return;
+    if (_isAnswered || _questions.isEmpty) return;
 
     final currentQuestion = _questions[_currentQuestionIndex];
     final isCorrect = index == currentQuestion.correctAnswerIndex;
@@ -140,6 +132,7 @@ class _TestsPageState extends State<TestsPage> {
       _selectedAnswerIndex = index;
       _isAnswered = true;
       _showExplanation = true;
+      _showExplanationManually = false; // Cevap verildiğinde açıklamayı gizle
       _timer?.cancel();
 
       if (isCorrect) {
@@ -159,11 +152,10 @@ class _TestsPageState extends State<TestsPage> {
         _currentQuestionIndex++;
         _selectedAnswerIndex = null;
         _showExplanation = false;
+        _showExplanationManually = false;
         _isAnswered = false;
-        _isInWeaknesses = false;
       });
       _startTimer();
-      _checkIfInWeaknesses();
     } else {
       _showResults();
     }
@@ -171,6 +163,8 @@ class _TestsPageState extends State<TestsPage> {
 
   // Eksiklere ekle
   Future<void> _addToWeaknesses({bool isFromWrongAnswer = false}) async {
+    if (_questions.isEmpty || _currentQuestionIndex >= _questions.length) return;
+    
     final currentQuestion = _questions[_currentQuestionIndex];
     
     // Zaten eksiklerde mi kontrol et
@@ -181,14 +175,7 @@ class _TestsPageState extends State<TestsPage> {
     );
 
     if (alreadyInWeaknesses) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bu soru zaten eksiklerinizde bulunuyor.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      // Zaten eksiklerde ise sessizce çık (uyarı gösterme)
       return;
     }
 
@@ -201,20 +188,12 @@ class _TestsPageState extends State<TestsPage> {
 
     final success = await WeaknessesService.addWeakness(weakness);
     
-    if (mounted) {
-      setState(() {
-        _isInWeaknesses = success;
-      });
-      
+    if (mounted && success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Soru eksiklerinize eklendi.'
-                : 'Soru eklenirken bir hata oluştu.',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: success ? Colors.green : Colors.red,
+        const SnackBar(
+          content: Text('Soru eksiklerinize eklendi.'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
         ),
       );
     }
@@ -252,6 +231,82 @@ class _TestsPageState extends State<TestsPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.primaryBlue,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: isSmallScreen ? 18 : 20,
+            ),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(
+            widget.topicName,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (_questions.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.primaryBlue,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: isSmallScreen ? 18 : 20,
+            ),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(
+            widget.topicName,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.quiz_outlined,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Bu konu için henüz soru eklenmemiş',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     final currentQuestion = _questions[_currentQuestionIndex];
 
     return Scaffold(
@@ -316,7 +371,10 @@ class _TestsPageState extends State<TestsPage> {
         children: [
           // Timer and Progress
           Container(
-            padding: EdgeInsets.all(isTablet ? 20 : 16),
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 20 : 16,
+              vertical: isSmallScreen ? 12 : 14,
+            ),
             color: Colors.white,
             child: Column(
               children: [
@@ -326,37 +384,37 @@ class _TestsPageState extends State<TestsPage> {
                     Text(
                       'Soru ${_currentQuestionIndex + 1}/${_questions.length}',
                       style: TextStyle(
-                        fontSize: isSmallScreen ? 14 : 16,
+                        fontSize: isSmallScreen ? 13 : 14,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 12 : 16,
-                        vertical: isSmallScreen ? 6 : 8,
+                        horizontal: isSmallScreen ? 10 : 12,
+                        vertical: isSmallScreen ? 5 : 6,
                       ),
                       decoration: BoxDecoration(
                         color: _remainingSeconds < 10
                             ? Colors.red.withValues(alpha: 0.1)
                             : AppColors.primaryBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.timer_outlined,
-                            size: isSmallScreen ? 16 : 18,
+                            size: isSmallScreen ? 14 : 16,
                             color: _remainingSeconds < 10
                                 ? Colors.red
                                 : AppColors.primaryBlue,
                           ),
-                          SizedBox(width: 6),
+                          SizedBox(width: 4),
                           Text(
                             '${_remainingSeconds}s',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 14 : 16,
+                              fontSize: isSmallScreen ? 12 : 13,
                               fontWeight: FontWeight.bold,
                               color: _remainingSeconds < 10
                                   ? Colors.red
@@ -368,12 +426,12 @@ class _TestsPageState extends State<TestsPage> {
                     ),
                   ],
                 ),
-                SizedBox(height: isSmallScreen ? 10 : 12),
+                SizedBox(height: isSmallScreen ? 8 : 10),
                 LinearProgressIndicator(
                   value: (_currentQuestionIndex + 1) / _questions.length,
                   backgroundColor: AppColors.backgroundLight,
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
-                  minHeight: isSmallScreen ? 6 : 8,
+                  minHeight: isSmallScreen ? 4 : 5,
                 ),
               ],
             ),
@@ -381,36 +439,42 @@ class _TestsPageState extends State<TestsPage> {
           // Question and Options
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(isTablet ? 20 : 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20 : 16,
+                vertical: isSmallScreen ? 12 : 14,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Question
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 14 : 16,
+                      vertical: isSmallScreen ? 12 : 14,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: Text(
                       currentQuestion.question,
                       style: TextStyle(
-                        fontSize: isSmallScreen ? 16 : 18,
-                        fontWeight: FontWeight.w600,
+                        fontSize: isSmallScreen ? 14 : 15,
+                        fontWeight: FontWeight.w500,
                         color: AppColors.textPrimary,
-                        height: 1.5,
+                        height: 1.4,
                       ),
                     ),
                   ),
-                  SizedBox(height: isSmallScreen ? 16 : 20),
+                  SizedBox(height: isSmallScreen ? 12 : 14),
                   // Options
                   ...currentQuestion.options.asMap().entries.map((entry) {
                     final index = entry.key;
@@ -419,6 +483,9 @@ class _TestsPageState extends State<TestsPage> {
                     final isSelected = _selectedAnswerIndex == index;
                     Color? optionColor;
                     IconData? optionIcon;
+                    
+                    // Şık harfleri: A, B, C, D, E
+                    final optionLetter = String.fromCharCode(65 + index); // A=65, B=66, etc.
 
                     if (_showExplanation) {
                       if (isCorrect) {
@@ -432,199 +499,220 @@ class _TestsPageState extends State<TestsPage> {
 
                     return Padding(
                       padding: EdgeInsets.only(
-                        bottom: isSmallScreen ? 10 : 12,
+                        bottom: isSmallScreen ? 8 : 10,
                       ),
                       child: GestureDetector(
-                        onTap: () => _selectAnswer(index),
+                        onTap: _isAnswered ? null : () => _selectAnswer(index),
                         child: Container(
                           width: double.infinity,
-                          padding: EdgeInsets.all(isSmallScreen ? 14 : 18),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 12 : 14,
+                            vertical: isSmallScreen ? 10 : 12,
+                          ),
                           decoration: BoxDecoration(
                             color: optionColor?.withValues(alpha: 0.1) ?? Colors.white,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: optionColor ?? Colors.grey.withValues(alpha: 0.2),
-                              width: isSelected ? 2 : 1.5,
+                              width: isSelected ? 1.5 : 1,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
                                       color: (optionColor ?? AppColors.primaryBlue)
-                                          .withValues(alpha: 0.2),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
+                                          .withValues(alpha: 0.15),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
                                     ),
                                   ]
                                 : [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
+                                      color: Colors.black.withValues(alpha: 0.03),
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
                                     ),
                                   ],
                           ),
                           child: Row(
                             children: [
-                              if (optionIcon != null)
-                                Icon(
-                                  optionIcon,
-                                  color: optionColor,
-                                  size: isSmallScreen ? 22 : 24,
+                              // Şık harfi
+                              Container(
+                                width: isSmallScreen ? 28 : 30,
+                                height: isSmallScreen ? 28 : 30,
+                                decoration: BoxDecoration(
+                                  color: optionColor?.withValues(alpha: 0.2) ?? 
+                                         (isSelected 
+                                           ? AppColors.primaryBlue.withValues(alpha: 0.1)
+                                           : Colors.grey.withValues(alpha: 0.08)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: optionColor ?? 
+                                           (isSelected 
+                                             ? AppColors.primaryBlue
+                                             : Colors.grey.withValues(alpha: 0.25)),
+                                    width: 1,
+                                  ),
+                                  ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  optionLetter,
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 12 : 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: optionColor ?? 
+                                           (isSelected 
+                                             ? AppColors.primaryBlue
+                                             : AppColors.textPrimary),
+                                  ),
                                 ),
-                              if (optionIcon != null) SizedBox(width: 12),
+                              ),
+                              SizedBox(width: isSmallScreen ? 10 : 12),
                               Expanded(
                                 child: Text(
                                   option,
                                   style: TextStyle(
-                                    fontSize: isSmallScreen ? 15 : 17,
+                                    fontSize: isSmallScreen ? 13 : 14,
                                     fontWeight: isSelected
-                                        ? FontWeight.w600
+                                        ? FontWeight.w500
                                         : FontWeight.normal,
                                     color: optionColor ?? AppColors.textPrimary,
+                                    height: 1.3,
                                   ),
                                 ),
                               ),
+                              if (optionIcon != null) ...[
+                                SizedBox(width: 8),
+                                Icon(
+                                  optionIcon,
+                                  color: optionColor,
+                                  size: isSmallScreen ? 18 : 20,
+                                ),
+                              ],
                             ],
                           ),
                         ),
                       ),
                     );
                   }),
-                  // Explanation
-                  if (_showExplanation)
+                  // Explanation (sadece manuel açıldıysa göster)
+                  if (_showExplanation && _showExplanationManually)
                     Container(
                       width: double.infinity,
-                      margin: EdgeInsets.only(top: isSmallScreen ? 12 : 16),
-                      padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                      margin: EdgeInsets.only(top: isSmallScreen ? 10 : 12),
+                      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
                       decoration: BoxDecoration(
                         color: _selectedAnswerIndex ==
                                 currentQuestion.correctAnswerIndex
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.orange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
+                            ? Colors.green.withValues(alpha: 0.08)
+                            : Colors.orange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: _selectedAnswerIndex ==
                                   currentQuestion.correctAnswerIndex
-                              ? Colors.green.withValues(alpha: 0.3)
-                              : Colors.orange.withValues(alpha: 0.3),
-                          width: 1.5,
+                              ? Colors.green.withValues(alpha: 0.2)
+                              : Colors.orange.withValues(alpha: 0.2),
+                          width: 1,
                         ),
                       ),
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                _selectedAnswerIndex ==
-                                        currentQuestion.correctAnswerIndex
-                                    ? Icons.check_circle_rounded
-                                    : Icons.info_outline_rounded,
-                                color: _selectedAnswerIndex ==
-                                        currentQuestion.correctAnswerIndex
-                                    ? Colors.green
-                                    : Colors.orange,
-                                size: isSmallScreen ? 20 : 22,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                _selectedAnswerIndex ==
-                                        currentQuestion.correctAnswerIndex
-                                    ? 'Doğru Cevap!'
-                                    : 'Açıklama',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 15 : 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: _selectedAnswerIndex ==
-                                          currentQuestion.correctAnswerIndex
-                                      ? Colors.green
-                                      : Colors.orange,
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            _selectedAnswerIndex ==
+                                    currentQuestion.correctAnswerIndex
+                                ? Icons.check_circle_rounded
+                                : Icons.info_outline_rounded,
+                            color: _selectedAnswerIndex ==
+                                    currentQuestion.correctAnswerIndex
+                                ? Colors.green
+                                : Colors.orange,
+                            size: isSmallScreen ? 16 : 18,
                           ),
-                          SizedBox(height: isSmallScreen ? 8 : 10),
-                          Text(
-                            currentQuestion.explanation,
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 14 : 16,
-                              color: AppColors.textPrimary,
-                              height: 1.5,
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              currentQuestion.explanation,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 12 : 13,
+                                color: AppColors.textPrimary,
+                                height: 1.35,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  // Eksiklere Ekle Butonu
-                  if (_showExplanation)
-                    Container(
-                      width: double.infinity,
-                      margin: EdgeInsets.only(top: isSmallScreen ? 12 : 16),
-                      child: OutlinedButton.icon(
-                        onPressed: _isInWeaknesses ? null : () => _addToWeaknesses(),
-                        icon: Icon(
-                          _isInWeaknesses
-                              ? Icons.check_circle_rounded
-                              : Icons.bookmark_add_rounded,
-                          size: isSmallScreen ? 18 : 20,
-                        ),
-                        label: Text(
-                          _isInWeaknesses
-                              ? 'Eksiklerde Mevcut'
-                              : 'Eksiklere Ekle',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 15 : 16,
-                            fontWeight: FontWeight.w600,
+                  SizedBox(height: isSmallScreen ? 12 : 14),
+                  // Buttons Row
+                  Row(
+                    children: [
+                      // Açıklama Butonu (sadece cevap verildiyse göster)
+                      if (_showExplanation)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _showExplanationManually = !_showExplanationManually;
+                              });
+                            },
+                            icon: Icon(
+                              _showExplanationManually
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                              size: isSmallScreen ? 16 : 18,
+                            ),
+                            label: Text(
+                              _showExplanationManually ? 'Gizle' : 'Açıklama',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 12 : 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
+                                vertical: isSmallScreen ? 10 : 12,
+                              ),
+                              side: BorderSide(
+                                color: AppColors.primaryBlue,
+                                width: 1.5,
+                              ),
+                              foregroundColor: AppColors.primaryBlue,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(
-                            vertical: isSmallScreen ? 12 : 14,
+                      if (_showExplanation) SizedBox(width: 10),
+                      // Sonraki Soru Butonu (her zaman görünür)
+                      Expanded(
+                        flex: _showExplanation ? 2 : 1,
+                        child: ElevatedButton(
+                          onPressed: _nextQuestion,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            padding: EdgeInsets.symmetric(
+                              vertical: isSmallScreen ? 10 : 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 2,
                           ),
-                          side: BorderSide(
-                            color: _isInWeaknesses
-                                ? Colors.green
-                                : AppColors.primaryBlue,
-                            width: 1.5,
-                          ),
-                          foregroundColor: _isInWeaknesses
-                              ? Colors.green
-                              : AppColors.primaryBlue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                          child: Text(
+                            _currentQuestionIndex < _questions.length - 1
+                                ? 'Sonraki Soru'
+                                : 'Testi Bitir',
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 13 : 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  SizedBox(height: isSmallScreen ? 16 : 20),
-                  // Next Button
-                  if (_showExplanation)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _nextQuestion,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue,
-                          padding: EdgeInsets.symmetric(
-                            vertical: isSmallScreen ? 14 : 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 4,
-                        ),
-                        child: Text(
-                          _currentQuestionIndex < _questions.length - 1
-                              ? 'Sonraki Soru'
-                              : 'Testi Bitir',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 16 : 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -634,4 +722,5 @@ class _TestsPageState extends State<TestsPage> {
     );
   }
 }
+
 

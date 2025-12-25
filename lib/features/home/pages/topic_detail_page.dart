@@ -21,8 +21,9 @@ class TopicDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
-    final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isSmallScreen = screenHeight < 700;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -163,14 +164,20 @@ class TopicDetailPage extends StatelessWidget {
                 children: [
                   SizedBox(height: isSmallScreen ? 12 : 16),
                   // 2x3 Grid for main content
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: isSmallScreen ? 10 : 12,
-                    mainAxisSpacing: isSmallScreen ? 10 : 12,
-                    childAspectRatio: 1.15,
-                    children: [
+                  // Tablet ve büyük ekranlarda kartların maksimum boyutunu sınırla
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isTablet ? 600 : double.infinity,
+                      ),
+                      child: GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: isSmallScreen ? 10 : 12,
+                        mainAxisSpacing: isSmallScreen ? 10 : 12,
+                        childAspectRatio: 1.15,
+                        children: [
                       // Konu Anlatımı
                       _buildPremiumCard(
                         context: context,
@@ -227,6 +234,7 @@ class TopicDetailPage extends StatelessWidget {
                                 topicName: topic.name,
                                 testCount: topic.testCount,
                                 lessonId: topic.lessonId,
+                                topicId: topic.id,
                               ),
                             ),
                           );
@@ -247,6 +255,8 @@ class TopicDetailPage extends StatelessWidget {
                               builder: (context) => PodcastsPage(
                                 topicName: topic.name,
                                 podcastCount: topic.podcastCount,
+                                topicId: topic.id,
+                                lessonId: topic.lessonId,
                               ),
                             ),
                           );
@@ -293,6 +303,8 @@ class TopicDetailPage extends StatelessWidget {
                         },
                       ),
                     ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -315,7 +327,12 @@ class TopicDetailPage extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 280,
+          maxHeight: 240,
+        ),
+        child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -505,6 +522,7 @@ class TopicDetailPage extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
