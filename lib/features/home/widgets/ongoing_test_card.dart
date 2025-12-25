@@ -1,0 +1,349 @@
+import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/models/ongoing_test.dart';
+
+class OngoingTestCard extends StatelessWidget {
+  final OngoingTest test;
+  final bool isSmallScreen;
+
+  const OngoingTestCard({
+    super.key,
+    required this.test,
+    this.isSmallScreen = false,
+  });
+
+  Color _getGradientStartColor() {
+    switch (test.progressColor) {
+      case 'blue':
+        return const Color(0xFF4A90E2);
+      case 'yellow':
+        return const Color(0xFFFFB347);
+      case 'red':
+        return const Color(0xFFE74C3C);
+      case 'purple':
+        return const Color(0xFF9B59B6);
+      default:
+        return AppColors.gradientBlueStart;
+    }
+  }
+
+  Color _getGradientEndColor() {
+    switch (test.progressColor) {
+      case 'blue':
+        return const Color(0xFF357ABD);
+      case 'yellow':
+        return const Color(0xFFFF8C42);
+      case 'red':
+        return const Color(0xFFC0392B);
+      case 'purple':
+        return const Color(0xFF8E44AD);
+      default:
+        return AppColors.gradientBlueEnd;
+    }
+  }
+
+  IconData _getIcon() {
+    if (test.title.toLowerCase().contains('matematik')) {
+      return Icons.calculate_rounded;
+    } else if (test.title.toLowerCase().contains('türkçe')) {
+      return Icons.menu_book_rounded;
+    } else if (test.title.toLowerCase().contains('tarih')) {
+      return Icons.history_rounded;
+    } else if (test.title.toLowerCase().contains('coğrafya')) {
+      return Icons.map_rounded;
+    }
+    
+    switch (test.icon) {
+      case 'atom':
+        return Icons.science_rounded;
+      case 'chart':
+        return Icons.bar_chart_rounded;
+      case 'globe':
+        return Icons.public_rounded;
+      case 'megaphone':
+        return Icons.campaign_rounded;
+      default:
+        return Icons.quiz_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final borderRadius = isSmallScreen ? 16.0 : 18.0;
+    
+    return GestureDetector(
+      onTap: () {
+        // Navigate to test detail
+      },
+      child: Container(
+        width: isSmallScreen ? 115 : 130,
+        height: isSmallScreen ? 110 : 130,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _getGradientStartColor(),
+              _getGradientEndColor(),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: [
+            BoxShadow(
+              color: _getGradientStartColor().withValues(alpha: 0.6),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: _getGradientStartColor().withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Multi-layer gradient overlay
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(borderRadius),
+                    gradient: RadialGradient(
+                      center: Alignment.topRight,
+                      radius: 1.6,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.22),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Pattern overlay
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(borderRadius),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.12),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.04),
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+              // Decorative glow
+              Positioned(
+                top: -8,
+                right: -8,
+                child: Container(
+                  width: isSmallScreen ? 40 : 50,
+                  height: isSmallScreen ? 40 : 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.28),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -12,
+                left: -12,
+                child: Container(
+                  width: isSmallScreen ? 50 : 60,
+                  height: isSmallScreen ? 50 : 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.2),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Content
+              Padding(
+                padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Top section - Konu (topic)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Topic name
+                        Text(
+                          test.topic,
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 9 : 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.95),
+                            letterSpacing: 0.2,
+                            height: 1.2,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 2,
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                    
+                    // Center - Icon with more space
+                    Expanded(
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.38),
+                                Colors.white.withValues(alpha: 0.18),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                blurRadius: 4,
+                                offset: const Offset(-1, -1),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _getIcon(),
+                            size: isSmallScreen ? 20 : 24,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Bottom - Progress section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${test.currentQuestion}/${test.totalQuestions}',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 8 : 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      blurRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            SizedBox(width: isSmallScreen ? 3 : 4),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSmallScreen ? 4 : 5,
+                                vertical: isSmallScreen ? 1 : 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.28),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                '${(test.progress * 100).toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 7 : 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: isSmallScreen ? 4 : 5),
+                        // Progress bar
+                        Container(
+                          height: isSmallScreen ? 4 : 5,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: test.progress,
+                              backgroundColor: Colors.white.withValues(alpha: 0.22),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                              minHeight: isSmallScreen ? 4 : 5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

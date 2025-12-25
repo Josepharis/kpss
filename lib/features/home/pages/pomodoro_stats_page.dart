@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/models/pomodoro_session.dart';
+import '../../../core/services/pomodoro_storage_service.dart';
+
+class PomodoroStatsPage extends StatefulWidget {
+  const PomodoroStatsPage({super.key});
+
+  @override
+  State<PomodoroStatsPage> createState() => _PomodoroStatsPageState();
+}
+
+class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
+  final PomodoroStorageService _storageService = PomodoroStorageService();
+  List<PomodoroSession> _sessions = [];
+  bool _isLoading = true;
+  int _totalSessions = 0;
+  int _totalMinutes = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    setState(() => _isLoading = true);
+    try {
+      final sessions = await _storageService.getAllSessions();
+      final totalSessions = await _storageService.getTotalSessions();
+      final totalMinutes = await _storageService.getTotalMinutes();
+      
+      setState(() {
+        _sessions = sessions;
+        _totalSessions = totalSessions;
+        _totalMinutes = totalMinutes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Çalışma İstatistikleri'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadSessions,
+              child: _sessions.isEmpty
+                  ? _buildEmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        _buildStatsCards(),
+                        const SizedBox(height: 24),
+                        _buildSessionsList(),
+                      ],
+                    ),
+            ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.bar_chart,
+            size: 80,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Henüz çalışma kaydı yok',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pomodoro oturumlarınızı tamamladıktan sonra\nkayıt ederek burada görebilirsiniz',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            'Toplam Oturum',
+            '$_totalSessions',
+            Icons.timer,
+            AppColors.primaryBlue,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            'Toplam Süre',
+            '${(_totalMinutes / 60).toStringAsFixed(1)} saat',
+            Icons.access_time,
+            AppColors.gradientGreenEnd,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionsList() {
+    final groupedSessions = <DateTime, List<PomodoroSession>>{};
+    
+    for (final session in _sessions) {
+      final date = DateTime(
+        session.date.year,
+        session.date.month,
+        session.date.day,
+      );
+      
+      if (!groupedSessions.containsKey(date)) {
+        groupedSessions[date] = [];
+      }
+      groupedSessions[date]!.add(session);
+    }
+
+    final sortedDates = groupedSessions.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Günlük Kayıtlar',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16),
+        ...sortedDates.map((date) => _buildDateSection(date, groupedSessions[date]!)),
+      ],
+    );
+  }
+
+  Widget _buildDateSection(DateTime date, List<PomodoroSession> sessions) {
+    final dateFormat = DateFormat('dd MMMM yyyy', 'tr_TR');
+    final totalMinutes = sessions.fold<int>(
+      0,
+      (sum, session) => sum + session.totalMinutes,
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  dateFormat.format(date),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${(totalMinutes / 60).toStringAsFixed(1)} saat',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.primaryBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ...sessions.map((session) => _buildSessionTile(session)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionTile(PomodoroSession session) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primaryBlue.withOpacity(0.1),
+        child: Icon(
+          Icons.timer,
+          color: AppColors.primaryBlue,
+        ),
+      ),
+      title: Text(
+        session.topic ?? 'Çalışma Oturumu',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Text('${session.sessionCount} oturum • ${session.totalMinutes} dakika'),
+          if (session.correctAnswers != null && session.wrongAnswers != null)
+            Text(
+              '${session.correctAnswers} doğru / ${session.wrongAnswers} yanlış',
+              style: TextStyle(
+                color: session.correctAnswers! > (session.wrongAnswers ?? 0)
+                    ? Colors.green
+                    : Colors.red,
+              ),
+            ),
+        ],
+      ),
+      trailing: Text(
+        DateFormat('HH:mm').format(session.date),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+}
+

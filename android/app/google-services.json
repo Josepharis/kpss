@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "327696741252",
+    "project_id": "kpss-ags-son",
+    "storage_bucket": "kpss-ags-son.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327696741252:android:10e35c1458e9d7111fa3d1",
+        "android_client_info": {
+          "package_name": "com.example.kpss_ags_2026"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0hLh6V-6eYTzMr7Goi4IBe2CjNTB5Jd8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
