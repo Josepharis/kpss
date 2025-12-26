@@ -94,12 +94,17 @@ class MediaNotificationService : Service() {
         
         mediaSession?.setMetadata(metadata)
 
+        // For PlaybackState, we need to set the position and timestamp correctly
+        // When playing, Android will calculate the current position based on:
+        // currentPosition = position + (currentTime - timestamp) * playbackSpeed
+        val currentTime = System.currentTimeMillis()
+        
         val playbackState = PlaybackStateCompat.Builder()
             .setState(
                 if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
                 position,
                 if (isPlaying) 1.0f else 0.0f,
-                System.currentTimeMillis()
+                currentTime
             )
             .setActions(
                 PlaybackStateCompat.ACTION_PLAY or
