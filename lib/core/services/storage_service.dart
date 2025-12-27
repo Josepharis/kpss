@@ -95,6 +95,59 @@ class StorageService {
     }
   }
 
+  /// List video files in a folder and get their download URLs
+  /// Returns list of download URLs
+  Future<List<String>> listVideoFiles(String folderPath) async {
+    try {
+      print('📂 Listing video files in: $folderPath');
+      final folderRef = _storage.ref().child(folderPath);
+      
+      try {
+        final result = await folderRef.listAll();
+        print('📊 Found ${result.items.length} items in folder');
+        
+        // Alt klasörleri de listele
+        for (var prefix in result.prefixes) {
+          print('📁 Subfolder: ${prefix.name}');
+          try {
+            final subResult = await prefix.listAll();
+            print('   📊 Found ${subResult.items.length} items in subfolder');
+          } catch (e) {
+            print('   ⚠️ Error listing subfolder: $e');
+          }
+        }
+        
+        final List<String> urls = [];
+        for (var item in result.items) {
+          // Video dosyalarını filtrele
+          final fileName = item.name.toLowerCase();
+          if (fileName.endsWith('.mp4') || 
+              fileName.endsWith('.mov') || 
+              fileName.endsWith('.avi') ||
+              fileName.endsWith('.mkv') ||
+              fileName.endsWith('.webm')) {
+            try {
+              final url = await item.getDownloadURL();
+              urls.add(url);
+              print('✅ Found video: ${item.name} (${item.fullPath})');
+            } catch (e) {
+              print('⚠️ Error getting URL for ${item.name}: $e');
+            }
+          }
+        }
+        
+        print('✅ Found ${urls.length} video files');
+        return urls;
+      } catch (e) {
+        print('⚠️ Error listing folder: $e');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error listing video files: $e');
+      return [];
+    }
+  }
+
   /// List audio files in a folder and get their download URLs
   /// Returns list of download URLs
   Future<List<String>> listAudioFiles(String folderPath) async {

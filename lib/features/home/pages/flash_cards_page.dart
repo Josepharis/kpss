@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
+import '../../../core/services/progress_service.dart';
 
 class FlashCardsPage extends StatefulWidget {
   final String topicName;
   final int cardCount;
+  final String topicId;
+  final String lessonId;
 
   const FlashCardsPage({
     super.key,
     required this.topicName,
     required this.cardCount,
+    required this.topicId,
+    required this.lessonId,
   });
 
   @override
@@ -18,6 +23,7 @@ class FlashCardsPage extends StatefulWidget {
 
 class _FlashCardsPageState extends State<FlashCardsPage>
     with SingleTickerProviderStateMixin {
+  final ProgressService _progressService = ProgressService();
   int _currentCardIndex = 0;
   bool _isFlipped = false;
   late AnimationController _flipController;
@@ -45,10 +51,24 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _flipController, curve: Curves.easeInOut),
     );
+    _loadSavedProgress();
+  }
+
+  Future<void> _loadSavedProgress() async {
+    final savedCardIndex = await _progressService.getFlashCardProgress(widget.topicId);
+    if (savedCardIndex != null && savedCardIndex < _cards.length) {
+      setState(() {
+        _currentCardIndex = savedCardIndex;
+      });
+      print('✅ Resuming flash cards from card ${savedCardIndex + 1}');
+    }
+    _saveProgress(); // Save initial progress
   }
 
   @override
   void dispose() {
+    // Save final progress before disposing
+    _saveProgress();
     _flipController.dispose();
     super.dispose();
   }
@@ -73,6 +93,10 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         _isFlipped = false;
         _flipController.reset();
       });
+      _saveProgress();
+    } else {
+      // All cards completed
+      _progressService.deleteFlashCardProgress(widget.topicId);
     }
   }
 
@@ -83,7 +107,18 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         _isFlipped = false;
         _flipController.reset();
       });
+      _saveProgress();
     }
+  }
+
+  Future<void> _saveProgress() async {
+    await _progressService.saveFlashCardProgress(
+      topicId: widget.topicId,
+      topicName: widget.topicName,
+      lessonId: widget.lessonId,
+      currentCardIndex: _currentCardIndex,
+      totalCards: _cards.length,
+    );
   }
 
   @override
@@ -104,7 +139,24 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             color: Colors.white,
             size: isSmallScreen ? 18 : 20,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            // Save progress before leaving
+            await _saveProgress();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('İlerlemeniz kaydediliyor...'),
+                  duration: Duration(seconds: 2),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              // Wait for message to be visible
+              await Future.delayed(const Duration(milliseconds: 2000));
+              if (mounted) {
+                Navigator.of(context).pop(true); // Return true to indicate refresh needed
+              }
+            }
+          },
         ),
         title: Text(
           widget.topicName,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/topic.dart';
 import 'tests_page.dart';
@@ -6,7 +7,10 @@ import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
 import 'notes_page.dart';
 import 'past_questions_page.dart';
-import 'geography_explanation_page.dart';
+import 'topic_pdf_viewer_page.dart';
+import 'videos_page.dart';
+import 'topic_explanations_list_page.dart';
+import 'tests_list_page.dart';
 
 class TopicDetailPage extends StatelessWidget {
   final Topic topic;
@@ -29,7 +33,7 @@ class TopicDetailPage extends StatelessWidget {
       backgroundColor: AppColors.backgroundLight,
       extendBodyBehindAppBar: false,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
+        preferredSize: Size.fromHeight(isSmallScreen ? 70 : 80),
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -73,7 +77,7 @@ class TopicDetailPage extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: isTablet ? 20 : 16,
-                    vertical: isSmallScreen ? 8 : 10,
+                    vertical: isSmallScreen ? 6 : 8,
                   ),
                   child: Row(
                     children: [
@@ -109,17 +113,6 @@ class TopicDetailPage extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              lessonName,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 11 : 12,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 2),
-                            Text(
                               topic.name,
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 18,
@@ -143,19 +136,6 @@ class TopicDetailPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Compact Progress Card - AppBar altında
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              isTablet ? 20 : 14,
-              isSmallScreen ? 10 : 12,
-              isTablet ? 20 : 14,
-              0,
-            ),
-            child: _buildProgressCard(
-              progress: topic.progress,
-              isSmallScreen: isSmallScreen,
-            ),
-          ),
           // Content
           Expanded(
             child: SingleChildScrollView(
@@ -182,19 +162,52 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Konu Anlatımı',
-                        count: 8,
-                        icon: Icons.play_circle_outline_rounded,
+                        count: topic.pdfUrl != null && topic.pdfUrl!.isNotEmpty ? 1 : 0,
+                        icon: Icons.picture_as_pdf_rounded,
                         color: const Color(0xFFFF9800),
                         isSmallScreen: isSmallScreen,
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => GeographyExplanationPage(
-                                topicName: topic.name,
+                          // Şimdilik tek PDF varsa direkt aç, birden fazla olursa liste göster
+                          // Gelecekte birden fazla PDF olabilir, o zaman liste ekranına yönlendir
+                          final explanations = <Map<String, String>>[];
+                          if (topic.pdfUrl != null && topic.pdfUrl!.isNotEmpty) {
+                            explanations.add({
+                              'name': 'Konu Anlatımı',
+                              'pdfUrl': topic.pdfUrl!,
+                            });
+                          }
+                          
+                          if (explanations.length > 1) {
+                            // Birden fazla içerik varsa liste ekranına git
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TopicExplanationsListPage(
+                                  topic: topic,
+                                  lessonName: lessonName,
+                                  explanations: explanations,
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          } else if (explanations.isNotEmpty) {
+                            // Tek içerik varsa direkt aç
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TopicPdfViewerPage(
+                                  topic: topic,
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Bu konu için PDF dosyası bulunamadı.'),
+                                backgroundColor: Colors.orange,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
                         },
                       ),
                       // Çıkmış Sorular / Soru Dağılımı
@@ -226,8 +239,40 @@ class TopicDetailPage extends StatelessWidget {
                         icon: Icons.quiz_rounded,
                         color: AppColors.primaryBlue,
                         isSmallScreen: isSmallScreen,
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          // Eğer birden fazla test varsa liste ekranına git
+                          if (topic.testCount > 1) {
+                            // Testleri oluştur (şimdilik testCount kadar test oluştur)
+                            final tests = <Map<String, dynamic>>[];
+                            for (int i = 1; i <= topic.testCount; i++) {
+                              tests.add({
+                                'name': 'Test $i',
+                                'questionCount': 10, // Varsayılan soru sayısı, gerçekte servisten alınabilir
+                              });
+                            }
+                            
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TestsListPage(
+                                  topicName: topic.name,
+                                  lessonId: topic.lessonId,
+                                  topicId: topic.id,
+                                  testCount: topic.testCount,
+                                  tests: tests,
+                                ),
+                              ),
+                            );
+                            // If test list page returned true, refresh home page
+                            if (result == true) {
+                              final mainScreen = MainScreen.of(context);
+                              if (mainScreen != null) {
+                                mainScreen.refreshHomePage();
+                              }
+                            }
+                          } else {
+                            // Tek test varsa direkt test sayfasına git
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => TestsPage(
@@ -238,6 +283,14 @@ class TopicDetailPage extends StatelessWidget {
                               ),
                             ),
                           );
+                          // If test page returned true, refresh home page
+                          if (result == true) {
+                            final mainScreen = MainScreen.of(context);
+                            if (mainScreen != null) {
+                              mainScreen.refreshHomePage();
+                              }
+                            }
+                          }
                         },
                       ),
                       // Podcastler
@@ -248,8 +301,8 @@ class TopicDetailPage extends StatelessWidget {
                         icon: Icons.podcasts_rounded,
                         color: AppColors.gradientPurpleStart,
                         isSmallScreen: isSmallScreen,
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => PodcastsPage(
@@ -260,26 +313,71 @@ class TopicDetailPage extends StatelessWidget {
                               ),
                             ),
                           );
+                          // If podcast page returned true, refresh home page
+                          if (result == true) {
+                            final mainScreen = MainScreen.of(context);
+                            if (mainScreen != null) {
+                              mainScreen.refreshHomePage();
+                            }
+                          }
                         },
                       ),
-                      // Ezber Kartları
+                      // Videolar
                       _buildPremiumCard(
                         context: context,
-                        title: 'Ezber Kartları',
+                        title: 'Videolar',
+                        count: topic.videoCount,
+                        icon: Icons.video_library_rounded,
+                        color: const Color(0xFFE74C3C),
+                        isSmallScreen: isSmallScreen,
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VideosPage(
+                                topicName: topic.name,
+                                videoCount: topic.videoCount,
+                                topicId: topic.id,
+                                lessonId: topic.lessonId,
+                              ),
+                            ),
+                          );
+                          // If videos page returned true, refresh home page
+                          if (result == true) {
+                            final mainScreen = MainScreen.of(context);
+                            if (mainScreen != null) {
+                              mainScreen.refreshHomePage();
+                            }
+                          }
+                        },
+                      ),
+                      // Bilgi Kartları
+                      _buildPremiumCard(
+                        context: context,
+                        title: 'Bilgi Kartları',
                         count: topic.videoCount,
                         icon: Icons.style_rounded,
                         color: AppColors.gradientRedStart,
                         isSmallScreen: isSmallScreen,
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => FlashCardsPage(
                                 topicName: topic.name,
                                 cardCount: topic.videoCount,
+                                topicId: topic.id,
+                                lessonId: topic.lessonId,
                               ),
                             ),
                           );
+                          // If flash cards page returned true, refresh home page
+                          if (result == true) {
+                            final mainScreen = MainScreen.of(context);
+                            if (mainScreen != null) {
+                              mainScreen.refreshHomePage();
+                            }
+                          }
                         },
                       ),
                       // Notlar
@@ -528,146 +626,4 @@ class TopicDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressCard({
-    required double progress,
-    required bool isSmallScreen,
-  }) {
-    final progressPercent = (progress * 100).toStringAsFixed(0);
-    
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 12 : 16,
-        vertical: isSmallScreen ? 10 : 12,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryBlue,
-            AppColors.primaryDarkBlue,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryBlue.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.2),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.4),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(
-              Icons.trending_up_rounded,
-              size: isSmallScreen ? 18 : 20,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  blurRadius: 3,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: isSmallScreen ? 10 : 12),
-          // Progress info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'İlerleme',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 13 : 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.2,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 2,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 8 : 10,
-                        vertical: isSmallScreen ? 3 : 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.25),
-                            Colors.white.withValues(alpha: 0.15),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        '$progressPercent%',
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 12 : 13,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isSmallScreen ? 6 : 8),
-                // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: isSmallScreen ? 5 : 6,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

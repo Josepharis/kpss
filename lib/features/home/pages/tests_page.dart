@@ -5,6 +5,7 @@ import '../../../core/models/test_question.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
 import '../../../core/services/questions_service.dart';
+import '../../../core/services/progress_service.dart';
 
 class TestsPage extends StatefulWidget {
   final String topicName;
@@ -26,6 +27,7 @@ class TestsPage extends StatefulWidget {
 
 class _TestsPageState extends State<TestsPage> {
   final QuestionsService _questionsService = QuestionsService();
+  final ProgressService _progressService = ProgressService();
   List<TestQuestion> _questions = [];
   bool _isLoading = true;
   int _currentQuestionIndex = 0;
@@ -36,6 +38,7 @@ class _TestsPageState extends State<TestsPage> {
   int _remainingSeconds = 60; // Default 60 seconds per question
   bool _isAnswered = false;
   bool _showExplanationManually = false; // Açıklama manuel olarak gösteriliyor mu?
+  Set<String> _savedQuestionIds = {}; // Kaydedilmiş soru ID'leri
 
   @override
   void initState() {
@@ -49,16 +52,32 @@ class _TestsPageState extends State<TestsPage> {
         _isLoading = true;
       });
       
+      // Load saved progress FIRST, before loading questions
+      final savedQuestionIndex = await _progressService.getTestProgress(widget.topicId);
+      
+      // Load questions
       final questions = await _questionsService.getQuestionsByTopicId(widget.topicId);
       
       if (mounted) {
+        // Set saved progress immediately if available
+        int initialQuestionIndex = 0;
+        if (savedQuestionIndex != null && 
+            savedQuestionIndex < questions.length && 
+            questions.isNotEmpty) {
+          initialQuestionIndex = savedQuestionIndex;
+          print('✅ Resuming test from question ${savedQuestionIndex + 1}');
+        }
+        
         setState(() {
           _questions = questions;
+          _currentQuestionIndex = initialQuestionIndex;
           _isLoading = false;
         });
         
         if (_questions.isNotEmpty) {
+          _checkSavedQuestions();
           _startTimer();
+          _saveProgress(); // Save initial progress
         } else {
           // Soru yoksa kullanıcıya bilgi ver
           if (mounted) {
@@ -93,6 +112,10 @@ class _TestsPageState extends State<TestsPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    // Save final progress before disposing
+    if (_questions.isNotEmpty) {
+      _saveProgress();
+    }
     super.dispose();
   }
 
@@ -155,13 +178,74 @@ class _TestsPageState extends State<TestsPage> {
         _showExplanationManually = false;
         _isAnswered = false;
       });
+      _checkCurrentQuestionSaved();
       _startTimer();
+      _saveProgress(); // Save progress after moving to next question
     } else {
+      // Test completed
+      _progressService.deleteTestProgress(widget.topicId);
       _showResults();
     }
   }
 
-  // Eksiklere ekle
+  // Mevcut sorunun kaydedilip kaydedilmediğini kontrol et
+  Future<void> _checkCurrentQuestionSaved() async {
+    if (_questions.isEmpty || _currentQuestionIndex >= _questions.length) return;
+    
+    final currentQuestion = _questions[_currentQuestionIndex];
+    final isSaved = await WeaknessesService.isQuestionInWeaknesses(
+      currentQuestion.id,
+      widget.topicName,
+      lessonId: widget.lessonId,
+    );
+    
+    if (mounted) {
+      setState(() {
+        if (isSaved) {
+          _savedQuestionIds.add(currentQuestion.id);
+        } else {
+          _savedQuestionIds.remove(currentQuestion.id);
+        }
+      });
+    }
+  }
+
+  Future<void> _saveProgress() async {
+    if (_questions.isEmpty) return;
+    
+    await _progressService.saveTestProgress(
+      topicId: widget.topicId,
+      topicName: widget.topicName,
+      lessonId: widget.lessonId,
+      currentQuestionIndex: _currentQuestionIndex,
+      totalQuestions: _questions.length,
+    );
+  }
+
+  // Kaydedilmiş soruları kontrol et
+  Future<void> _checkSavedQuestions() async {
+    if (_questions.isEmpty) return;
+    
+    final savedIds = <String>{};
+    for (var question in _questions) {
+      final isSaved = await WeaknessesService.isQuestionInWeaknesses(
+        question.id,
+        widget.topicName,
+        lessonId: widget.lessonId,
+      );
+      if (isSaved) {
+        savedIds.add(question.id);
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _savedQuestionIds = savedIds;
+      });
+    }
+  }
+
+  // Eksiklere ekle (yanlış cevap için)
   Future<void> _addToWeaknesses({bool isFromWrongAnswer = false}) async {
     if (_questions.isEmpty || _currentQuestionIndex >= _questions.length) return;
     
@@ -189,6 +273,68 @@ class _TestsPageState extends State<TestsPage> {
     final success = await WeaknessesService.addWeakness(weakness);
     
     if (mounted && success) {
+      setState(() {
+        _savedQuestionIds.add(currentQuestion.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Soru eksiklerinize eklendi.'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  // Manuel olarak eksiklere ekle (Kaydet butonu için)
+  Future<void> _saveToWeaknesses() async {
+    if (_questions.isEmpty || _currentQuestionIndex >= _questions.length) return;
+    
+    final currentQuestion = _questions[_currentQuestionIndex];
+    
+    // Zaten eksiklerde mi kontrol et
+    final alreadyInWeaknesses = await WeaknessesService.isQuestionInWeaknesses(
+      currentQuestion.id,
+      widget.topicName,
+      lessonId: widget.lessonId,
+    );
+
+    if (alreadyInWeaknesses) {
+      // Zaten eksiklerde ise kaldır
+      final success = await WeaknessesService.removeWeakness(
+        currentQuestion.id,
+        widget.topicName,
+        lessonId: widget.lessonId,
+      );
+      
+      if (mounted && success) {
+        setState(() {
+          _savedQuestionIds.remove(currentQuestion.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Soru eksiklerinizden kaldırıldı.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    final weakness = WeaknessQuestion.fromTestQuestion(
+      testQuestion: currentQuestion,
+      lessonId: widget.lessonId,
+      topicName: widget.topicName,
+      isFromWrongAnswer: false, // Manuel ekleme
+    );
+
+    final success = await WeaknessesService.addWeakness(weakness);
+    
+    if (mounted && success) {
+      setState(() {
+        _savedQuestionIds.add(currentQuestion.id);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Soru eksiklerinize eklendi.'),
@@ -215,9 +361,73 @@ class _TestsPageState extends State<TestsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
+              print('✅ Test completed - Tamam button pressed');
+              // Save final progress
+              if (_questions.isNotEmpty) {
+                print('🗑️ Deleting test progress...');
+                await _progressService.deleteTestProgress(widget.topicId);
+                print('✅ Progress deleted');
+              }
+              if (mounted) {
+                // Close result dialog first
               Navigator.of(context).pop();
-              Navigator.of(context).pop();
+                // Wait a bit for dialog to close
+                await Future.delayed(const Duration(milliseconds: 100));
+                // Show loading dialog
+                if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.4),
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Kaydediliyor...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                  // Wait 0.5 seconds
+                  await Future.delayed(const Duration(milliseconds: 500));
+                  // Close loading dialog and page
+                  if (mounted) {
+                    Navigator.of(context).pop(); // Close loading dialog
+                    Navigator.of(context).pop(true); // Close page
+                    print('✅ Page closed');
+                  }
+                }
+              } else {
+                print('⚠️ Widget not mounted');
+              }
             },
             child: const Text('Tamam'),
           ),
@@ -244,7 +454,70 @@ class _TestsPageState extends State<TestsPage> {
               color: Colors.white,
               size: isSmallScreen ? 18 : 20,
             ),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () async {
+              print('🔙 Back button pressed - Loading state');
+              // Save progress before leaving (if questions are loaded)
+              if (_questions.isNotEmpty) {
+                print('💾 Saving progress...');
+                await _saveProgress();
+                print('✅ Progress saved');
+              } else {
+                print('⚠️ No questions to save');
+              }
+              if (mounted) {
+                // Show loading dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.4),
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Kaydediliyor...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                // Wait 0.5 seconds
+                await Future.delayed(const Duration(milliseconds: 500));
+                // Close dialog and page
+                if (mounted) {
+                  Navigator.of(context).pop(); // Close dialog
+                  Navigator.of(context).pop(true); // Close page
+                  print('✅ Page closed');
+                }
+              } else {
+                print('⚠️ Widget not mounted');
+              }
+            },
           ),
           title: Text(
             widget.topicName,
@@ -273,7 +546,72 @@ class _TestsPageState extends State<TestsPage> {
               color: Colors.white,
               size: isSmallScreen ? 18 : 20,
             ),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () async {
+              print('🔙 Back button pressed - Empty state');
+              // Save progress before leaving
+              if (_questions.isNotEmpty) {
+                print('💾 Saving progress...');
+                await _saveProgress();
+                print('✅ Progress saved');
+              } else {
+                print('⚠️ No questions to save');
+              }
+              if (mounted) {
+                // Show loading dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.4),
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Kaydediliyor...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                // Wait 0.5 seconds
+                await Future.delayed(const Duration(milliseconds: 500));
+                // Close dialog and page
+                if (mounted) {
+                  Navigator.of(context).pop(); // Close dialog
+                  if (mounted) {
+                    Navigator.of(context).pop(true); // Close page
+                    print('✅ Page closed');
+                  }
+                }
+              } else {
+                print('⚠️ Widget not mounted');
+              }
+            },
           ),
           title: Text(
             widget.topicName,
@@ -320,7 +658,72 @@ class _TestsPageState extends State<TestsPage> {
             color: Colors.white,
             size: isSmallScreen ? 18 : 20,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            print('🔙 Back button pressed - Normal state');
+            // Save progress before leaving
+            if (_questions.isNotEmpty) {
+              print('💾 Saving progress...');
+              await _saveProgress();
+              print('✅ Progress saved');
+            } else {
+              print('⚠️ No questions to save');
+            }
+              if (mounted) {
+                // Show loading dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.4),
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Kaydediliyor...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                // Wait 0.5 seconds
+                await Future.delayed(const Duration(milliseconds: 500));
+                // Close dialog and page
+                if (mounted) {
+                  Navigator.of(context).pop(); // Close dialog
+                  if (mounted) {
+                    Navigator.of(context).pop(true); // Close page
+                    print('✅ Page closed');
+                  }
+                }
+              } else {
+                print('⚠️ Widget not mounted');
+              }
+          },
         ),
         title: Text(
           widget.topicName,
@@ -389,40 +792,103 @@ class _TestsPageState extends State<TestsPage> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 10 : 12,
-                        vertical: isSmallScreen ? 5 : 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _remainingSeconds < 10
-                            ? Colors.red.withValues(alpha: 0.1)
-                            : AppColors.primaryBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.timer_outlined,
-                            size: isSmallScreen ? 14 : 16,
-                            color: _remainingSeconds < 10
-                                ? Colors.red
-                                : AppColors.primaryBlue,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            '${_remainingSeconds}s',
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 13,
-                              fontWeight: FontWeight.bold,
-                              color: _remainingSeconds < 10
-                                  ? Colors.red
-                                  : AppColors.primaryBlue,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Kaydet butonu
+                        if (_questions.isNotEmpty && _currentQuestionIndex < _questions.length)
+                          Container(
+                            margin: EdgeInsets.only(right: isSmallScreen ? 8 : 10),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _saveToWeaknesses,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isSmallScreen ? 8 : 10,
+                                    vertical: isSmallScreen ? 5 : 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                        ? Colors.green.withValues(alpha: 0.1)
+                                        : AppColors.primaryBlue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                          ? Colors.green
+                                          : AppColors.primaryBlue,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                            ? Icons.bookmark_rounded
+                                            : Icons.bookmark_border_rounded,
+                                        size: isSmallScreen ? 14 : 16,
+                                        color: _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                            ? Colors.green
+                                            : AppColors.primaryBlue,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                            ? 'Kaydedildi'
+                                            : 'Kaydet',
+                                        style: TextStyle(
+                                          fontSize: isSmallScreen ? 11 : 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: _savedQuestionIds.contains(_questions[_currentQuestionIndex].id)
+                                              ? Colors.green
+                                              : AppColors.primaryBlue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ],
-                      ),
+                        // Timer
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 10 : 12,
+                            vertical: isSmallScreen ? 5 : 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _remainingSeconds < 10
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : AppColors.primaryBlue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer_outlined,
+                                size: isSmallScreen ? 14 : 16,
+                                color: _remainingSeconds < 10
+                                    ? Colors.red
+                                    : AppColors.primaryBlue,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                '${_remainingSeconds}s',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 12 : 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: _remainingSeconds < 10
+                                      ? Colors.red
+                                      : AppColors.primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

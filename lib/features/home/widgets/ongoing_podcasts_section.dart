@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_podcast.dart';
 import 'ongoing_podcast_card.dart';
+import '../pages/ongoing_podcasts_list_page.dart';
 
 class OngoingPodcastsSection extends StatelessWidget {
   final List<OngoingPodcast> podcasts;
@@ -23,7 +24,7 @@ class OngoingPodcastsSection extends StatelessWidget {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
-    final cardHeight = isSmallScreen ? 130.0 : 140.0;
+    final cardHeight = isSmallScreen ? 105.0 : 115.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +64,16 @@ class OngoingPodcastsSection extends StatelessWidget {
                 ],
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OngoingPodcastsListPage(
+                        podcasts: podcasts,
+                      ),
+                    ),
+                  );
+                },
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.symmetric(
                     horizontal: isSmallScreen ? 8.0 : 12.0,

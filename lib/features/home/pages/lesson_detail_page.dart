@@ -343,28 +343,15 @@ class LessonDetailPage extends StatelessWidget {
                               ),
                             ),
                             SizedBox(width: isSmallScreen ? 12 : 16),
-                            // Title and subtitle
+                            // Title
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                              child: Text(
                                     topic.name,
                                     style: TextStyle(
                                       fontSize: isSmallScreen ? 16 : 18,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.textPrimary,
                                     ),
-                                  ),
-                                  SizedBox(height: isSmallScreen ? 4 : 6),
-                                  Text(
-                                    topic.subtitle,
-                                    style: TextStyle(
-                                      fontSize: isSmallScreen ? 13 : 14,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
                               ),
                             ),
                           ],

@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/ongoing_test.dart';
-import '../pages/tests_page.dart';
+import '../../../core/models/info_card.dart';
+import '../pages/flash_cards_page.dart';
 
-class OngoingTestCard extends StatelessWidget {
-  final OngoingTest test;
+class InfoCardWidget extends StatelessWidget {
+  final InfoCard infoCard;
   final bool isSmallScreen;
 
-  const OngoingTestCard({
+  const InfoCardWidget({
     super.key,
-    required this.test,
+    required this.infoCard,
     this.isSmallScreen = false,
   });
 
   Color _getGradientStartColor() {
-    switch (test.progressColor) {
+    switch (infoCard.color) {
       case 'blue':
         return const Color(0xFF4A90E2);
       case 'yellow':
@@ -24,13 +24,19 @@ class OngoingTestCard extends StatelessWidget {
         return const Color(0xFFE74C3C);
       case 'purple':
         return const Color(0xFF9B59B6);
+      case 'green':
+        return const Color(0xFF27AE60);
+      case 'orange':
+        return const Color(0xFFFF9800);
+      case 'teal':
+        return const Color(0xFF16A085);
       default:
         return AppColors.gradientBlueStart;
     }
   }
 
   Color _getGradientEndColor() {
-    switch (test.progressColor) {
+    switch (infoCard.color) {
       case 'blue':
         return const Color(0xFF357ABD);
       case 'yellow':
@@ -39,33 +45,33 @@ class OngoingTestCard extends StatelessWidget {
         return const Color(0xFFC0392B);
       case 'purple':
         return const Color(0xFF8E44AD);
+      case 'green':
+        return const Color(0xFF229954);
+      case 'orange':
+        return const Color(0xFFF57C00);
+      case 'teal':
+        return const Color(0xFF138D75);
       default:
         return AppColors.gradientBlueEnd;
     }
   }
 
   IconData _getIcon() {
-    if (test.title.toLowerCase().contains('matematik')) {
-      return Icons.calculate_rounded;
-    } else if (test.title.toLowerCase().contains('türkçe')) {
-      return Icons.menu_book_rounded;
-    } else if (test.title.toLowerCase().contains('tarih')) {
-      return Icons.history_rounded;
-    } else if (test.title.toLowerCase().contains('coğrafya')) {
-      return Icons.map_rounded;
-    }
-    
-    switch (test.icon) {
-      case 'atom':
-        return Icons.science_rounded;
-      case 'chart':
-        return Icons.bar_chart_rounded;
-      case 'globe':
-        return Icons.public_rounded;
-      case 'megaphone':
-        return Icons.campaign_rounded;
+    switch (infoCard.icon) {
+      case 'info':
+        return Icons.info_rounded;
+      case 'book':
+        return Icons.book_rounded;
+      case 'lightbulb':
+        return Icons.lightbulb_rounded;
+      case 'star':
+        return Icons.star_rounded;
+      case 'school':
+        return Icons.school_rounded;
+      case 'tips':
+        return Icons.tips_and_updates_rounded;
       default:
-        return Icons.quiz_rounded;
+        return Icons.info_outline_rounded;
     }
   }
 
@@ -78,17 +84,17 @@ class OngoingTestCard extends StatelessWidget {
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TestsPage(
-              topicName: test.topic,
-              testCount: test.totalQuestions,
-              lessonId: test.lessonId,
-              topicId: test.topicId,
+            builder: (context) => FlashCardsPage(
+              topicName: infoCard.title,
+              cardCount: infoCard.cardCount,
+              topicId: infoCard.topicId,
+              lessonId: infoCard.lessonId,
             ),
           ),
         );
-        // If test page returned true, refresh home page
+        // If flash cards page returned true, refresh home page
         if (result == true) {
-          // Find MainScreen and refresh home page
+          // Find MainScreen and refresh
           final mainScreen = MainScreen.of(context);
           if (mainScreen != null) {
             mainScreen.refreshHomePage();
@@ -204,14 +210,13 @@ class OngoingTestCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Top section - Konu (topic)
+                    // Top section - Title
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Topic name
                         Text(
-                          test.topic,
+                          infoCard.title,
                           style: TextStyle(
                             fontSize: isSmallScreen ? 9 : 10,
                             fontWeight: FontWeight.w700,
@@ -278,82 +283,27 @@ class OngoingTestCard extends StatelessWidget {
                       ),
                     ),
                     
-                    // Bottom - Progress section
+                    // Bottom - Description
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${test.currentQuestion}/${test.totalQuestions}',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 8 : 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.2,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withValues(alpha: 0.4),
-                                      blurRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            SizedBox(width: isSmallScreen ? 3 : 4),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isSmallScreen ? 4 : 5,
-                                vertical: isSmallScreen ? 1 : 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.28),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text(
-                                '${(test.progress * 100).toStringAsFixed(0)}%',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 7 : 8,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isSmallScreen ? 4 : 5),
-                        // Progress bar
-                        Container(
-                          height: isSmallScreen ? 4 : 5,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
+                        Text(
+                          infoCard.description,
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 7 : 8,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            letterSpacing: 0.1,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 2,
                               ),
                             ],
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: LinearProgressIndicator(
-                              value: test.progress,
-                              backgroundColor: Colors.white.withValues(alpha: 0.22),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                              minHeight: isSmallScreen ? 4 : 5,
-                            ),
-                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -367,3 +317,4 @@ class OngoingTestCard extends StatelessWidget {
     );
   }
 }
+

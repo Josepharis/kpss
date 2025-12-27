@@ -11,6 +11,7 @@ class Topic {
   final int noteCount;
   final double progress; // 0.0 - 1.0
   final int order; // Sıralama için
+  final String? pdfUrl; // PDF dosyasının URL'i
 
   Topic({
     required this.id,
@@ -25,6 +26,7 @@ class Topic {
     required this.noteCount,
     this.progress = 0.0,
     this.order = 0,
+    this.pdfUrl,
   });
 
   // Convert from Firestore document
@@ -42,6 +44,7 @@ class Topic {
       noteCount: (map['noteCount'] ?? 0) as int,
       progress: (map['progress'] ?? 0.0) as double,
       order: (map['order'] ?? 0) as int,
+      pdfUrl: map['pdfUrl'] as String?,
     );
   }
 
@@ -59,6 +62,7 @@ class Topic {
       'noteCount': noteCount,
       'progress': progress,
       'order': order,
+      if (pdfUrl != null) 'pdfUrl': pdfUrl,
     };
   }
 }

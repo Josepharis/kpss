@@ -58,6 +58,22 @@ class LessonsService {
     }
   }
 
+  /// Get all topics
+  Future<List<Topic>> getAllTopics() async {
+    try {
+      final snapshot = await _topicsCollection.get();
+      final topics = snapshot.docs
+          .map((doc) => Topic.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .toList();
+      // Sort by order on client side
+      topics.sort((a, b) => a.order.compareTo(b.order));
+      return topics;
+    } catch (e) {
+      print('Error fetching all topics: $e');
+      return [];
+    }
+  }
+
   /// Get all topics for a lesson
   Future<List<Topic>> getTopicsByLessonId(String lessonId) async {
     try {

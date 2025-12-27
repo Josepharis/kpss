@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/run_pdf_update.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,6 +17,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _vibrationEnabled = true;
   String _selectedLanguage = 'Türkçe';
   String _selectedTheme = 'Otomatik';
+  bool _isUpdatingPdfUrls = false;
 
   @override
   void initState() {
@@ -279,6 +281,19 @@ class _ProfilePageState extends State<ProfilePage> {
                           iconSize: iconSize,
                           fontSize: fontSize,
                         ),
+                        _buildDivider(),
+                        _buildSettingTile(
+                          icon: Icons.picture_as_pdf_outlined,
+                          title: 'PDF URL\'lerini Güncelle',
+                          subtitle: _isUpdatingPdfUrls 
+                              ? 'Güncelleniyor...' 
+                              : 'Storage\'daki PDF\'leri eşleştir',
+                          onTap: _isUpdatingPdfUrls 
+                              ? null 
+                              : () => _updatePdfUrls(),
+                          iconSize: iconSize,
+                          fontSize: fontSize,
+                        ),
                       ],
                     ),
                     SizedBox(height: compactSpacing),
@@ -468,12 +483,13 @@ class _ProfilePageState extends State<ProfilePage> {
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     required double iconSize,
     required double fontSize,
   }) {
     return ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      enabled: onTap != null,
       leading: Container(
         padding: EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -684,6 +700,95 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _updatePdfUrls() async {
+    // Show confirmation dialog
+    final shouldUpdate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('PDF URL\'lerini Güncelle'),
+        content: Text(
+          'Firebase Storage\'daki PDF dosyaları Firestore\'daki topic\'lerle eşleştirilecek. '
+          'Bu işlem biraz zaman alabilir. Devam etmek istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Güncelle'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldUpdate != true) return;
+
+    setState(() {
+      _isUpdatingPdfUrls = true;
+    });
+
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('PDF URL\'leri güncelleniyor...\nLütfen bekleyin.'),
+            ],
+          ),
+        ),
+      );
+
+      // Run the update script
+      await runPdfUpdate();
+
+      // Close loading dialog
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF URL\'leri başarıyla güncellendi!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hata: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingPdfUrls = false;
+        });
+      }
+    }
   }
 
   void _showAboutDialog() {

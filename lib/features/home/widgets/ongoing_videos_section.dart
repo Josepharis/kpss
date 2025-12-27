@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/ongoing_test.dart';
-import 'ongoing_test_card.dart';
-import '../pages/ongoing_tests_list_page.dart';
+import '../../../core/models/ongoing_video.dart';
+import 'ongoing_video_card.dart';
+import '../pages/ongoing_videos_list_page.dart';
 
-class OngoingTestsSection extends StatelessWidget {
-  final List<OngoingTest> tests;
+class OngoingVideosSection extends StatelessWidget {
+  final List<OngoingVideo> videos;
   final bool isSmallScreen;
   final double availableHeight;
 
-  const OngoingTestsSection({
+  const OngoingVideosSection({
     super.key,
-    required this.tests,
+    required this.videos,
     this.isSmallScreen = false,
     this.availableHeight = 130.0,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (tests.isEmpty) {
+    if (videos.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -43,18 +43,18 @@ class OngoingTestsSection extends StatelessWidget {
                   Container(
                     padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                      color: const Color(0xFFE74C3C).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      Icons.quiz_outlined,
+                      Icons.video_library_outlined,
                       size: isSmallScreen ? 16.0 : 18.0,
-                      color: AppColors.primaryBlue,
+                      color: const Color(0xFFE74C3C),
                     ),
                   ),
                   SizedBox(width: isSmallScreen ? 6.0 : 8.0),
                   Text(
-                    'Devam Eden Testler',
+                    'Devam Eden Videolar',
                     style: TextStyle(
                       fontSize: isSmallScreen ? 14.0 : 18.0,
                       fontWeight: FontWeight.bold,
@@ -68,8 +68,8 @@ class OngoingTestsSection extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => OngoingTestsListPage(
-                        tests: tests,
+                      builder: (context) => OngoingVideosListPage(
+                        videos: videos,
                       ),
                     ),
                   );
@@ -101,14 +101,14 @@ class OngoingTestsSection extends StatelessWidget {
             padding: EdgeInsets.symmetric(
               horizontal: isTablet ? 24.0 : 16.0,
             ),
-            itemCount: tests.length,
+            itemCount: videos.length,
             itemBuilder: (context, index) {
               return Padding(
                 padding: EdgeInsets.only(
-                  right: index < tests.length - 1 ? (isSmallScreen ? 10.0 : 12.0) : 0,
+                  right: index < videos.length - 1 ? (isSmallScreen ? 10.0 : 12.0) : 0,
                 ),
-                child: OngoingTestCard(
-                  test: tests[index],
+                child: OngoingVideoCard(
+                  video: videos[index],
                   isSmallScreen: isSmallScreen,
                 ),
               );
@@ -119,3 +119,4 @@ class OngoingTestsSection extends StatelessWidget {
     );
   }
 }
+

@@ -7,6 +7,7 @@ import '../../../core/models/podcast.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/podcast_cache_service.dart';
+import '../../../core/services/progress_service.dart';
 
 class PodcastsPage extends StatefulWidget {
   final String topicName;
@@ -30,6 +31,7 @@ class _PodcastsPageState extends State<PodcastsPage>
     with TickerProviderStateMixin {
   final AudioPlayerService _audioService = AudioPlayerService();
   final StorageService _storageService = StorageService();
+  final ProgressService _progressService = ProgressService();
   List<Podcast> _podcasts = [];
   bool _isLoading = true;
   bool _isPlaying = false;
@@ -42,6 +44,7 @@ class _PodcastsPageState extends State<PodcastsPage>
   int _selectedPodcastIndex = 0;
   late AnimationController _waveController;
   late AnimationController _pulseController;
+  Timer? _progressSaveTimer;
     StreamSubscription<Duration>? _positionSubscription;
     StreamSubscription<Duration?>? _durationSubscription;
     StreamSubscription<bool>? _playingSubscription;
@@ -254,8 +257,46 @@ class _PodcastsPageState extends State<PodcastsPage>
     });
   }
 
+  void _startProgressSaveTimer() {
+    _progressSaveTimer?.cancel();
+    // Save progress every 5 seconds
+    _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_podcasts.isNotEmpty && 
+          _selectedPodcastIndex < _podcasts.length && 
+          _totalDuration != null && 
+          _totalDuration!.inSeconds > 0) {
+        _saveProgress();
+      }
+    });
+  }
+
+  Future<void> _saveProgress() async {
+    if (_podcasts.isEmpty || _selectedPodcastIndex >= _podcasts.length) return;
+    if (_totalDuration == null || _totalDuration!.inSeconds == 0) return;
+    
+    final currentPodcast = _podcasts[_selectedPodcastIndex];
+    await _progressService.savePodcastProgress(
+      podcastId: currentPodcast.id,
+      podcastTitle: currentPodcast.title,
+      topicId: currentPodcast.topicId,
+      lessonId: currentPodcast.lessonId,
+      currentPosition: _currentPosition,
+      totalDuration: _totalDuration!,
+    );
+  }
+
   @override
   void dispose() {
+    _progressSaveTimer?.cancel();
+    
+    // Save final progress before disposing
+    if (_podcasts.isNotEmpty && 
+        _selectedPodcastIndex < _podcasts.length && 
+        _totalDuration != null && 
+        _totalDuration!.inSeconds > 0) {
+      _saveProgress();
+    }
+    
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
@@ -394,6 +435,9 @@ class _PodcastsPageState extends State<PodcastsPage>
           ? Duration(minutes: durationMinutes)
           : null;
       
+      // Load saved progress and seek to that position
+      final savedProgress = await _progressService.getPodcastProgress(currentPodcast.id);
+      
       // Oynat - setUrl tamamlandığında play() çağrılacak
       await _audioService.play(
         currentPodcast.audioUrl,
@@ -401,6 +445,16 @@ class _PodcastsPageState extends State<PodcastsPage>
         artist: widget.topicName,
         duration: duration,
       );
+      
+      // Seek to saved position if available
+      if (savedProgress != null && savedProgress.inSeconds > 5) {
+        // Only resume if saved position is more than 5 seconds
+        await _audioService.seek(savedProgress);
+        print('✅ Resuming podcast from saved position: ${savedProgress.inMinutes}m');
+      }
+      
+      // Start progress save timer
+      _startProgressSaveTimer();
       
       // Eğer duration hala yoksa, arka planda yükle
       if (duration == null || durationMinutes == 0) {
@@ -544,7 +598,29 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () async {
+                  // Save progress before leaving
+                  if (_podcasts.isNotEmpty && 
+                      _selectedPodcastIndex < _podcasts.length && 
+                      _totalDuration != null && 
+                      _totalDuration!.inSeconds > 0) {
+                    await _saveProgress();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('İlerlemeniz kaydediliyor...'),
+                          duration: Duration(seconds: 2),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Wait for message to be visible
+                      await Future.delayed(const Duration(milliseconds: 1500));
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                  }
+                },
               ),
               title: Text(
                 widget.topicName,
@@ -565,7 +641,29 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () async {
+                  // Save progress before leaving
+                  if (_podcasts.isNotEmpty && 
+                      _selectedPodcastIndex < _podcasts.length && 
+                      _totalDuration != null && 
+                      _totalDuration!.inSeconds > 0) {
+                    await _saveProgress();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('İlerlemeniz kaydediliyor...'),
+                          duration: Duration(seconds: 2),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Wait for message to be visible
+                      await Future.delayed(const Duration(milliseconds: 1500));
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                  }
+                },
               ),
               title: Text(
                 widget.topicName,
@@ -658,7 +756,29 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: () => Navigator.of(context).pop(),
+                              onTap: () async {
+                                // Save progress before leaving
+                                if (_podcasts.isNotEmpty && 
+                                    _selectedPodcastIndex < _podcasts.length && 
+                                    _totalDuration != null && 
+                                    _totalDuration!.inSeconds > 0) {
+                                  await _saveProgress();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('İlerlemeniz kaydediliyor...'),
+                                        duration: Duration(seconds: 2),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                    // Wait for message to be visible
+                                    await Future.delayed(const Duration(milliseconds: 2000));
+                                  }
+                                }
+                                if (mounted) {
+                                  Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                                }
+                              },
                               borderRadius: BorderRadius.circular(20),
                               child: Container(
                                 padding: EdgeInsets.all(isSmallScreen ? 5 : 7),

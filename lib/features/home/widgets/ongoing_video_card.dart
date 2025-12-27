@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
-import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/ongoing_test.dart';
-import '../pages/tests_page.dart';
+import '../../../core/models/ongoing_video.dart';
 
-class OngoingTestCard extends StatelessWidget {
-  final OngoingTest test;
+class OngoingVideoCard extends StatelessWidget {
+  final OngoingVideo video;
   final bool isSmallScreen;
 
-  const OngoingTestCard({
+  const OngoingVideoCard({
     super.key,
-    required this.test,
+    required this.video,
     this.isSmallScreen = false,
   });
 
   Color _getGradientStartColor() {
-    switch (test.progressColor) {
+    switch (video.progressColor) {
       case 'blue':
         return const Color(0xFF4A90E2);
       case 'yellow':
@@ -24,13 +22,15 @@ class OngoingTestCard extends StatelessWidget {
         return const Color(0xFFE74C3C);
       case 'purple':
         return const Color(0xFF9B59B6);
+      case 'green':
+        return const Color(0xFF27AE60);
       default:
         return AppColors.gradientBlueStart;
     }
   }
 
   Color _getGradientEndColor() {
-    switch (test.progressColor) {
+    switch (video.progressColor) {
       case 'blue':
         return const Color(0xFF357ABD);
       case 'yellow':
@@ -39,23 +39,25 @@ class OngoingTestCard extends StatelessWidget {
         return const Color(0xFFC0392B);
       case 'purple':
         return const Color(0xFF8E44AD);
+      case 'green':
+        return const Color(0xFF229954);
       default:
         return AppColors.gradientBlueEnd;
     }
   }
 
   IconData _getIcon() {
-    if (test.title.toLowerCase().contains('matematik')) {
+    if (video.title.toLowerCase().contains('matematik')) {
       return Icons.calculate_rounded;
-    } else if (test.title.toLowerCase().contains('türkçe')) {
+    } else if (video.title.toLowerCase().contains('türkçe')) {
       return Icons.menu_book_rounded;
-    } else if (test.title.toLowerCase().contains('tarih')) {
+    } else if (video.title.toLowerCase().contains('tarih')) {
       return Icons.history_rounded;
-    } else if (test.title.toLowerCase().contains('coğrafya')) {
+    } else if (video.title.toLowerCase().contains('coğrafya')) {
       return Icons.map_rounded;
     }
     
-    switch (test.icon) {
+    switch (video.icon) {
       case 'atom':
         return Icons.science_rounded;
       case 'chart':
@@ -64,8 +66,10 @@ class OngoingTestCard extends StatelessWidget {
         return Icons.public_rounded;
       case 'megaphone':
         return Icons.campaign_rounded;
+      case 'play':
+        return Icons.play_circle_rounded;
       default:
-        return Icons.quiz_rounded;
+        return Icons.video_library_rounded;
     }
   }
 
@@ -74,26 +78,10 @@ class OngoingTestCard extends StatelessWidget {
     final borderRadius = isSmallScreen ? 16.0 : 18.0;
     
     return GestureDetector(
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TestsPage(
-              topicName: test.topic,
-              testCount: test.totalQuestions,
-              lessonId: test.lessonId,
-              topicId: test.topicId,
-            ),
-          ),
-        );
-        // If test page returned true, refresh home page
-        if (result == true) {
-          // Find MainScreen and refresh home page
-          final mainScreen = MainScreen.of(context);
-          if (mainScreen != null) {
-            mainScreen.refreshHomePage();
-          }
-        }
+      onTap: () {
+        // Navigate to videos page - user can continue from there
+        // Note: Direct video navigation would require videoUrl in progress
+        // For now, navigate to videos page where user can see all videos
       },
       child: Container(
         width: isSmallScreen ? 85 : 95,
@@ -204,14 +192,13 @@ class OngoingTestCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Top section - Konu (topic)
+                    // Top section - Topic
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Topic name
                         Text(
-                          test.topic,
+                          video.topic,
                           style: TextStyle(
                             fontSize: isSmallScreen ? 9 : 10,
                             fontWeight: FontWeight.w700,
@@ -289,7 +276,7 @@ class OngoingTestCard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                '${test.currentQuestion}/${test.totalQuestions}',
+                                '${video.currentMinute}/${video.totalMinutes} dk',
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 8 : 9,
                                   fontWeight: FontWeight.bold,
@@ -317,7 +304,7 @@ class OngoingTestCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Text(
-                                '${(test.progress * 100).toStringAsFixed(0)}%',
+                                '${(video.progress * 100).toStringAsFixed(0)}%',
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 7 : 8,
                                   fontWeight: FontWeight.bold,
@@ -346,7 +333,7 @@ class OngoingTestCard extends StatelessWidget {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: LinearProgressIndicator(
-                              value: test.progress,
+                              value: video.progress,
                               backgroundColor: Colors.white.withValues(alpha: 0.22),
                               valueColor: AlwaysStoppedAnimation<Color>(
                                 Colors.white,
@@ -367,3 +354,4 @@ class OngoingTestCard extends StatelessWidget {
     );
   }
 }
+

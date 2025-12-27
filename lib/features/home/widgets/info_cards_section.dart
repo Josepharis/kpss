@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/ongoing_test.dart';
-import 'ongoing_test_card.dart';
-import '../pages/ongoing_tests_list_page.dart';
+import '../../../core/models/info_card.dart';
+import 'info_card_widget.dart';
 
-class OngoingTestsSection extends StatelessWidget {
-  final List<OngoingTest> tests;
+class InfoCardsSection extends StatelessWidget {
+  final List<InfoCard> infoCards;
   final bool isSmallScreen;
   final double availableHeight;
 
-  const OngoingTestsSection({
+  const InfoCardsSection({
     super.key,
-    required this.tests,
+    required this.infoCards,
     this.isSmallScreen = false,
     this.availableHeight = 130.0,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (tests.isEmpty) {
+    if (infoCards.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -43,18 +42,18 @@ class OngoingTestsSection extends StatelessWidget {
                   Container(
                     padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                      color: const Color(0xFF27AE60).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      Icons.quiz_outlined,
+                      Icons.info_outline,
                       size: isSmallScreen ? 16.0 : 18.0,
-                      color: AppColors.primaryBlue,
+                      color: const Color(0xFF27AE60),
                     ),
                   ),
                   SizedBox(width: isSmallScreen ? 6.0 : 8.0),
                   Text(
-                    'Devam Eden Testler',
+                    'Bilgi Kartları',
                     style: TextStyle(
                       fontSize: isSmallScreen ? 14.0 : 18.0,
                       fontWeight: FontWeight.bold,
@@ -64,16 +63,7 @@ class OngoingTestsSection extends StatelessWidget {
                 ],
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OngoingTestsListPage(
-                        tests: tests,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: () {},
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.symmetric(
                     horizontal: isSmallScreen ? 8.0 : 12.0,
@@ -101,14 +91,14 @@ class OngoingTestsSection extends StatelessWidget {
             padding: EdgeInsets.symmetric(
               horizontal: isTablet ? 24.0 : 16.0,
             ),
-            itemCount: tests.length,
+            itemCount: infoCards.length,
             itemBuilder: (context, index) {
               return Padding(
                 padding: EdgeInsets.only(
-                  right: index < tests.length - 1 ? (isSmallScreen ? 10.0 : 12.0) : 0,
+                  right: index < infoCards.length - 1 ? (isSmallScreen ? 10.0 : 12.0) : 0,
                 ),
-                child: OngoingTestCard(
-                  test: tests[index],
+                child: InfoCardWidget(
+                  infoCard: infoCards[index],
                   isSmallScreen: isSmallScreen,
                 ),
               );
@@ -119,3 +109,4 @@ class OngoingTestsSection extends StatelessWidget {
     );
   }
 }
+

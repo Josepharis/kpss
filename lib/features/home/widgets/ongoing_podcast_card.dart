@@ -85,8 +85,8 @@ class OngoingPodcastCard extends StatelessWidget {
         // Navigate to podcast detail
       },
       child: Container(
-        width: isSmallScreen ? 115 : 130,
-        height: isSmallScreen ? 110 : 130,
+        width: isSmallScreen ? 85 : 95,
+        height: isSmallScreen ? 85 : 95,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -187,7 +187,7 @@ class OngoingPodcastCard extends StatelessWidget {
               ),
               // Content
               Padding(
-                padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -217,7 +217,7 @@ class OngoingPodcastCard extends StatelessWidget {
                             children: [
                               Icon(
                                 Icons.headphones_rounded,
-                                size: isSmallScreen ? 9 : 10,
+                                size: isSmallScreen ? 7 : 8,
                                 color: Colors.white,
                               ),
                               SizedBox(width: isSmallScreen ? 2 : 3),
@@ -261,7 +261,7 @@ class OngoingPodcastCard extends StatelessWidget {
                     Expanded(
                       child: Center(
                         child: Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
@@ -274,24 +274,24 @@ class OngoingPodcastCard extends StatelessWidget {
                             ),
                             border: Border.all(
                               color: Colors.white.withValues(alpha: 0.48),
-                              width: 2,
+                              width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
                               ),
                               BoxShadow(
                                 color: Colors.white.withValues(alpha: 0.18),
-                                blurRadius: 4,
+                                blurRadius: 3,
                                 offset: const Offset(-1, -1),
                               ),
                             ],
                           ),
                           child: Icon(
                             _getIcon(),
-                            size: isSmallScreen ? 20 : 24,
+                            size: isSmallScreen ? 14 : 16,
                             color: Colors.white,
                             shadows: [
                               Shadow(

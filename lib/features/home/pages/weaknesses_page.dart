@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
+import '../../../core/services/lessons_service.dart';
 import 'weakness_lesson_detail_page.dart';
 
 class WeaknessesPage extends StatefulWidget {
@@ -14,145 +15,50 @@ class WeaknessesPage extends StatefulWidget {
 
 class _WeaknessesPageState extends State<WeaknessesPage> {
   Map<String, List<WeaknessQuestion>> _groupedByLesson = {};
+  List<Lesson> _allLessons = [];
   bool _isLoading = true;
-
-  // Tüm dersler listesi
-  List<Lesson> get _allLessons {
-    return [
-      Lesson(
-        id: '1',
-        name: 'Türkçe',
-        category: 'genel_yetenek',
-        icon: 'menu_book',
-        color: 'orange',
-        topicCount: 12,
-        questionCount: 450,
-        description: 'Sözcükte anlam, cümlede anlam, paragraf ve dil bilgisi',
-      ),
-      Lesson(
-        id: '2',
-        name: 'Matematik',
-        category: 'genel_yetenek',
-        icon: 'calculate',
-        color: 'blue',
-        topicCount: 15,
-        questionCount: 520,
-        description: 'Temel matematik, geometri ve sayısal mantık',
-      ),
-      Lesson(
-        id: '3',
-        name: 'Tarih',
-        category: 'genel_kultur',
-        icon: 'history',
-        color: 'red',
-        topicCount: 18,
-        questionCount: 680,
-        description: 'Türk tarihi, Osmanlı tarihi ve dünya tarihi',
-      ),
-      Lesson(
-        id: '4',
-        name: 'Coğrafya',
-        category: 'genel_kultur',
-        icon: 'map',
-        color: 'green',
-        topicCount: 14,
-        questionCount: 420,
-        description: 'Türkiye coğrafyası ve genel coğrafya bilgileri',
-      ),
-      Lesson(
-        id: '5',
-        name: 'Vatandaşlık',
-        category: 'genel_kultur',
-        icon: 'gavel',
-        color: 'purple',
-        topicCount: 8,
-        questionCount: 280,
-        description: 'Anayasa, hukuk ve vatandaşlık bilgileri',
-      ),
-      Lesson(
-        id: '6',
-        name: 'Eğitim Bilimleri',
-        category: 'alan_dersleri',
-        icon: 'school',
-        color: 'teal',
-        topicCount: 20,
-        questionCount: 750,
-        description: 'Gelişim psikolojisi, öğrenme psikolojisi ve öğretim yöntemleri',
-      ),
-      Lesson(
-        id: '7',
-        name: 'Öğretmenlik Alan Bilgisi',
-        category: 'alan_dersleri',
-        icon: 'person',
-        color: 'indigo',
-        topicCount: 16,
-        questionCount: 580,
-        description: 'Alan bilgisi ve öğretim teknikleri',
-      ),
-      Lesson(
-        id: '8',
-        name: 'Rehberlik',
-        category: 'alan_dersleri',
-        icon: 'psychology',
-        color: 'pink',
-        topicCount: 10,
-        questionCount: 320,
-        description: 'Rehberlik ve psikolojik danışmanlık',
-      ),
-    ];
-  }
+  final LessonsService _lessonsService = LessonsService();
 
   @override
   void initState() {
     super.initState();
-    _initializeMockData();
+    _loadData();
   }
 
-  Future<void> _initializeMockData() async {
-    // Mock sorunun zaten ekli olup olmadığını kontrol et
-    final existing = await WeaknessesService.isQuestionInWeaknesses(
-      'mock_1',
-      'de/da Bağlacı',
-      lessonId: '1', // Türkçe dersi
-    );
-
-    if (!existing) {
-      // Mock soruyu ekle
-      final mockWeakness = WeaknessQuestion(
-        id: 'mock_1',
-        question: 'Aşağıdaki cümlelerden hangisinde "de" bağlacı yanlış yazılmıştır?',
-        options: [
-          'A) O da buraya gelecek.',
-          'B) Sen de mi gideceksin?',
-          'C) Bende bir şeyler var.',
-          'D) O da benim gibi düşünüyor.',
-        ],
-        correctAnswerIndex: 2,
-        explanation: '"de" bağlacı ayrı yazılır. Cümlede "Bende" yerine "Bende de" yazılmalıydı.',
-        lessonId: '1', // Türkçe dersi
-        topicName: 'de/da Bağlacı',
-        addedAt: DateTime.now(),
-        isFromWrongAnswer: true,
-      );
-
-      await WeaknessesService.addWeakness(mockWeakness);
-    }
-
-    // Verileri yükle
-    _loadWeaknesses();
-  }
-
-  Future<void> _loadWeaknesses() async {
+  Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
 
+    await _loadLessons();
+    await _loadWeaknesses();
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadLessons() async {
+    try {
+      final lessons = await _lessonsService.getAllLessons();
+      if (mounted) {
+        setState(() {
+          _allLessons = lessons;
+        });
+      }
+    } catch (e) {
+      print('Error loading lessons: $e');
+    }
+  }
+
+  Future<void> _loadWeaknesses() async {
     final grouped = await WeaknessesService.getWeaknessesGroupedByLesson();
     
     if (mounted) {
       setState(() {
         _groupedByLesson = grouped;
-        _isLoading = false;
       });
     }
   }
@@ -205,11 +111,11 @@ class _WeaknessesPageState extends State<WeaknessesPage> {
 
   // Ders rengini getir
   Color _getLessonColor(String color) {
-    switch (color) {
+    switch (color.toLowerCase()) {
       case 'orange':
         return const Color(0xFFFF6B35);
       case 'blue':
-        return const Color(0xFF4A90E2);
+        return AppColors.primaryBlue;
       case 'red':
         return const Color(0xFFE74C3C);
       case 'green':
@@ -415,7 +321,7 @@ class _WeaknessesPageState extends State<WeaknessesPage> {
           if (lessonsWithWeaknesses.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-              onPressed: _loadWeaknesses,
+              onPressed: _loadData,
               tooltip: 'Yenile',
             ),
         ],
@@ -458,7 +364,7 @@ class _WeaknessesPageState extends State<WeaknessesPage> {
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _loadWeaknesses,
+                  onRefresh: _loadData,
                   color: AppColors.primaryBlue,
                   child: ListView(
                     padding: EdgeInsets.all(isTablet ? 20 : 16),

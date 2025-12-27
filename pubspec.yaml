@@ -41,6 +41,11 @@ dependencies:
   
   # Storage
   shared_preferences: ^2.2.2
+  path_provider: ^2.1.4
+  
+  # Network & Crypto
+  http: ^1.2.2
+  crypto: ^3.0.5
   
   # Date formatting
   intl: ^0.19.0
@@ -53,6 +58,9 @@ dependencies:
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.3
   firebase_storage: ^12.3.4
+  
+  # PDF Viewer
+  syncfusion_flutter_pdfviewer: ^27.1.48
 
 dev_dependencies:
   flutter_test:

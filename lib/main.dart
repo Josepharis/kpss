@@ -75,22 +75,31 @@ class MainScreen extends StatefulWidget {
 
   @override
   State<MainScreen> createState() => _MainScreenState();
+  
+  // Find MainScreen state from context
+  static _MainScreenState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_MainScreenState>();
+  }
 }
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final Map<int, Widget> _pageCache = {};
+  int _homePageKey = 0; // Key to force rebuild
+  final GlobalKey _homePageStateKey = GlobalKey();
 
   Widget _getPage(int index) {
+    if (index == 0) {
+      // Always return fresh HomePage instance with unique key
+      return HomePage(key: _homePageStateKey);
+    }
+    
     if (_pageCache.containsKey(index)) {
       return _pageCache[index]!;
     }
     
     Widget page;
     switch (index) {
-      case 0:
-        page = const HomePage();
-        break;
       case 1:
         page = const LessonsPage();
         break;
@@ -104,16 +113,45 @@ class _MainScreenState extends State<MainScreen> {
         page = const ProfilePage();
         break;
       default:
-        page = const HomePage();
+        page = HomePage(key: ValueKey(_homePageKey));
     }
     
+    if (index != 0) {
     _pageCache[index] = page;
+    }
     return page;
   }
 
   void _onTabTapped(int index) {
+    final previousIndex = _currentIndex;
     setState(() {
       _currentIndex = index;
+    });
+    
+    // If returning to home page (index 0), refresh it by changing key
+    if (index == 0 && previousIndex != 0) {
+      setState(() {
+        _homePageKey++; // Change key to force rebuild
+      });
+    }
+  }
+  
+  // Public method to refresh home page
+  void refreshHomePage() {
+    // Try to call refreshContent on HomePage state if available
+    final homePageState = _homePageStateKey.currentState;
+    if (homePageState != null) {
+      // Use dynamic call to access refreshContent method
+      try {
+        (homePageState as dynamic).refreshContent();
+        return;
+      } catch (e) {
+        // If method doesn't exist, fall through to rebuild
+      }
+    }
+    // Fallback: rebuild if state not available
+    setState(() {
+      _homePageKey++; // Change key to force rebuild
     });
   }
 

@@ -4,10 +4,16 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/models/daily_summary.dart';
 import '../../../core/models/ongoing_test.dart';
 import '../../../core/models/ongoing_podcast.dart';
+import '../../../core/models/ongoing_video.dart';
+import '../../../core/models/info_card.dart';
+import '../../../core/services/progress_service.dart';
+import '../../../core/services/lessons_service.dart';
 import '../widgets/motivational_quote.dart';
 import '../widgets/daily_summary_card.dart';
 import '../widgets/ongoing_tests_section.dart';
 import '../widgets/ongoing_podcasts_section.dart';
+import '../widgets/ongoing_videos_section.dart';
+import '../widgets/info_cards_section.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,6 +23,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final ProgressService _progressService = ProgressService();
+  final LessonsService _lessonsService = LessonsService();
+  List<OngoingTest> _ongoingTests = [];
+  List<OngoingPodcast> _ongoingPodcasts = [];
+  List<OngoingVideo> _ongoingVideos = [];
+  List<InfoCard> _infoCards = [];
+
   // Mock data - will be replaced with real data later
   final List<String> motivationalQuotes = [
     'Başarı, hazırlık ve fırsatın buluştuğu noktadır.',
@@ -42,75 +55,65 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  List<OngoingTest> get ongoingTests {
-    return [
-      OngoingTest(
-        id: '1',
-        title: 'Matematik Testi',
-        topic: 'Rasyonel Sayılar',
-        currentQuestion: 2,
-        totalQuestions: 5,
-        progressColor: 'blue',
-        icon: 'atom',
-      ),
-      OngoingTest(
-        id: '2',
-        title: 'Türkçe Testi',
-        topic: 'Sözcükte Anlam',
-        currentQuestion: 1,
-        totalQuestions: 6,
-        progressColor: 'yellow',
-        icon: 'chart',
-      ),
-      OngoingTest(
-        id: '3',
-        title: 'Tarih Testi',
-        topic: 'Osmanlı Tarihi',
-        currentQuestion: 5,
-        totalQuestions: 6,
-        progressColor: 'red',
-        icon: 'globe',
-      ),
-      OngoingTest(
-        id: '4',
-        title: 'Coğrafya Testi',
-        topic: 'Türkiye Fiziki Coğrafyası',
-        currentQuestion: 2,
-        totalQuestions: 8,
-        progressColor: 'purple',
-        icon: 'megaphone',
-      ),
-    ];
+  @override
+  void initState() {
+    super.initState();
+    _loadOngoingContent();
   }
 
-  List<OngoingPodcast> get ongoingPodcasts {
-    return [
-      OngoingPodcast(
-        id: '1',
-        title: 'KPSS Hazırlık',
-        currentMinute: 15,
-        totalMinutes: 45,
-        progressColor: 'blue',
-        icon: 'atom',
-      ),
-      OngoingPodcast(
-        id: '2',
-        title: 'AGS Stratejileri',
-        currentMinute: 8,
-        totalMinutes: 30,
-        progressColor: 'yellow',
-        icon: 'chart',
-      ),
-      OngoingPodcast(
-        id: '3',
-        title: 'Motivasyon',
-        currentMinute: 20,
-        totalMinutes: 25,
-        progressColor: 'red',
-        icon: 'megaphone',
-      ),
-    ];
+  Future<void> _loadOngoingContent() async {
+    try {
+      final tests = await _progressService.getOngoingTests();
+      final podcasts = await _progressService.getOngoingPodcasts();
+      final videos = await _progressService.getOngoingVideos();
+      
+      // Load topics with flash cards (videoCount > 0 means flash cards exist)
+      final allTopics = await _lessonsService.getAllTopics();
+      final topicsWithFlashCards = allTopics
+          .where((topic) => topic.videoCount > 0)
+          .toList();
+      
+      // Convert topics to InfoCards
+      final infoCards = topicsWithFlashCards.map((topic) {
+        // Generate color based on topic name hash
+        final colors = ['green', 'orange', 'teal', 'purple', 'blue', 'yellow', 'red'];
+        final colorIndex = topic.name.hashCode.abs() % colors.length;
+        
+        return InfoCard(
+          id: topic.id,
+          title: topic.name,
+          description: '${topic.videoCount} kart',
+          icon: 'book',
+          color: colors[colorIndex],
+          topicId: topic.id,
+          lessonId: topic.lessonId,
+          cardCount: topic.videoCount,
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _ongoingTests = tests;
+          _ongoingPodcasts = podcasts;
+          _ongoingVideos = videos;
+          _infoCards = infoCards;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading ongoing content: $e');
+    }
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+  }
+
+  // Public method to refresh content from outside
+  void refreshContent() {
+    _loadOngoingContent();
+  }
+
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -240,22 +243,41 @@ class _HomePageState extends State<HomePage> {
                             ),
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Ongoing Tests Section
-                            Flexible(
-                              child: OngoingTestsSection(
-                                tests: ongoingTests,
+                            if (_ongoingTests.isNotEmpty)
+                            OngoingTestsSection(
+                                  tests: _ongoingTests,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: constraints.maxHeight * 0.35,
-                              ),
                             ),
+                            if (_ongoingTests.isNotEmpty)
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Ongoing Podcasts Section
-                            Flexible(
-                              child: OngoingPodcastsSection(
-                                podcasts: ongoingPodcasts,
+                            if (_ongoingPodcasts.isNotEmpty)
+                            OngoingPodcastsSection(
+                                  podcasts: _ongoingPodcasts,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: constraints.maxHeight * 0.35,
                               ),
+                            if (_ongoingPodcasts.isNotEmpty)
+                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                            // Ongoing Videos Section
+                            if (_ongoingVideos.isNotEmpty)
+                            OngoingVideosSection(
+                                videos: _ongoingVideos,
+                              isSmallScreen: isSmallScreen,
+                              availableHeight: constraints.maxHeight * 0.35,
                             ),
+                            if (_ongoingVideos.isNotEmpty)
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                            // Info Cards Section (Flash Cards)
+                            if (_infoCards.isNotEmpty) ...[
+                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                            InfoCardsSection(
+                                infoCards: _infoCards,
+                              isSmallScreen: isSmallScreen,
+                              availableHeight: constraints.maxHeight * 0.35,
+                            ),
+                            ],
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                           ],
                         ),

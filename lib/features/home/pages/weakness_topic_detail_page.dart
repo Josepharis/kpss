@@ -322,29 +322,60 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
               ],
             ),
           ),
-          // Eklenme Tarihi
-          if (weakness.isFromWrongAnswer)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline_rounded,
-                    size: isSmallScreen ? 14 : 16,
-                    color: Colors.red,
+          // Soru Tipi Etiketleri
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(
+              spacing: isSmallScreen ? 12 : 16,
+              runSpacing: isSmallScreen ? 8 : 10,
+              children: [
+                // Yanlış cevaplanan soru etiketi
+                if (weakness.isFromWrongAnswer)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: isSmallScreen ? 14 : 16,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Yanlış cevaplanan soru',
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 12 : 13,
+                          color: Colors.red,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Yanlış cevaplanan soru',
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 12 : 13,
-                      color: Colors.red,
-                      fontStyle: FontStyle.italic,
-                    ),
+                // Kaydedilen soru etiketi
+                if (!weakness.isFromWrongAnswer)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bookmark_rounded,
+                        size: isSmallScreen ? 14 : 16,
+                        color: Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Kaydedilen soru',
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 12 : 13,
+                          color: Colors.green,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );
