@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/video.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/lessons_service.dart';
 import 'video_player_page.dart';
 
 class VideosPage extends StatefulWidget {
@@ -24,6 +25,7 @@ class VideosPage extends StatefulWidget {
 
 class _VideosPageState extends State<VideosPage> {
   final StorageService _storageService = StorageService();
+  final LessonsService _lessonsService = LessonsService();
   List<Video> _videos = [];
   bool _isLoading = true;
   bool _shouldRefresh = false; // Track if video player was used
@@ -42,11 +44,51 @@ class _VideosPageState extends State<VideosPage> {
       
       print('🔍 Loading videos from Storage for topicId: ${widget.topicId}');
       
-      // Storage yolunu oluştur: video/{lessonName}
-      final lessonName = widget.lessonId.replaceAll('_lesson', '').replaceAll('_', '');
-      final storagePath = 'video/$lessonName';
+      // Lesson name'i al
+      final lesson = await _lessonsService.getLessonById(widget.lessonId);
+      if (lesson == null) {
+        print('⚠️ Lesson not found: ${widget.lessonId}');
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
       
-      print('📂 Storage path: $storagePath');
+      // Lesson name'i storage path'ine çevir
+      final lessonNameForPath = lesson.name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c');
+      
+      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
+      // TopicId formatı: {lessonId}_{topicFolderName}
+      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
+      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
+      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
+          ? widget.topicId.substring('${widget.lessonId}_'.length)
+          : widget.topicName; // Fallback: topic name'i direkt kullan
+      
+      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
+      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
+      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/video';
+      try {
+        print('📂 Trying storage path: $storagePath');
+        final testResult = await _storageService.listVideoFiles(storagePath);
+        if (testResult.isEmpty) {
+          // Konular altında yoksa, direkt ders altından dene
+          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
+          print('📂 Trying alternative path: $storagePath');
+        }
+      } catch (e) {
+        // Hata varsa alternatif path'i dene
+        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
+        print('📂 Using fallback path: $storagePath');
+      }
       
       // Storage'dan video dosyalarını listele
       final videoUrls = await _storageService.listVideoFiles(storagePath);
@@ -57,9 +99,53 @@ class _VideosPageState extends State<VideosPage> {
         final url = videoUrls[index];
         
         try {
-          final uri = Uri.parse(url);
-          var fileName = uri.pathSegments.last;
-          fileName = Uri.decodeComponent(fileName);
+          // URL'den sadece dosya adını çıkar (path değil)
+          String fileName = '';
+          try {
+            final uri = Uri.parse(url);
+            // Query parametrelerini kaldır ve sadece path'i al
+            final pathWithoutQuery = uri.path;
+            // Path'ten sadece dosya adını al (son segment)
+            if (pathWithoutQuery.isNotEmpty) {
+              final segments = pathWithoutQuery.split('/');
+              fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+            }
+            
+            // Eğer hala boşsa, pathSegments'ten dene
+            if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
+              fileName = uri.pathSegments.last;
+            }
+            
+            // Hala boşsa, URL'den son kısmı al
+            if (fileName.isEmpty) {
+              final parts = url.split('/');
+              fileName = parts.isNotEmpty ? parts.last : '';
+              // Query parametrelerini kaldır
+              if (fileName.contains('?')) {
+                fileName = fileName.split('?').first;
+              }
+            }
+            
+            // Decode et, ama hata olursa direkt kullan
+            try {
+              fileName = Uri.decodeComponent(fileName);
+            } catch (e) {
+              // Decode edilemezse direkt kullan
+              print('⚠️ Could not decode filename, using as-is: $fileName');
+            }
+          } catch (e) {
+            // URI parse edilemezse, URL'den son kısmı al
+            final parts = url.split('/');
+            fileName = parts.isNotEmpty ? parts.last : 'Video ${index + 1}';
+            // Query parametrelerini kaldır
+            if (fileName.contains('?')) {
+              fileName = fileName.split('?').first;
+            }
+            print('⚠️ Could not parse URI, extracted filename: $fileName');
+          }
+          
+          // Path karakterlerini temizle (sadece dosya adı kalmalı)
+          fileName = fileName.replaceAll('\\', '/').split('/').last;
           
           // Dosya adından başlık oluştur
           final title = fileName
@@ -69,11 +155,12 @@ class _VideosPageState extends State<VideosPage> {
               .replaceAll('.mkv', '')
               .replaceAll('.webm', '')
               .replaceAll('_', ' ')
+              .replaceAll('%20', ' ')
               .trim();
           
           _videos.add(Video(
             id: 'video_${widget.topicId}_$index',
-            title: title,
+            title: title.isNotEmpty ? title : 'Video ${index + 1}',
             description: '${widget.topicName} video',
             videoUrl: url,
             durationMinutes: 0, // Duration will be loaded when video is played
@@ -83,22 +170,18 @@ class _VideosPageState extends State<VideosPage> {
           ));
         } catch (e) {
           print('⚠️ Error processing video $index: $e');
+          // Hata olsa bile video ekle (URL ile)
+          _videos.add(Video(
+            id: 'video_${widget.topicId}_$index',
+            title: 'Video ${index + 1}',
+            description: '${widget.topicName} video',
+            videoUrl: url,
+            durationMinutes: 0,
+            topicId: widget.topicId,
+            lessonId: widget.lessonId,
+            order: index,
+          ));
         }
-      }
-      
-      // Mock video ekle (test için)
-      if (_videos.isEmpty) {
-        _videos.add(Video(
-          id: 'mock_video_1',
-          title: 'Örnek Video - KPSS Hazırlık',
-          description: 'Bu bir test videosudur. Video oynatıcıyı test etmek için kullanılabilir.',
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          durationMinutes: 10,
-          topicId: widget.topicId,
-          lessonId: widget.lessonId,
-          order: 0,
-        ));
-        print('📹 Mock video added for testing');
       }
       
       print('✅ Found ${_videos.length} videos from Storage');
@@ -109,22 +192,9 @@ class _VideosPageState extends State<VideosPage> {
     } catch (e) {
       print('❌ Error loading videos: $e');
       
-      // Hata durumunda da mock video ekle
-      _videos = [
-        Video(
-          id: 'mock_video_1',
-          title: 'Örnek Video - KPSS Hazırlık',
-          description: 'Bu bir test videosudur. Video oynatıcıyı test etmek için kullanılabilir.',
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          durationMinutes: 10,
-          topicId: widget.topicId,
-          lessonId: widget.lessonId,
-          order: 0,
-        ),
-      ];
-      
       setState(() {
         _isLoading = false;
+        _videos = [];
       });
     }
   }

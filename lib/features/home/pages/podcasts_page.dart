@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/models/podcast.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/lessons_service.dart';
 import '../../../core/services/podcast_cache_service.dart';
 import '../../../core/services/progress_service.dart';
 
@@ -31,6 +32,7 @@ class _PodcastsPageState extends State<PodcastsPage>
     with TickerProviderStateMixin {
   final AudioPlayerService _audioService = AudioPlayerService();
   final StorageService _storageService = StorageService();
+  final LessonsService _lessonsService = LessonsService();
   final ProgressService _progressService = ProgressService();
   List<Podcast> _podcasts = [];
   bool _isLoading = true;
@@ -80,12 +82,53 @@ class _PodcastsPageState extends State<PodcastsPage>
       
       print('🔍 Loading podcasts from Storage for topicId: ${widget.topicId}');
       
-      // Storage yolunu oluştur: podcast/{lessonName}
-      // lessonId'den ders adını çıkar (örn: "tarih_lesson" -> "tarih")
-      final lessonName = widget.lessonId.replaceAll('_lesson', '').replaceAll('_', '');
-      final storagePath = 'podcast/$lessonName';
+      // Lesson name'i al
+      final lesson = await _lessonsService.getLessonById(widget.lessonId);
+      if (lesson == null) {
+        print('⚠️ Lesson not found: ${widget.lessonId}');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
       
-      print('📂 Storage path: $storagePath');
+      // Lesson name'i storage path'ine çevir
+      final lessonNameForPath = lesson.name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c');
+      
+      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
+      // TopicId formatı: {lessonId}_{topicFolderName}
+      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
+      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
+      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
+          ? widget.topicId.substring('${widget.lessonId}_'.length)
+          : widget.topicName; // Fallback: topic name'i direkt kullan
+      
+      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
+      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
+      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/podcast';
+      try {
+        print('📂 Trying storage path: $storagePath');
+        final testResult = await _storageService.listAudioFiles(storagePath);
+        if (testResult.isEmpty) {
+          // Konular altında yoksa, direkt ders altından dene
+          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/podcast';
+          print('📂 Trying alternative path: $storagePath');
+        }
+      } catch (e) {
+        // Hata varsa alternatif path'i dene
+        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/podcast';
+        print('📂 Using fallback path: $storagePath');
+      }
       
       // Storage'dan dosyaları listele
       final audioUrls = await _storageService.listAudioFiles(storagePath);
@@ -95,12 +138,54 @@ class _PodcastsPageState extends State<PodcastsPage>
       for (int index = 0; index < audioUrls.length; index++) {
         final url = audioUrls[index];
         
-        // URL'den dosya adını çıkar ve decode et
         try {
-          final uri = Uri.parse(url);
-          var fileName = uri.pathSegments.last;
-          // URL decode et
-          fileName = Uri.decodeComponent(fileName);
+          // URL'den sadece dosya adını çıkar (path değil)
+          String fileName = '';
+          try {
+            final uri = Uri.parse(url);
+            // Query parametrelerini kaldır ve sadece path'i al
+            final pathWithoutQuery = uri.path;
+            // Path'ten sadece dosya adını al (son segment)
+            if (pathWithoutQuery.isNotEmpty) {
+              final segments = pathWithoutQuery.split('/');
+              fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+            }
+            
+            // Eğer hala boşsa, pathSegments'ten dene
+            if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
+              fileName = uri.pathSegments.last;
+            }
+            
+            // Hala boşsa, URL'den son kısmı al
+            if (fileName.isEmpty) {
+              final parts = url.split('/');
+              fileName = parts.isNotEmpty ? parts.last : '';
+              // Query parametrelerini kaldır
+              if (fileName.contains('?')) {
+                fileName = fileName.split('?').first;
+              }
+            }
+            
+            // Decode et, ama hata olursa direkt kullan
+            try {
+              fileName = Uri.decodeComponent(fileName);
+            } catch (e) {
+              // Decode edilemezse direkt kullan
+              print('⚠️ Could not decode filename, using as-is: $fileName');
+            }
+          } catch (e) {
+            // URI parse edilemezse, URL'den son kısmı al
+            final parts = url.split('/');
+            fileName = parts.isNotEmpty ? parts.last : 'Podcast ${index + 1}';
+            // Query parametrelerini kaldır
+            if (fileName.contains('?')) {
+              fileName = fileName.split('?').first;
+            }
+            print('⚠️ Could not parse URI, extracted filename: $fileName');
+          }
+          
+          // Path karakterlerini temizle (sadece dosya adı kalmalı)
+          fileName = fileName.replaceAll('\\', '/').split('/').last;
           
           // Sadece dosya adını al (uzantıyı kaldır)
           final title = fileName
@@ -108,6 +193,7 @@ class _PodcastsPageState extends State<PodcastsPage>
               .replaceAll('.mp3', '')
               .replaceAll('.mp4', '')
               .replaceAll('_', ' ')
+              .replaceAll('%20', ' ')
               .trim();
           
           // Önce cache'den duration'ı kontrol et
@@ -115,7 +201,7 @@ class _PodcastsPageState extends State<PodcastsPage>
           
           _podcasts.add(Podcast(
             id: 'podcast_${widget.topicId}_$index',
-            title: title,
+            title: title.isNotEmpty ? title : 'Podcast ${index + 1}',
             description: '${widget.topicName} podcast',
             audioUrl: url,
             durationMinutes: cachedDuration ?? 0, // Cache'den veya 0
@@ -125,6 +211,17 @@ class _PodcastsPageState extends State<PodcastsPage>
           ));
         } catch (e) {
           print('⚠️ Error processing podcast $index: $e');
+          // Hata olsa bile podcast ekle (URL ile)
+          _podcasts.add(Podcast(
+            id: 'podcast_${widget.topicId}_$index',
+            title: 'Podcast ${index + 1}',
+            description: '${widget.topicName} podcast',
+            audioUrl: url,
+            durationMinutes: 0,
+            topicId: widget.topicId,
+            lessonId: widget.lessonId,
+            order: index,
+          ));
         }
       }
       

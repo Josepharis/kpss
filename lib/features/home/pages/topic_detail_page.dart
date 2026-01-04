@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/topic.dart';
+import '../../../core/services/lessons_service.dart';
 import 'tests_page.dart';
 import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
@@ -12,7 +13,7 @@ import 'videos_page.dart';
 import 'topic_explanations_list_page.dart';
 import 'tests_list_page.dart';
 
-class TopicDetailPage extends StatelessWidget {
+class TopicDetailPage extends StatefulWidget {
   final Topic topic;
   final String lessonName;
 
@@ -21,6 +22,33 @@ class TopicDetailPage extends StatelessWidget {
     required this.topic,
     required this.lessonName,
   });
+
+  @override
+  State<TopicDetailPage> createState() => _TopicDetailPageState();
+}
+
+class _TopicDetailPageState extends State<TopicDetailPage> {
+  late Topic _topic;
+  final LessonsService _lessonsService = LessonsService();
+  bool _isLoadingContent = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _topic = widget.topic;
+    _loadContentCounts();
+  }
+
+  Future<void> _loadContentCounts() async {
+    // Konu detay sayfasına girince içerik sayılarını çek
+    final updatedTopic = await _lessonsService.getTopicContentCounts(_topic);
+    if (mounted) {
+      setState(() {
+        _topic = updatedTopic;
+        _isLoadingContent = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +141,7 @@ class TopicDetailPage extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              topic.name,
+                              _topic.name,
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 18,
                                 fontWeight: FontWeight.bold,
@@ -162,7 +190,7 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Konu Anlatımı',
-                        count: topic.pdfUrl != null && topic.pdfUrl!.isNotEmpty ? 1 : 0,
+                        count: _isLoadingContent ? 0 : (_topic.pdfUrl != null && _topic.pdfUrl!.isNotEmpty ? 1 : 0),
                         icon: Icons.picture_as_pdf_rounded,
                         color: const Color(0xFFFF9800),
                         isSmallScreen: isSmallScreen,
@@ -170,10 +198,10 @@ class TopicDetailPage extends StatelessWidget {
                           // Şimdilik tek PDF varsa direkt aç, birden fazla olursa liste göster
                           // Gelecekte birden fazla PDF olabilir, o zaman liste ekranına yönlendir
                           final explanations = <Map<String, String>>[];
-                          if (topic.pdfUrl != null && topic.pdfUrl!.isNotEmpty) {
+                          if (_topic.pdfUrl != null && _topic.pdfUrl!.isNotEmpty) {
                             explanations.add({
                               'name': 'Konu Anlatımı',
-                              'pdfUrl': topic.pdfUrl!,
+                              'pdfUrl': _topic.pdfUrl!,
                             });
                           }
                           
@@ -183,8 +211,8 @@ class TopicDetailPage extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => TopicExplanationsListPage(
-                                  topic: topic,
-                                  lessonName: lessonName,
+                                  topic: _topic,
+                                  lessonName: widget.lessonName,
                                   explanations: explanations,
                                 ),
                               ),
@@ -195,7 +223,7 @@ class TopicDetailPage extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => TopicPdfViewerPage(
-                                  topic: topic,
+                                  topic: _topic,
                                 ),
                               ),
                             );
@@ -215,7 +243,7 @@ class TopicDetailPage extends StatelessWidget {
                         context: context,
                         title: 'Çıkmış Sorular',
                         subtitle: 'Soru Dağılımı',
-                        count: topic.averageQuestionCount,
+                        count: _topic.averageQuestionCount,
                         icon: Icons.analytics_rounded,
                         color: const Color(0xFFFF6B35),
                         isSmallScreen: isSmallScreen,
@@ -224,8 +252,8 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => PastQuestionsPage(
-                                topicName: topic.name,
-                                averageQuestionCount: topic.averageQuestionCount,
+                                topicName: _topic.name,
+                                averageQuestionCount: _topic.averageQuestionCount,
                               ),
                             ),
                           );
@@ -235,16 +263,16 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Testler',
-                        count: topic.testCount,
+                        count: _topic.testCount,
                         icon: Icons.quiz_rounded,
                         color: AppColors.primaryBlue,
                         isSmallScreen: isSmallScreen,
                         onTap: () async {
                           // Eğer birden fazla test varsa liste ekranına git
-                          if (topic.testCount > 1) {
+                          if (_topic.testCount > 1) {
                             // Testleri oluştur (şimdilik testCount kadar test oluştur)
                             final tests = <Map<String, dynamic>>[];
-                            for (int i = 1; i <= topic.testCount; i++) {
+                            for (int i = 1; i <= _topic.testCount; i++) {
                               tests.add({
                                 'name': 'Test $i',
                                 'questionCount': 10, // Varsayılan soru sayısı, gerçekte servisten alınabilir
@@ -255,10 +283,10 @@ class TopicDetailPage extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => TestsListPage(
-                                  topicName: topic.name,
-                                  lessonId: topic.lessonId,
-                                  topicId: topic.id,
-                                  testCount: topic.testCount,
+                                  topicName: _topic.name,
+                                  lessonId: _topic.lessonId,
+                                  topicId: _topic.id,
+                                  testCount: _topic.testCount,
                                   tests: tests,
                                 ),
                               ),
@@ -276,10 +304,10 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => TestsPage(
-                                topicName: topic.name,
-                                testCount: topic.testCount,
-                                lessonId: topic.lessonId,
-                                topicId: topic.id,
+                                topicName: _topic.name,
+                                testCount: _topic.testCount,
+                                lessonId: _topic.lessonId,
+                                topicId: _topic.id,
                               ),
                             ),
                           );
@@ -297,7 +325,7 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Podcastler',
-                        count: topic.podcastCount,
+                        count: _isLoadingContent ? 0 : _topic.podcastCount,
                         icon: Icons.podcasts_rounded,
                         color: AppColors.gradientPurpleStart,
                         isSmallScreen: isSmallScreen,
@@ -306,10 +334,10 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => PodcastsPage(
-                                topicName: topic.name,
-                                podcastCount: topic.podcastCount,
-                                topicId: topic.id,
-                                lessonId: topic.lessonId,
+                                topicName: _topic.name,
+                                podcastCount: _topic.podcastCount,
+                                topicId: _topic.id,
+                                lessonId: _topic.lessonId,
                               ),
                             ),
                           );
@@ -326,7 +354,7 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Videolar',
-                        count: topic.videoCount,
+                        count: _isLoadingContent ? 0 : _topic.videoCount,
                         icon: Icons.video_library_rounded,
                         color: const Color(0xFFE74C3C),
                         isSmallScreen: isSmallScreen,
@@ -335,10 +363,10 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => VideosPage(
-                                topicName: topic.name,
-                                videoCount: topic.videoCount,
-                                topicId: topic.id,
-                                lessonId: topic.lessonId,
+                                topicName: _topic.name,
+                                videoCount: _topic.videoCount,
+                                topicId: _topic.id,
+                                lessonId: _topic.lessonId,
                               ),
                             ),
                           );
@@ -355,7 +383,7 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Bilgi Kartları',
-                        count: topic.videoCount,
+                        count: _isLoadingContent ? 0 : _topic.noteCount,
                         icon: Icons.style_rounded,
                         color: AppColors.gradientRedStart,
                         isSmallScreen: isSmallScreen,
@@ -364,10 +392,10 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => FlashCardsPage(
-                                topicName: topic.name,
-                                cardCount: topic.videoCount,
-                                topicId: topic.id,
-                                lessonId: topic.lessonId,
+                                topicName: _topic.name,
+                                cardCount: _topic.noteCount,
+                                topicId: _topic.id,
+                                lessonId: _topic.lessonId,
                               ),
                             ),
                           );
@@ -384,7 +412,7 @@ class TopicDetailPage extends StatelessWidget {
                       _buildPremiumCard(
                         context: context,
                         title: 'Notlar',
-                        count: topic.noteCount,
+                        count: _isLoadingContent ? 0 : _topic.noteCount,
                         icon: Icons.note_rounded,
                         color: AppColors.gradientGreenStart,
                         isSmallScreen: isSmallScreen,
@@ -393,8 +421,8 @@ class TopicDetailPage extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => NotesPage(
-                                topicName: topic.name,
-                                noteCount: topic.noteCount,
+                                topicName: _topic.name,
+                                noteCount: _topic.noteCount,
                               ),
                             ),
                           );

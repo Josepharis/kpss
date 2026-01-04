@@ -148,6 +148,82 @@ class StorageService {
     }
   }
 
+  /// List folders (subdirectories) in a folder
+  /// Returns list of folder names
+  Future<List<String>> listFolders(String folderPath) async {
+    try {
+      print('📂 Listing folders in: $folderPath');
+      final folderRef = _storage.ref().child(folderPath);
+      
+      try {
+        final result = await folderRef.listAll();
+        print('📊 Found ${result.prefixes.length} subfolders');
+        
+        final List<String> folderNames = [];
+        for (var prefix in result.prefixes) {
+          folderNames.add(prefix.name);
+          print('📁 Found folder: ${prefix.name}');
+        }
+        
+        print('✅ Found ${folderNames.length} folders');
+        return folderNames;
+      } catch (e) {
+        print('⚠️ Error listing folders: $e');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error listing folders: $e');
+      return [];
+    }
+  }
+
+  /// Count files in a folder (for video, podcast, bilgikarti)
+  /// Returns count of files
+  Future<int> countFilesInFolder(String folderPath) async {
+    try {
+      final folderRef = _storage.ref().child(folderPath);
+      final result = await folderRef.listAll();
+      return result.items.length;
+    } catch (e) {
+      print('⚠️ Error counting files in $folderPath: $e');
+      return 0;
+    }
+  }
+
+  /// List files in a folder and get their download URLs (for any file type)
+  /// Returns list of download URLs
+  Future<List<String>> listFiles(String folderPath) async {
+    try {
+      print('📂 Listing files in: $folderPath');
+      final folderRef = _storage.ref().child(folderPath);
+      
+      try {
+        final result = await folderRef.listAll();
+        print('📊 Found ${result.items.length} items in folder');
+        
+        final List<String> urls = [];
+        for (var item in result.items) {
+          try {
+            final url = await item.getDownloadURL();
+            urls.add(url);
+            print('✅ Found: ${item.name} (${item.fullPath})');
+          } catch (e) {
+            print('⚠️ Error getting URL for ${item.name}: $e');
+          }
+        }
+        
+        print('✅ Found ${urls.length} files');
+        return urls;
+      } catch (e) {
+        print('⚠️ Error listing folder: $e');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error listing files: $e');
+      return [];
+    }
+  }
+
   /// List audio files in a folder and get their download URLs
   /// Returns list of download URLs
   Future<List<String>> listAudioFiles(String folderPath) async {

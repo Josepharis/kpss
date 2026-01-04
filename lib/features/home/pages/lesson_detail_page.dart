@@ -195,8 +195,8 @@ class LessonDetailPage extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           SizedBox(height: isSmallScreen ? 10 : 14),
-                          StreamBuilder<List<Topic>>(
-                            stream: _lessonsService.streamTopicsByLessonId(lesson.id),
+                          FutureBuilder<List<Topic>>(
+                            future: _lessonsService.getTopicsByLessonId(lesson.id),
                             builder: (context, snapshot) {
                               final topicCount = snapshot.hasData ? snapshot.data!.length : 0;
                               return Container(
@@ -234,8 +234,8 @@ class LessonDetailPage extends StatelessWidget {
           ),
           // Topics List
           Expanded(
-            child: StreamBuilder<List<Topic>>(
-              stream: _lessonsService.streamTopicsByLessonId(lesson.id),
+            child: FutureBuilder<List<Topic>>(
+              future: _lessonsService.getTopicsByLessonId(lesson.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(

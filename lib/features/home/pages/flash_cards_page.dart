@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
 import '../../../core/services/progress_service.dart';
+import '../../../core/services/storage_service.dart';
+import '../../../core/services/lessons_service.dart';
 
 class FlashCardsPage extends StatefulWidget {
   final String topicName;
@@ -24,22 +28,14 @@ class FlashCardsPage extends StatefulWidget {
 class _FlashCardsPageState extends State<FlashCardsPage>
     with SingleTickerProviderStateMixin {
   final ProgressService _progressService = ProgressService();
+  final StorageService _storageService = StorageService();
+  final LessonsService _lessonsService = LessonsService();
+  List<FlashCard> _cards = [];
+  bool _isLoading = true;
   int _currentCardIndex = 0;
   bool _isFlipped = false;
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
-
-  List<FlashCard> get _cards {
-    // Mock data
-    return List.generate(
-      widget.cardCount,
-      (index) => FlashCard(
-        id: '${index + 1}',
-        frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
-        backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -51,7 +47,210 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _flipController, curve: Curves.easeInOut),
     );
-    _loadSavedProgress();
+    _loadFlashCards();
+  }
+
+  Future<void> _loadFlashCards() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      print('🔍 Loading flash cards from Storage for topicId: ${widget.topicId}');
+      
+      // Lesson name'i al
+      final lesson = await _lessonsService.getLessonById(widget.lessonId);
+      if (lesson == null) {
+        print('⚠️ Lesson not found: ${widget.lessonId}');
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Lesson name'i storage path'ine çevir
+      final lessonNameForPath = lesson.name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c');
+      
+      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
+      // TopicId formatı: {lessonId}_{topicFolderName}
+      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
+      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
+      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
+          ? widget.topicId.substring('${widget.lessonId}_'.length)
+          : widget.topicName; // Fallback: topic name'i direkt kullan
+      
+      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
+      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
+      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/bilgikarti';
+      try {
+        print('📂 Trying storage path: $storagePath');
+        final testResult = await _storageService.listFiles(storagePath);
+        if (testResult.isEmpty) {
+          // Konular altında yoksa, direkt ders altından dene
+          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
+          print('📂 Trying alternative path: $storagePath');
+        }
+      } catch (e) {
+        // Hata varsa alternatif path'i dene
+        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
+        print('📂 Using fallback path: $storagePath');
+      }
+      
+      // Storage'dan dosyaları listele
+      final fileUrls = await _storageService.listFiles(storagePath);
+      
+      _cards = [];
+      
+      // Her dosyayı indir ve parse et (JSON veya CSV)
+      for (int index = 0; index < fileUrls.length; index++) {
+        final url = fileUrls[index];
+        try {
+          final response = await http.get(Uri.parse(url));
+          if (response.statusCode == 200) {
+            // Response body'yi UTF-8 olarak decode et (Türkçe karakterler için)
+            final body = utf8.decode(response.bodyBytes);
+            final contentType = response.headers['content-type'] ?? '';
+            final fileName = url.toLowerCase();
+            
+            // CSV formatını kontrol et
+            if (fileName.endsWith('.csv') || contentType.contains('csv') || 
+                body.trim().startsWith('front') || 
+                body.contains(',')) {
+              // CSV formatını parse et
+              final lines = body.split('\n');
+              if (lines.isNotEmpty) {
+                // İlk satır header olabilir, atla
+                final startIndex = lines[0].toLowerCase().contains('front') ? 1 : 0;
+                
+                for (int i = startIndex; i < lines.length; i++) {
+                  final line = lines[i].trim();
+                  if (line.isEmpty) continue;
+                  
+                  // CSV satırını parse et (front,back formatı)
+                  // Virgülle split et, ama tırnak içindeki virgülleri koru
+                  List<String> parts = [];
+                  bool inQuotes = false;
+                  String currentPart = '';
+                  
+                  for (int j = 0; j < line.length; j++) {
+                    final char = line[j];
+                    if (char == '"') {
+                      inQuotes = !inQuotes;
+                    } else if (char == ',' && !inQuotes) {
+                      parts.add(currentPart.trim());
+                      currentPart = '';
+                    } else {
+                      currentPart += char;
+                    }
+                  }
+                  parts.add(currentPart.trim()); // Son kısmı ekle
+                  
+                  if (parts.length >= 2) {
+                    final front = parts[0].replaceAll('"', '').trim();
+                    final back = parts[1].replaceAll('"', '').trim();
+                    
+                    if (front.isNotEmpty && back.isNotEmpty) {
+                      _cards.add(FlashCard(
+                        id: '${_cards.length + 1}',
+                        frontText: front,
+                        backText: back,
+                        isLearned: false,
+                      ));
+                    }
+                  }
+                }
+              }
+            } else {
+              // JSON formatını parse et
+              final jsonData = json.decode(body);
+              
+              // JSON formatını kontrol et
+              if (jsonData is List) {
+                // Liste formatında ise
+                for (var cardData in jsonData) {
+                  _cards.add(FlashCard(
+                    id: cardData['id'] ?? '${_cards.length + 1}',
+                    frontText: cardData['frontText'] ?? cardData['front'] ?? '',
+                    backText: cardData['backText'] ?? cardData['back'] ?? '',
+                    isLearned: cardData['isLearned'] ?? false,
+                  ));
+                }
+              } else if (jsonData is Map) {
+                // Tek bir kart veya kartlar listesi içeren map
+                if (jsonData['cards'] != null && jsonData['cards'] is List) {
+                  for (var cardData in jsonData['cards']) {
+                    _cards.add(FlashCard(
+                      id: cardData['id'] ?? '${_cards.length + 1}',
+                      frontText: cardData['frontText'] ?? cardData['front'] ?? '',
+                      backText: cardData['backText'] ?? cardData['back'] ?? '',
+                      isLearned: cardData['isLearned'] ?? false,
+                    ));
+                  }
+                } else {
+                  // Tek bir kart
+                  _cards.add(FlashCard(
+                    id: jsonData['id'] ?? '${_cards.length + 1}',
+                    frontText: jsonData['frontText'] ?? jsonData['front'] ?? '',
+                    backText: jsonData['backText'] ?? jsonData['back'] ?? '',
+                    isLearned: jsonData['isLearned'] ?? false,
+                  ));
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error loading flash card from $url: $e');
+        }
+      }
+      
+      // Eğer hiç kart yüklenmediyse, mock data kullan
+      if (_cards.isEmpty) {
+        print('⚠️ No flash cards found, using mock data');
+        _cards = List.generate(
+          widget.cardCount,
+          (index) => FlashCard(
+            id: '${index + 1}',
+            frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
+            backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
+          ),
+        );
+      }
+      
+      print('✅ Loaded ${_cards.length} flash cards');
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // İlerlemeyi yükle
+      _loadSavedProgress();
+    } catch (e) {
+      print('❌ Error loading flash cards: $e');
+      
+      // Hata durumunda mock data kullan
+      _cards = List.generate(
+        widget.cardCount,
+        (index) => FlashCard(
+          id: '${index + 1}',
+          frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
+          backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
+        ),
+      );
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      _loadSavedProgress();
+    }
   }
 
   Future<void> _loadSavedProgress() async {
@@ -126,6 +325,82 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.gradientRedStart,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: isSmallScreen ? 18 : 20,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          title: Text(
+            widget.topicName,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (_cards.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.gradientRedStart,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: isSmallScreen ? 18 : 20,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          title: Text(
+            widget.topicName,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.style_outlined,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Bu konu için henüz bilgi kartı eklenmemiş',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     final currentCard = _cards[_currentCardIndex];
 
     return Scaffold(
