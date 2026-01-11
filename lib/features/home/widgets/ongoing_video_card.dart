@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_video.dart';
+import '../../../core/models/video.dart';
+import '../../../../main.dart';
+import '../pages/video_player_page.dart';
+import '../pages/videos_page.dart';
 
 class OngoingVideoCard extends StatelessWidget {
   final OngoingVideo video;
@@ -78,10 +82,64 @@ class OngoingVideoCard extends StatelessWidget {
     final borderRadius = isSmallScreen ? 16.0 : 18.0;
     
     return GestureDetector(
-      onTap: () {
-        // Navigate to videos page - user can continue from there
-        // Note: Direct video navigation would require videoUrl in progress
-        // For now, navigate to videos page where user can see all videos
+      onTap: () async {
+        print('🎬 Video card tapped: ${video.title}');
+        print('   Video URL: ${video.videoUrl}');
+        print('   Topic ID: ${video.topicId}, Lesson ID: ${video.lessonId}');
+        
+        // Create Video object from OngoingVideo and navigate to player
+        if (video.videoUrl.isNotEmpty && video.videoUrl != '') {
+          print('✅ Video URL is valid, navigating to player...');
+          final videoObj = Video(
+            id: video.id,
+            title: video.title,
+            description: video.topic,
+            videoUrl: video.videoUrl,
+            durationMinutes: video.totalMinutes,
+            topicId: video.topicId,
+            lessonId: video.lessonId,
+            order: 0,
+          );
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VideoPlayerPage(
+                video: videoObj,
+                topicName: video.topic,
+              ),
+            ),
+          );
+          // If video page returned true, refresh home page
+          if (result == true) {
+            final mainScreen = MainScreen.of(context);
+            if (mainScreen != null) {
+              mainScreen.refreshHomePage();
+            }
+          }
+        } else {
+          print('❌ Video URL is empty or invalid');
+          // Fallback: Navigate to videos page
+          if (video.topicId.isNotEmpty && video.lessonId.isNotEmpty) {
+            print('📂 Navigating to videos page as fallback...');
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VideosPage(
+                  topicName: video.topic,
+                  videoCount: 1,
+                  topicId: video.topicId,
+                  lessonId: video.lessonId,
+                ),
+              ),
+            );
+            if (result == true) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) {
+                mainScreen.refreshHomePage();
+              }
+            }
+          }
+        }
       },
       child: Container(
         width: isSmallScreen ? 85 : 95,

@@ -10,6 +10,17 @@
       "questionCount": 25,
       "description": "Türk tarihi, Osmanlı tarihi ve dünya tarihi",
       "order": 1
+    },
+    "vatandaslik_lesson": {
+      "name": "Vatandaşlık",
+      "category": "genel_kultur",
+      "icon": "gavel",
+      "color": "blue",
+      "topicCount": 0,
+      "questionCount": 0,
+      "description": "Anayasa, vatandaşlık hakları ve görevleri",
+      "order": 2,
+      "note": "Konular otomatik olarak Storage'dan çekilecek: dersler/vatandaslik/konular/"
     }
   },
   "topics": {

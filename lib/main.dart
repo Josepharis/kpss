@@ -12,6 +12,8 @@ import 'core/widgets/custom_bottom_nav_bar.dart';
 import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/register_page.dart';
+import 'core/services/storage_cleanup_service.dart';
+import 'core/services/firebase_data_uploader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +35,17 @@ void main() async {
       print('❌ Data upload error: $e');
     }
     */
+    
+    // Vatandaşlık dersi ekleme (sadece bir kez çalıştırılacak)
+    try {
+      print('📤 Uploading Vatandaşlık lesson to Firebase...');
+      final uploader = FirebaseDataUploader();
+      await uploader.uploadVatandaslikLessonData();
+      print('✅ Vatandaşlık lesson uploaded!');
+      print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/vatandaslik/konular/');
+    } catch (e) {
+      print('❌ Vatandaşlık lesson upload error: $e');
+    }
   } catch (e) {
     // Continue even if Firebase fails to initialize
     print('❌ Firebase initialization error: $e');
@@ -47,7 +60,23 @@ void main() async {
     print('Date formatting initialization error: $e');
   }
   
+  // Run storage cleanup in background (non-blocking)
+  _runStorageCleanup();
+  
   runApp(const MyApp());
+}
+
+/// Run storage cleanup in background
+Future<void> _runStorageCleanup() async {
+  try {
+    final cleanupService = StorageCleanupService();
+    final deletedCount = await cleanupService.runCleanup();
+    if (deletedCount > 0) {
+      print('✅ Storage cleanup completed: $deletedCount files deleted');
+    }
+  } catch (e) {
+    print('⚠️ Storage cleanup error: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {

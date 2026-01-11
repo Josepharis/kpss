@@ -38,30 +38,42 @@ class OngoingPodcastsSection extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
-                    decoration: BoxDecoration(
-                      color: AppColors.gradientPurpleStart.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OngoingPodcastsListPage(
+                        podcasts: podcasts,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.podcasts_outlined,
-                      size: isSmallScreen ? 16.0 : 18.0,
-                      color: AppColors.gradientPurpleStart,
+                  );
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
+                      decoration: BoxDecoration(
+                        color: AppColors.gradientPurpleStart.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.podcasts_outlined,
+                        size: isSmallScreen ? 16.0 : 18.0,
+                        color: AppColors.gradientPurpleStart,
+                      ),
                     ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 6.0 : 8.0),
-                  Text(
-                    'Devam Eden Podcastler',
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 14.0 : 18.0,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                    SizedBox(width: isSmallScreen ? 6.0 : 8.0),
+                    Text(
+                      'Devam Eden Podcastler',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14.0 : 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               TextButton(
                 onPressed: () {

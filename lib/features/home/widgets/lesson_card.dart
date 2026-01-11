@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
+import '../../../core/services/lessons_service.dart';
 
 class LessonCard extends StatefulWidget {
   final Lesson lesson;
@@ -25,6 +26,7 @@ class _LessonCardState extends State<LessonCard>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _elevationAnimation;
+  final LessonsService _lessonsService = LessonsService();
 
   @override
   void initState() {
@@ -310,40 +312,46 @@ class _LessonCardState extends State<LessonCard>
                                   ],
                                 ),
                                 const SizedBox(height: 6),
-                                // Topic Count
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.25),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.4),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.library_books_rounded,
-                                        size: 10,
-                                        color: Colors.white,
+                                // Topic Count - Dinamik olarak çek
+                                FutureBuilder<int>(
+                                  future: _lessonsService.getTopicsByLessonId(widget.lesson.id).then((topics) => topics.length),
+                                  builder: (context, snapshot) {
+                                    final topicCount = snapshot.hasData ? snapshot.data! : widget.lesson.topicCount;
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 3,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${widget.lesson.topicCount} Konu',
-                                        style: const TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.25),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.4),
+                                          width: 1,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.library_books_rounded,
+                                            size: 10,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$topicCount Konu',
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
                             ],
                           ),
                         ],

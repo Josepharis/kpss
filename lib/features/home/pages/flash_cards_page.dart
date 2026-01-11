@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/lessons_service.dart';
+import '../../../core/services/flash_card_cache_service.dart';
 
 class FlashCardsPage extends StatefulWidget {
   final String topicName;
@@ -36,6 +35,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   bool _isFlipped = false;
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
+  bool _cacheLoaded = false; // Cache'den yüklendi mi?
 
   @override
   void initState() {
@@ -47,24 +47,33 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _flipController, curve: Curves.easeInOut),
     );
-    _loadFlashCards();
+    // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için - PDF gibi)
+    _initializeFlashCards();
   }
 
-  Future<void> _loadFlashCards() async {
+  /// Initialize flash cards - cache kontrolü tamamlanana kadar bekle (PDF gibi)
+  Future<void> _initializeFlashCards() async {
+    // Önce cache kontrolü yap (await et - tamamlanmasını bekle)
+    await _checkCacheImmediately();
+    
+    // Sonra diğer dosyaları yükle
+    _loadFlashCards();
+  }
+  
+  /// Check cache immediately (synchronous check for instant loading - PDF gibi)
+  /// Cache dizinindeki dosyaları direkt okuyarak Firebase Storage çağrısını atla
+  Future<void> _checkCacheImmediately() async {
+    print('🔍 Checking flash cards cache immediately for instant loading...');
+    
     try {
       setState(() {
         _isLoading = true;
       });
 
-      print('🔍 Loading flash cards from Storage for topicId: ${widget.topicId}');
-      
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
         print('⚠️ Lesson not found: ${widget.lessonId}');
-        setState(() {
-          _isLoading = false;
-        });
         return;
       }
       
@@ -79,159 +88,208 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
-      // TopicId formatı: {lessonId}_{topicFolderName}
-      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
-      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
+      // Topic name'i storage path'ine çevir
       final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
           ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName; // Fallback: topic name'i direkt kullan
+          : widget.topicName;
       
-      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
-      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
+      // Storage yolunu oluştur (cache kontrolü için)
+      final storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/bilgikarti';
+      final altStoragePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
+      
+      // Cache dizinindeki tüm dosyaları oku (Firebase Storage çağrısı yok - çok hızlı)
+      // Cache'deki dosyaları path'e göre filtrele
+      final cachedFiles = <String>[];
+      
+      // Önce birinci path'i dene
+      for (int i = 1; i <= 20; i++) { // Maksimum 20 dosya kontrol et
+        final filePath = '$storagePath/$i.csv';
+        if (await FlashCardCacheService.isCachedByPath(filePath)) {
+          cachedFiles.add(filePath);
+        }
+      }
+      
+      // Eğer birinci path'te dosya bulunamadıysa, alternatif path'i dene
+      if (cachedFiles.isEmpty) {
+        for (int i = 1; i <= 20; i++) {
+          final filePath = '$altStoragePath/$i.csv';
+          if (await FlashCardCacheService.isCachedByPath(filePath)) {
+            cachedFiles.add(filePath);
+          }
+        }
+      }
+      
+      print('📊 Found ${cachedFiles.length} cached flash card files');
+      
+      // Cache'den olanları paralel yükle ve HEMEN GÖSTER (anında açılış için)
+      if (cachedFiles.isNotEmpty) {
+        print('📂 Loading ${cachedFiles.length} files from cache (parallel - instant)...');
+        final cachedResults = await Future.wait(
+          cachedFiles.map((fullPath) async {
+            try {
+              final cards = await FlashCardCacheService.getCachedCardsByPath(fullPath);
+              return cards;
+            } catch (e) {
+              print('⚠️ Error loading from cache: $e');
+              return <FlashCard>[];
+            }
+          }),
+        );
+        
+        _cards = [];
+        for (final cards in cachedResults) {
+          _cards.addAll(cards);
+        }
+        print('✅ Loaded ${_cards.length} cards from cache total - INSTANT DISPLAY');
+        
+        // Cache'den yüklenenleri HEMEN göster (anında açılış - PDF gibi)
+        if (mounted) {
+          setState(() {
+            _isLoading = false; // Hemen göster
+            _cacheLoaded = true; // Cache'den yüklendi
+          });
+          // İlerlemeyi arka planda yükle (await etme - anında açılış için)
+          _loadSavedProgress();
+        }
+        print('✅ Flash cards displayed instantly from cache');
+      } else {
+        print('❌ No cached flash cards found');
+      }
+    } catch (e) {
+      print('⚠️ Error checking flash cards cache in initState: $e');
+    }
+  }
+
+  Future<void> _loadFlashCards() async {
+    // Eğer cache'den tüm dosyalar yüklendiyse, Firebase Storage'a hiç gitme (anında açılış için)
+    if (_cacheLoaded && _cards.isNotEmpty) {
+      print('📂 All files loaded from cache, skipping Firebase Storage operations for instant display');
+      return; // Cache'den yüklendiyse, Storage'a hiç gitme
+    }
+    
+    // Cache'de hiçbir şey yoksa, o zaman Storage'dan çek
+    if (_cards.isEmpty) {
+      print('📂 No cache found, loading from Firebase Storage...');
+    } else {
+      // Cache'de kısmen dosyalar varsa, eksikleri arka planda yükle (opsiyonel)
+      print('📂 Cache partially loaded, skipping Firebase Storage to minimize network calls');
+      return; // Cache'den kısmen yüklendiyse de Storage'a gitme, kullanıcı zaten cache'den yüklenenleri görebilir
+    }
+    
+    try {
+      // Lesson name'i al
+      final lesson = await _lessonsService.getLessonById(widget.lessonId);
+      if (lesson == null) {
+        print('⚠️ Lesson not found: ${widget.lessonId}');
+        if (_cards.isEmpty && mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      
+      // Lesson name'i storage path'ine çevir
+      final lessonNameForPath = lesson.name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c');
+      
+      // Topic name'i storage path'ine çevir
+      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
+          ? widget.topicId.substring('${widget.lessonId}_'.length)
+          : widget.topicName;
+      
+      // Storage yolunu oluştur
       String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/bilgikarti';
       try {
-        print('📂 Trying storage path: $storagePath');
         final testResult = await _storageService.listFiles(storagePath);
         if (testResult.isEmpty) {
-          // Konular altında yoksa, direkt ders altından dene
           storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
-          print('📂 Trying alternative path: $storagePath');
         }
       } catch (e) {
-        // Hata varsa alternatif path'i dene
         storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
-        print('📂 Using fallback path: $storagePath');
       }
       
       // Storage'dan dosyaları listele
-      final fileUrls = await _storageService.listFiles(storagePath);
+      final files = await _storageService.listFilesWithPaths(storagePath);
       
-      _cards = [];
+      // Cache kontrolü yap
+      final cacheChecks = await Future.wait(
+        files.map((file) => FlashCardCacheService.isCachedByPath(file['fullPath']!)),
+      );
       
-      // Her dosyayı indir ve parse et (JSON veya CSV)
-      for (int index = 0; index < fileUrls.length; index++) {
-        final url = fileUrls[index];
-        try {
-          final response = await http.get(Uri.parse(url));
-          if (response.statusCode == 200) {
-            // Response body'yi UTF-8 olarak decode et (Türkçe karakterler için)
-            final body = utf8.decode(response.bodyBytes);
-            final contentType = response.headers['content-type'] ?? '';
-            final fileName = url.toLowerCase();
-            
-            // CSV formatını kontrol et
-            if (fileName.endsWith('.csv') || contentType.contains('csv') || 
-                body.trim().startsWith('front') || 
-                body.contains(',')) {
-              // CSV formatını parse et
-              final lines = body.split('\n');
-              if (lines.isNotEmpty) {
-                // İlk satır header olabilir, atla
-                final startIndex = lines[0].toLowerCase().contains('front') ? 1 : 0;
-                
-                for (int i = startIndex; i < lines.length; i++) {
-                  final line = lines[i].trim();
-                  if (line.isEmpty) continue;
-                  
-                  // CSV satırını parse et (front,back formatı)
-                  // Virgülle split et, ama tırnak içindeki virgülleri koru
-                  List<String> parts = [];
-                  bool inQuotes = false;
-                  String currentPart = '';
-                  
-                  for (int j = 0; j < line.length; j++) {
-                    final char = line[j];
-                    if (char == '"') {
-                      inQuotes = !inQuotes;
-                    } else if (char == ',' && !inQuotes) {
-                      parts.add(currentPart.trim());
-                      currentPart = '';
-                    } else {
-                      currentPart += char;
-                    }
-                  }
-                  parts.add(currentPart.trim()); // Son kısmı ekle
-                  
-                  if (parts.length >= 2) {
-                    final front = parts[0].replaceAll('"', '').trim();
-                    final back = parts[1].replaceAll('"', '').trim();
-                    
-                    if (front.isNotEmpty && back.isNotEmpty) {
-                      _cards.add(FlashCard(
-                        id: '${_cards.length + 1}',
-                        frontText: front,
-                        backText: back,
-                        isLearned: false,
-                      ));
-                    }
-                  }
-                }
-              }
-            } else {
-              // JSON formatını parse et
-              final jsonData = json.decode(body);
-              
-              // JSON formatını kontrol et
-              if (jsonData is List) {
-                // Liste formatında ise
-                for (var cardData in jsonData) {
-                  _cards.add(FlashCard(
-                    id: cardData['id'] ?? '${_cards.length + 1}',
-                    frontText: cardData['frontText'] ?? cardData['front'] ?? '',
-                    backText: cardData['backText'] ?? cardData['back'] ?? '',
-                    isLearned: cardData['isLearned'] ?? false,
-                  ));
-                }
-              } else if (jsonData is Map) {
-                // Tek bir kart veya kartlar listesi içeren map
-                if (jsonData['cards'] != null && jsonData['cards'] is List) {
-                  for (var cardData in jsonData['cards']) {
-                    _cards.add(FlashCard(
-                      id: cardData['id'] ?? '${_cards.length + 1}',
-                      frontText: cardData['frontText'] ?? cardData['front'] ?? '',
-                      backText: cardData['backText'] ?? cardData['back'] ?? '',
-                      isLearned: cardData['isLearned'] ?? false,
-                    ));
-                  }
-                } else {
-                  // Tek bir kart
-                  _cards.add(FlashCard(
-                    id: jsonData['id'] ?? '${_cards.length + 1}',
-                    frontText: jsonData['frontText'] ?? jsonData['front'] ?? '',
-                    backText: jsonData['backText'] ?? jsonData['back'] ?? '',
-                    isLearned: jsonData['isLearned'] ?? false,
-                  ));
-                }
-              }
-            }
-          }
-        } catch (e) {
-          print('⚠️ Error loading flash card from $url: $e');
+      // İndirilecekleri bul (cache'de olmayanlar)
+      final downloadFiles = <int, Map<String, String>>{};
+      for (int i = 0; i < files.length; i++) {
+        if (!cacheChecks[i]) {
+          downloadFiles[i] = files[i];
         }
       }
       
-      // Eğer hiç kart yüklenmediyse, mock data kullan
-      if (_cards.isEmpty) {
-        print('⚠️ No flash cards found, using mock data');
-        _cards = List.generate(
-          widget.cardCount,
-          (index) => FlashCard(
-            id: '${index + 1}',
-            frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
-            backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
-          ),
-        );
+      // Eğer cache'den yüklenmediyse, loading göster
+      if (_cards.isEmpty && mounted) {
+        setState(() {
+          _isLoading = true;
+        });
       }
       
-      print('✅ Loaded ${_cards.length} flash cards');
+      // İndirilecekleri arka planda yükle (cache'le) - non-blocking
+      if (downloadFiles.isNotEmpty) {
+        print('🌐 Downloading ${downloadFiles.length} files in background (will cache)...');
+        // Arka planda indir (kullanıcıyı bekletme)
+        Future(() async {
+          for (final entry in downloadFiles.entries) {
+            final file = entry.value;
+            final url = file['url']!;
+            final fullPath = file['fullPath']!;
+            
+            try {
+              print('🌐 Downloading file ($fullPath)');
+              final cards = await FlashCardCacheService.cacheFlashCardsByPath(url, fullPath);
+              if (mounted && cards.isNotEmpty) {
+                setState(() {
+                  _cards.addAll(cards);
+                });
+                print('✅ Loaded ${cards.length} cards from download - added to list');
+              }
+            } catch (e) {
+              print('⚠️ Error downloading flash card from $fullPath: $e');
+            }
+          }
+          print('✅ Background download complete - total cards: ${_cards.length}');
+        });
+      }
       
-      setState(() {
-        _isLoading = false;
-      });
+      // Eğer hiç kart yüklenmediyse (ne cache'den ne de download'dan), mock data kullan
+      if (_cards.isEmpty && downloadFiles.isEmpty) {
+        print('⚠️ No flash cards found, using mock data');
+        if (mounted) {
+          setState(() {
+            _cards = List.generate(
+              widget.cardCount,
+              (index) => FlashCard(
+                id: '${index + 1}',
+                frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
+                backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
+              ),
+            );
+            _isLoading = false;
+          });
+        }
+      }
       
-      // İlerlemeyi yükle
-      _loadSavedProgress();
+      print('✅ Flash cards initialization complete: ${_cards.length} cards');
+      
+      // İlerlemeyi yükle (eğer daha önce yüklenmediyse)
+      if (_cards.isNotEmpty) {
+        _loadSavedProgress();
+      }
     } catch (e) {
       print('❌ Error loading flash cards: $e');
       

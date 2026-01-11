@@ -1,6 +1,7 @@
 class OngoingPodcast {
   final String id;
   final String title;
+  final String topic; // Konu ismi
   final int currentMinute;
   final int totalMinutes;
   final String progressColor;
@@ -12,6 +13,7 @@ class OngoingPodcast {
   OngoingPodcast({
     required this.id,
     required this.title,
+    required this.topic,
     required this.currentMinute,
     required this.totalMinutes,
     required this.progressColor,

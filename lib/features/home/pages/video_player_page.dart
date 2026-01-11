@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/scheduler.dart';
+import 'dart:io';
 import '../../../core/models/video.dart';
 import '../../../core/services/progress_service.dart';
+import '../../../core/services/video_download_service.dart';
+import '../../../core/services/storage_cleanup_service.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final Video video;
@@ -33,6 +36,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
   final ProgressService _progressService = ProgressService();
+  final VideoDownloadService _downloadService = VideoDownloadService();
+  final StorageCleanupService _cleanupService = StorageCleanupService();
 
   @override
   void initState() {
@@ -44,11 +49,75 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için)
     _initializeVideo();
   }
 
+  /// Initialize video - cache kontrolü tamamlanana kadar bekle (PDF gibi)
   Future<void> _initializeVideo() async {
+    // Önce cache kontrolü yap (await et - tamamlanmasını bekle)
+    await _checkCacheImmediately();
+    
+    // Sonra video controller'ı initialize et
+    _initializeVideoController();
+  }
+  
+  /// Check cache immediately (synchronous check for instant loading - PDF gibi)
+  Future<void> _checkCacheImmediately() async {
+    print('🔍 Checking video cache immediately for instant loading...');
+    
     try {
+      // Önce local'de kontrol et (cache kontrolü - hızlı)
+      final localPath = await _downloadService.getLocalFilePath(widget.video.videoUrl);
+      
+      if (localPath != null && await File(localPath).exists()) {
+        // Local dosya var - hemen controller oluştur (instant - cache'den)
+        print('📁 Video is downloaded (instant check): $localPath');
+        _controller = VideoPlayerController.file(File(localPath));
+        // Update last access time
+        await _cleanupService.updateLastAccessTime(widget.video.videoUrl);
+        
+        // Controller'ı initialize et (await et - tamamlanmasını bekle)
+        _controller!.addListener(_videoListener);
+        await _controller!.initialize();
+        
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+            _totalDuration = _controller!.value.duration;
+          });
+          
+          // Load saved progress and seek to that position
+          final savedProgress = await _progressService.getVideoProgress(widget.video.id);
+          if (savedProgress != null && savedProgress.inSeconds > 5) {
+            // Only resume if saved position is more than 5 seconds
+            await _controller!.seekTo(savedProgress);
+            print('✅ Resuming video from saved position: ${savedProgress.inMinutes}m');
+          }
+          
+          _startHideControlsTimer();
+          _startProgressSaveTimer();
+        }
+        print('✅ Video loaded from download (instant): $localPath');
+        return;
+      }
+      
+      print('❌ Video is not downloaded, will use streaming mode');
+    } catch (e) {
+      print('⚠️ Error checking video cache in initState: $e');
+    }
+  }
+  
+  /// Initialize video controller (for non-cached videos)
+  Future<void> _initializeVideoController() async {
+    // Eğer controller zaten oluşturulduysa (cache'den), tekrar oluşturma
+    if (_controller != null && _isInitialized) {
+      return;
+    }
+    
+    try {
+      // İndirilmemiş - streaming ile oynat (hızlı, tam indirme yok)
+      print('🌐 Video not downloaded, using streaming mode (fast, no full download)...');
       _controller = VideoPlayerController.networkUrl(
         Uri.parse(widget.video.videoUrl),
       );
@@ -73,6 +142,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         _startHideControlsTimer();
         _startProgressSaveTimer();
       }
+      
+      // Arka planda indir (cache için - non-blocking)
+      _downloadService.downloadVideo(
+        videoUrl: widget.video.videoUrl,
+        videoId: widget.video.id,
+        onProgress: (progress) {
+          print('📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%');
+        },
+      ).then((downloadedPath) {
+        if (downloadedPath != null) {
+          print('✅ Video cached in background: $downloadedPath');
+          // Next time will use cache
+        }
+      }).catchError((e) {
+        print('⚠️ Background download failed: $e');
+      });
     } catch (e) {
       print('❌ Error initializing video: $e');
       if (mounted) {

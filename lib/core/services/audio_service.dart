@@ -1,6 +1,7 @@
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:io';
 
 /// Audio player service with native media notification
 class AudioPlayerService {
@@ -109,14 +110,23 @@ class AudioPlayerService {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  Future<void> play(String url, {String? title, String? artist, Duration? duration}) async {
+  Future<void> play(String url, {String? title, String? artist, Duration? duration, String? localFilePath}) async {
     if (!_isInitialized) await initialize();
     
     _currentTitle = title;
     _currentArtist = artist;
     
     try {
-      await _player.setUrl(url);
+      // If local file path is provided and exists, use it
+      if (localFilePath != null && await File(localFilePath).exists()) {
+        print('📁 Playing from local file: $localFilePath');
+        await _player.setFilePath(localFilePath);
+      } else {
+        // Use network URL
+        print('🌐 Playing from network: $url');
+        await _player.setUrl(url);
+      }
+      
       await _player.play();
       
       // Start notification service (non-blocking - audio will play even if this fails)

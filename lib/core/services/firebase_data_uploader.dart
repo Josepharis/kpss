@@ -266,6 +266,41 @@ class FirebaseDataUploader {
     return allQuestions;
   }
 
+  /// Upload Vatandaşlık lesson to Firestore
+  /// Note: Topics will be automatically loaded from Storage (dersler/vatandaslik/konular/)
+  Future<bool> uploadVatandaslikLessonData() async {
+    try {
+      print('📚 Creating Vatandaşlık lesson...');
+      // Create Vatandaşlık lesson if it doesn't exist
+      final vatandaslikLesson = Lesson(
+        id: 'vatandaslik_lesson',
+        name: 'Vatandaşlık',
+        category: 'genel_kultur',
+        icon: 'gavel',
+        color: 'blue',
+        topicCount: 0, // Will be automatically updated from Storage
+        questionCount: 0, // Will be updated when questions are added
+        description: 'Anayasa, vatandaşlık hakları ve görevleri',
+        order: 2,
+      );
+
+      final lessonResult = await _lessonsService.addLesson(vatandaslikLesson);
+      if (!lessonResult) {
+        print('⚠️ Lesson may already exist, continuing...');
+      } else {
+        print('✅ Vatandaşlık lesson created');
+        print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/vatandaslik/konular/');
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ Error uploading Vatandaşlık lesson data: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
   /// Upload all data (lesson, topic, and questions)
   Future<bool> uploadAllData() async {
     try {

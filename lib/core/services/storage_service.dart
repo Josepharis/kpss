@@ -190,9 +190,22 @@ class StorageService {
     }
   }
 
+  /// List file names in a folder (fast - no download URLs, just names)
+  /// Returns list of file names
+  Future<List<String>> listFileNames(String folderPath) async {
+    try {
+      final folderRef = _storage.ref().child(folderPath);
+      final result = await folderRef.listAll();
+      return result.items.map((item) => item.name).toList();
+    } catch (e) {
+      print('⚠️ Error listing file names in $folderPath: $e');
+      return [];
+    }
+  }
+
   /// List files in a folder and get their download URLs (for any file type)
-  /// Returns list of download URLs
-  Future<List<String>> listFiles(String folderPath) async {
+  /// Returns list of maps with 'url' and 'fullPath' keys for cache support
+  Future<List<Map<String, String>>> listFilesWithPaths(String folderPath) async {
     try {
       print('📂 Listing files in: $folderPath');
       final folderRef = _storage.ref().child(folderPath);
@@ -201,19 +214,23 @@ class StorageService {
         final result = await folderRef.listAll();
         print('📊 Found ${result.items.length} items in folder');
         
-        final List<String> urls = [];
+        final List<Map<String, String>> files = [];
         for (var item in result.items) {
           try {
             final url = await item.getDownloadURL();
-            urls.add(url);
+            files.add({
+              'url': url,
+              'fullPath': item.fullPath,
+              'name': item.name,
+            });
             print('✅ Found: ${item.name} (${item.fullPath})');
           } catch (e) {
             print('⚠️ Error getting URL for ${item.name}: $e');
           }
         }
         
-        print('✅ Found ${urls.length} files');
-        return urls;
+        print('✅ Found ${files.length} files');
+        return files;
       } catch (e) {
         print('⚠️ Error listing folder: $e');
         return [];
@@ -222,6 +239,14 @@ class StorageService {
       print('❌ Error listing files: $e');
       return [];
     }
+  }
+
+  /// List files in a folder and get their download URLs (for any file type)
+  /// Returns list of download URLs
+  /// DEPRECATED: Use listFilesWithPaths() for cache support
+  Future<List<String>> listFiles(String folderPath) async {
+    final filesWithPaths = await listFilesWithPaths(folderPath);
+    return filesWithPaths.map((f) => f['url']!).toList();
   }
 
   /// List audio files in a folder and get their download URLs

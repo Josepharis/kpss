@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/ongoing_video.dart';
 import '../models/ongoing_podcast.dart';
 import '../models/ongoing_test.dart';
+import 'storage_service.dart';
+import 'lessons_service.dart';
 
 /// Service for managing user progress (videos, podcasts, tests, flash cards)
 class ProgressService {
@@ -75,6 +77,7 @@ class ProgressService {
     required String podcastTitle,
     required String? topicId,
     required String? lessonId,
+    required String? topicName,
     required Duration currentPosition,
     required Duration totalDuration,
   }) async {
@@ -100,6 +103,7 @@ class ProgressService {
         'podcastTitle': podcastTitle,
         'topicId': topicId,
         'lessonId': lessonId,
+        'topicName': topicName ?? '',
         'currentPosition': currentPosition.inSeconds,
         'totalDuration': totalDuration.inSeconds,
         'currentMinute': currentMinute,
@@ -284,21 +288,82 @@ class ProgressService {
           .limit(10)
           .get();
 
-      return snapshot.docs.map((doc) {
+      final videos = <OngoingVideo>[];
+      
+      for (final doc in snapshot.docs) {
         final data = doc.data();
-        return OngoingVideo(
-          id: data['videoId'] ?? doc.id,
+        final videoId = data['videoId'] ?? doc.id;
+        final topicId = data['topicId'] ?? '';
+        final lessonId = data['lessonId'] ?? '';
+        
+        // Video URL'ini progress data'dan al (eğer kaydedilmişse)
+        String videoUrl = data['videoUrl'] ?? '';
+        
+        // Eğer videoUrl boşsa, storage'dan yükle (yavaş ama gerekli)
+        if (videoUrl.isEmpty && topicId.isNotEmpty && lessonId.isNotEmpty) {
+          try {
+            // StorageService kullanarak video URL'ini yükle
+            final storageService = StorageService();
+            final lessonsService = LessonsService();
+            
+            final lesson = await lessonsService.getLessonById(lessonId);
+            if (lesson != null) {
+              final lessonNameForPath = lesson.name
+                  .toLowerCase()
+                  .replaceAll(' ', '_')
+                  .replaceAll('ı', 'i')
+                  .replaceAll('ğ', 'g')
+                  .replaceAll('ü', 'u')
+                  .replaceAll('ş', 's')
+                  .replaceAll('ö', 'o')
+                  .replaceAll('ç', 'c');
+              
+              final topicFolderName = topicId.startsWith('${lessonId}_')
+                  ? topicId.substring('${lessonId}_'.length)
+                  : '';
+              
+              if (topicFolderName.isNotEmpty) {
+                String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/video';
+                final videoUrls = await storageService.listVideoFiles(storagePath);
+                
+                // Video ID'den index çıkar (video_${topicId}_$index formatından)
+                if (videoId.contains('_')) {
+                  final parts = videoId.split('_');
+                  if (parts.length >= 3) {
+                    final indexStr = parts.last;
+                    final index = int.tryParse(indexStr) ?? 0;
+                    if (index >= 0 && index < videoUrls.length) {
+                      videoUrl = videoUrls[index];
+                    }
+                  }
+                }
+                
+                // Eğer hala boşsa, ilk videoyu al
+                if (videoUrl.isEmpty && videoUrls.isNotEmpty) {
+                  videoUrl = videoUrls[0];
+                }
+              }
+            }
+          } catch (e) {
+            print('⚠️ Error loading video URL for $videoId: $e');
+          }
+        }
+        
+        videos.add(OngoingVideo(
+          id: videoId,
           title: data['videoTitle'] ?? 'Video',
           topic: data['topicName'] ?? '',
           currentMinute: data['currentMinute'] ?? 0,
           totalMinutes: data['totalMinutes'] ?? 1,
           progressColor: 'blue',
           icon: 'play',
-          topicId: data['topicId'] ?? '',
-          lessonId: data['lessonId'] ?? '',
-          videoUrl: '', // Will be loaded from video service
-        );
-      }).toList();
+          topicId: topicId,
+          lessonId: lessonId,
+          videoUrl: videoUrl,
+        ));
+      }
+      
+      return videos;
     } catch (e) {
       print('❌ Error getting ongoing videos: $e');
       return [];
@@ -320,6 +385,7 @@ class ProgressService {
         return OngoingPodcast(
           id: data['podcastId'] ?? doc.id,
           title: data['podcastTitle'] ?? 'Podcast',
+          topic: data['topicName'] ?? '',
           currentMinute: data['currentMinute'] ?? 0,
           totalMinutes: data['totalMinutes'] ?? 1,
           progressColor: 'blue',

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_podcast.dart';
+import '../../../../main.dart';
+import '../pages/podcasts_page.dart';
 
 class OngoingPodcastCard extends StatelessWidget {
   final OngoingPodcast podcast;
@@ -66,6 +68,12 @@ class OngoingPodcastCard extends StatelessWidget {
   }
 
   String _getSubjectName() {
+    // Önce konu ismini kullan, yoksa title'dan çıkar
+    if (podcast.topic.isNotEmpty) {
+      return podcast.topic;
+    }
+    
+    // Fallback: title'dan çıkarmaya çalış
     if (podcast.title.toLowerCase().contains('kpss')) {
       return 'KPSS';
     } else if (podcast.title.toLowerCase().contains('ags')) {
@@ -81,8 +89,29 @@ class OngoingPodcastCard extends StatelessWidget {
     final borderRadius = isSmallScreen ? 16.0 : 18.0;
     
     return GestureDetector(
-      onTap: () {
-        // Navigate to podcast detail
+      onTap: () async {
+        // Navigate to podcasts page
+        if (podcast.topicId != null && podcast.lessonId != null) {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PodcastsPage(
+                topicName: podcast.topic.isNotEmpty ? podcast.topic : podcast.title,
+                podcastCount: 1, // Will be loaded in PodcastsPage
+                topicId: podcast.topicId!,
+                lessonId: podcast.lessonId!,
+                initialAudioUrl: podcast.audioUrl.isNotEmpty ? podcast.audioUrl : null, // Cache'den direkt yükle
+              ),
+            ),
+          );
+          // If podcast page returned true, refresh home page
+          if (result == true) {
+            final mainScreen = MainScreen.of(context);
+            if (mainScreen != null) {
+              mainScreen.refreshHomePage();
+            }
+          }
+        }
       },
       child: Container(
         width: isSmallScreen ? 85 : 95,

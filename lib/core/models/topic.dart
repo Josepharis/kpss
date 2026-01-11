@@ -9,9 +9,11 @@ class Topic {
   final int podcastCount;
   final int videoCount;
   final int noteCount;
+  final int flashCardCount; // Bilgi kartı sayısı
+  final int pdfCount; // PDF sayısı
   final double progress; // 0.0 - 1.0
   final int order; // Sıralama için
-  final String? pdfUrl; // PDF dosyasının URL'i
+  final String? pdfUrl; // PDF dosyasının URL'i (ilk PDF için)
 
   Topic({
     required this.id,
@@ -24,6 +26,8 @@ class Topic {
     required this.podcastCount,
     required this.videoCount,
     required this.noteCount,
+    this.flashCardCount = 0,
+    this.pdfCount = 0,
     this.progress = 0.0,
     this.order = 0,
     this.pdfUrl,
@@ -42,6 +46,8 @@ class Topic {
       podcastCount: (map['podcastCount'] ?? 0) as int,
       videoCount: (map['videoCount'] ?? 0) as int,
       noteCount: (map['noteCount'] ?? 0) as int,
+      flashCardCount: (map['flashCardCount'] ?? 0) as int,
+      pdfCount: (map['pdfCount'] ?? 0) as int,
       progress: (map['progress'] ?? 0.0) as double,
       order: (map['order'] ?? 0) as int,
       pdfUrl: map['pdfUrl'] as String?,
@@ -60,6 +66,8 @@ class Topic {
       'podcastCount': podcastCount,
       'videoCount': videoCount,
       'noteCount': noteCount,
+      'flashCardCount': flashCardCount,
+      'pdfCount': pdfCount,
       'progress': progress,
       'order': order,
       if (pdfUrl != null) 'pdfUrl': pdfUrl,

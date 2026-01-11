@@ -79,10 +79,11 @@ class OngoingPodcastsListPage extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => PodcastsPage(
-                              topicName: podcast.title,
+                              topicName: podcast.topic.isNotEmpty ? podcast.topic : podcast.title,
                               podcastCount: 1, // Will be loaded in PodcastsPage
                               topicId: podcast.topicId!,
                               lessonId: podcast.lessonId!,
+                              initialAudioUrl: podcast.audioUrl.isNotEmpty ? podcast.audioUrl : null, // Cache'den direkt yükle
                             ),
                           ),
                         );
@@ -125,6 +126,19 @@ class OngoingPodcastsListPage extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (podcast.topic.isNotEmpty)
+                                  Text(
+                                    podcast.topic,
+                                    style: TextStyle(
+                                      fontSize: isSmallScreen ? 12 : 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                if (podcast.topic.isNotEmpty)
+                                  const SizedBox(height: 4),
                                 Text(
                                   podcast.title,
                                   style: TextStyle(

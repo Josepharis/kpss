@@ -38,30 +38,42 @@ class OngoingVideosSection extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE74C3C).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OngoingVideosListPage(
+                        videos: videos,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.video_library_outlined,
-                      size: isSmallScreen ? 16.0 : 18.0,
-                      color: const Color(0xFFE74C3C),
+                  );
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE74C3C).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.video_library_outlined,
+                        size: isSmallScreen ? 16.0 : 18.0,
+                        color: const Color(0xFFE74C3C),
+                      ),
                     ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 6.0 : 8.0),
-                  Text(
-                    'Devam Eden Videolar',
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 14.0 : 18.0,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                    SizedBox(width: isSmallScreen ? 6.0 : 8.0),
+                    Text(
+                      'Devam Eden Videolar',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14.0 : 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               TextButton(
                 onPressed: () {

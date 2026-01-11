@@ -124,6 +124,20 @@ class LessonsService {
         return _getTopicsFromFirestore(lessonId);
       }
       
+      // Vatandaşlık dersi için özel konu sıralaması
+      final Map<String, int> vatandaslikTopicOrder = {
+        'Hukukun Temel Kavramları': 1,
+        'Devlet Biçimleri Demokrasi Ve Kuvvetler Ayrılığı': 2,
+        'Anayasa Hukukuna Giriş Temel Kavramlar Ve Türk Anayasa Tarihi': 3,
+        '1982 Anayasasının Temel İlkeleri': 4,
+        'Yasama': 5,
+        'Yürütme': 6,
+        'Yargı': 7,
+        'Temel Hak Ve Hürriyetler': 8,
+        'İdare Hukuku Ve': 9,
+        'Uluslararası Kuruluşlar': 10,
+      };
+      
       // Her konu klasörü için Topic oluştur (sadece isim, içerik sayıları 0)
       final List<Topic> topics = [];
       for (int index = 0; index < topicFolders.length; index++) {
@@ -140,6 +154,25 @@ class LessonsService {
         // Topic ID oluştur (lessonId_topicFolderName formatında)
         final topicId = '${lessonId}_$topicFolderName';
         
+        // Vatandaşlık dersi için özel sıralama
+        int topicOrder = index + 1;
+        if (lessonId == 'vatandaslik_lesson' || lesson.name == 'Vatandaşlık') {
+          // Konu adını normalize et (karşılaştırma için)
+          final normalizedTopicName = topicName.trim();
+          if (vatandaslikTopicOrder.containsKey(normalizedTopicName)) {
+            topicOrder = vatandaslikTopicOrder[normalizedTopicName]!;
+          } else {
+            // Eğer listede yoksa, benzer isimleri kontrol et
+            for (final entry in vatandaslikTopicOrder.entries) {
+              if (normalizedTopicName.toLowerCase().contains(entry.key.toLowerCase()) ||
+                  entry.key.toLowerCase().contains(normalizedTopicName.toLowerCase())) {
+                topicOrder = entry.value;
+                break;
+              }
+            }
+          }
+        }
+        
         // Topic oluştur (içerik sayıları 0, konu detay sayfasında çekilecek)
         final topic = Topic(
           id: topicId,
@@ -152,16 +185,18 @@ class LessonsService {
           podcastCount: 0, // Konu detay sayfasında çekilecek
           videoCount: 0, // Konu detay sayfasında çekilecek
           noteCount: 0, // Konu detay sayfasında çekilecek
+          flashCardCount: 0, // Konu detay sayfasında çekilecek
+          pdfCount: 0, // Konu detay sayfasında çekilecek
           progress: 0.0,
-          order: index + 1,
+          order: topicOrder,
           pdfUrl: null, // Konu detay sayfasında çekilecek
         );
         
         topics.add(topic);
-        print('✅ Created topic: $topicName');
+        print('✅ Created topic: $topicName (order: $topicOrder)');
       }
       
-      // Sıralama (zaten index'e göre sıralı)
+      // Sıralama (order'a göre)
       topics.sort((a, b) => a.order.compareTo(b.order));
       
       print('✅ Loaded ${topics.length} topic names from Storage for lesson: ${lesson.name}');
@@ -233,83 +268,31 @@ class LessonsService {
       final videoPath = '$topicBasePath/video';
       final podcastPath = '$topicBasePath/podcast';
       final bilgikartiPath = '$topicBasePath/bilgikarti';
-      final konuAnlatimiPath = '$topicBasePath/konu';
-      final konuAnlatimiPathAlt = '$topicBasePath/konu_anlatimi';
-      final pdfPath = '$topicBasePath/pdf';
+      final notPath = '$topicBasePath/not';
+      final notlarPath = '$topicBasePath/notlar';
       
-      // Dosya sayılarını paralel olarak say
+      // Dosya sayılarını paralel olarak say (hızlı - sadece dosya sayısı)
       final counts = await Future.wait([
-        _storageService.countFilesInFolder(videoPath),
-        _storageService.countFilesInFolder(podcastPath),
-        _storageService.countFilesInFolder(bilgikartiPath),
+        _storageService.countFilesInFolder(videoPath).catchError((_) => 0),
+        _storageService.countFilesInFolder(podcastPath).catchError((_) => 0),
+        _storageService.countFilesInFolder(bilgikartiPath).catchError((_) => 0), // Hızlı: sadece dosya sayısı
+        _storageService.countFilesInFolder(notPath).catchError((_) => 0),
+        _storageService.countFilesInFolder(notlarPath).catchError((_) => 0),
+        _countPdfsFast(topicBasePath), // PDF sayısını paralel hesapla
       ]);
       final videoCount = counts[0];
       final podcastCount = counts[1];
-      final bilgikartiCount = counts[2];
+      final bilgikartiFileCount = counts[2]; // Dosya sayısı (hızlı)
+      final notCount = counts[3] + counts[4];
+      final pdfCount = counts[5]; // PDF sayısı
       
-      // PDF URL'ini bul
+      // Bilgi kartı sayısı: Dosya sayısını direkt kullan (hızlı - cache kontrolü yok)
+      int bilgikartiCount = bilgikartiFileCount;
+      
+      // PDF URL'ini bul (ilk PDF için - lazy load, sadece gerektiğinde)
+      // Şu an sadece sayıları gösteriyoruz, URL'ye gerek yok
       String? pdfUrl;
-      try {
-        // Önce 'konu' klasöründen PDF ara
-        try {
-          final konuFiles = await _storageService.listFiles(konuAnlatimiPath);
-          if (konuFiles.isNotEmpty) {
-            final pdfFile = konuFiles.firstWhere(
-              (url) => url.toLowerCase().endsWith('.pdf'),
-              orElse: () => '',
-            );
-            if (pdfFile.isNotEmpty) {
-              pdfUrl = pdfFile;
-            } else if (konuFiles.isNotEmpty) {
-              pdfUrl = konuFiles.first;
-            }
-          }
-        } catch (e) {
-          print('⚠️ Error loading from konu/ folder: $e');
-        }
-        
-        // Eğer bulunamadıysa konu_anlatimi klasöründen ara
-        if (pdfUrl == null || pdfUrl.isEmpty) {
-          try {
-            final konuAnlatimiFiles = await _storageService.listFiles(konuAnlatimiPathAlt);
-            if (konuAnlatimiFiles.isNotEmpty) {
-              final pdfFile = konuAnlatimiFiles.firstWhere(
-                (url) => url.toLowerCase().endsWith('.pdf'),
-                orElse: () => '',
-              );
-              if (pdfFile.isNotEmpty) {
-                pdfUrl = pdfFile;
-              } else if (konuAnlatimiFiles.isNotEmpty) {
-                pdfUrl = konuAnlatimiFiles.first;
-              }
-            }
-          } catch (e) {
-            print('⚠️ Error loading from konu_anlatimi/ folder: $e');
-          }
-        }
-        
-        // Eğer hala bulunamadıysa pdf klasöründen ara
-        if (pdfUrl == null || pdfUrl.isEmpty) {
-          try {
-            final pdfFiles = await _storageService.listFiles(pdfPath);
-            if (pdfFiles.isNotEmpty) {
-              final pdfFile = pdfFiles.firstWhere(
-                (url) => url.toLowerCase().endsWith('.pdf'),
-                orElse: () => '',
-              );
-              if (pdfFile.isNotEmpty) {
-                pdfUrl = pdfFile;
-              } else if (pdfFiles.isNotEmpty) {
-                pdfUrl = pdfFiles.first;
-              }
-            }
-          } catch (e) {
-            print('⚠️ Error loading from pdf/ folder: $e');
-          }
-        }
-      } catch (e) {
-        print('⚠️ Error loading PDF for topic ${topic.name}: $e');
-      }
+      // PDF URL'i lazy load edilecek (kullanıcı PDF sayfasına girdiğinde)
       
       // Topic'i güncelle
       final updatedTopic = Topic(
@@ -322,17 +305,60 @@ class LessonsService {
         testCount: topic.testCount,
         podcastCount: podcastCount,
         videoCount: videoCount,
-        noteCount: bilgikartiCount,
+        noteCount: notCount, // Notlar ayrı
+        flashCardCount: bilgikartiCount, // Bilgi kartı sayısı
+        pdfCount: pdfCount, // PDF sayısı
         progress: topic.progress,
         order: topic.order,
         pdfUrl: pdfUrl,
       );
       
-      print('✅ Updated topic: ${topic.name} (videos: $videoCount, podcasts: $podcastCount, bilgikarti: $bilgikartiCount)');
+      print('✅ Updated topic: ${topic.name} (videos: $videoCount, podcasts: $podcastCount, bilgikarti: $bilgikartiCount, notlar: $notCount, pdfs: $pdfCount)');
       return updatedTopic;
     } catch (e) {
       print('❌ Error fetching content counts for topic ${topic.name}: $e');
       return topic;
+    }
+  }
+
+  /// Helper method to count PDFs quickly (sadece dosya isimlerine bak, URL almadan)
+  Future<int> _countPdfsFast(String topicBasePath) async {
+    try {
+      final konuAnlatimiPath = '$topicBasePath/konu';
+      final konuAnlatimiPathAlt = '$topicBasePath/konu_anlatimi';
+      final pdfPath = '$topicBasePath/pdf';
+      
+      // PDF dosyalarını filtrele (sadece dosya isimlerine bak, URL almadan - çok hızlı)
+      int totalPdfCount = 0;
+      
+      // konu/ klasöründen PDF sayısı
+      try {
+        final fileNames = await _storageService.listFileNames(konuAnlatimiPath);
+        totalPdfCount += fileNames.where((name) => name.toLowerCase().endsWith('.pdf')).length;
+      } catch (e) {
+        // Hata olursa devam et
+      }
+      
+      // konu_anlatimi/ klasöründen PDF sayısı
+      try {
+        final fileNames = await _storageService.listFileNames(konuAnlatimiPathAlt);
+        totalPdfCount += fileNames.where((name) => name.toLowerCase().endsWith('.pdf')).length;
+      } catch (e) {
+        // Hata olursa devam et
+      }
+      
+      // pdf/ klasöründen PDF sayısı
+      try {
+        final fileNames = await _storageService.listFileNames(pdfPath);
+        totalPdfCount += fileNames.where((name) => name.toLowerCase().endsWith('.pdf')).length;
+      } catch (e) {
+        // Hata olursa devam et
+      }
+      
+      return totalPdfCount;
+    } catch (e) {
+      print('⚠️ Error counting PDFs: $e');
+      return 0;
     }
   }
 

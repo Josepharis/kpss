@@ -1,79 +1,84 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/video.dart';
-import '../../../core/services/storage_service.dart';
+import '../../../core/models/topic.dart';
+import '../../../core/services/pdf_download_service.dart';
 import '../../../core/services/lessons_service.dart';
-import '../../../core/services/video_download_service.dart';
-import 'video_player_page.dart';
+import '../../../core/services/storage_service.dart';
+import 'topic_pdf_viewer_page.dart';
 
-class VideosPage extends StatefulWidget {
+class PdfsPage extends StatefulWidget {
   final String topicName;
-  final int videoCount;
+  final int pdfCount;
   final String topicId;
   final String lessonId;
+  final Topic topic;
 
-  const VideosPage({
+  const PdfsPage({
     super.key,
     required this.topicName,
-    required this.videoCount,
+    required this.pdfCount,
     required this.topicId,
     required this.lessonId,
+    required this.topic,
   });
 
   @override
-  State<VideosPage> createState() => _VideosPageState();
+  State<PdfsPage> createState() => _PdfsPageState();
 }
 
-class _VideosPageState extends State<VideosPage> {
-  final StorageService _storageService = StorageService();
+class _PdfsPageState extends State<PdfsPage> {
+  final PdfDownloadService _downloadService = PdfDownloadService();
   final LessonsService _lessonsService = LessonsService();
-  final VideoDownloadService _downloadService = VideoDownloadService();
-  List<Video> _videos = [];
+  final StorageService _storageService = StorageService();
+  List<Map<String, String>> _pdfs = [];
   bool _isLoading = true;
-  bool _shouldRefresh = false; // Track if video player was used
-  Map<String, bool> _downloadedVideos = {}; // Track downloaded videos
-  Map<String, double> _downloadProgress = {}; // Track download progress
-  Map<String, bool> _downloadingVideos = {}; // Track videos being downloaded
+  bool _shouldRefresh = false;
+  Map<String, bool> _downloadedPdfs = {}; // Track downloaded PDFs
 
   @override
   void initState() {
     super.initState();
-    // Önce video listesini yükle, sonra download kontrolü yap
-    _initializeVideos();
+    _loadPdfs();
+    _checkDownloadedPdfs();
   }
   
-  /// Initialize videos - optimize edilmiş yükleme
-  Future<void> _initializeVideos() async {
-    await _loadVideos();
-    _checkDownloadedVideos();
-  }
-  
-  Future<void> _checkDownloadedVideos() async {
-    for (final video in _videos) {
-      final isDownloaded = await _downloadService.isVideoDownloaded(video.videoUrl);
-      if (mounted) {
-        setState(() {
-          _downloadedVideos[video.id] = isDownloaded;
-        });
+  Future<void> _checkDownloadedPdfs() async {
+    for (final pdf in _pdfs) {
+      if (pdf['pdfUrl'] != null && pdf['pdfUrl']!.isNotEmpty) {
+        final isDownloaded = await _downloadService.isPdfDownloaded(pdf['pdfUrl']!);
+        if (mounted) {
+          setState(() {
+            _downloadedPdfs[pdf['pdfUrl']!] = isDownloaded;
+          });
+        }
       }
     }
   }
 
-  Future<void> _loadVideos() async {
+  Future<void> _loadPdfs() async {
     try {
       setState(() {
         _isLoading = true;
       });
       
-      print('🔍 Loading videos from Storage for topicId: ${widget.topicId}');
+      print('🔍 Loading PDFs from Storage for topic: ${widget.topic.name}');
       
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
         print('⚠️ Lesson not found: ${widget.lessonId}');
+        // Fallback: sadece topic.pdfUrl'i kullan
+        _pdfs = [];
+        if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty) {
+          _pdfs.add({
+            'name': 'Konu Anlatımı',
+            'pdfUrl': widget.topic.pdfUrl!,
+          });
+        }
         setState(() {
           _isLoading = false;
         });
+        _checkDownloadedPdfs();
         return;
       }
       
@@ -88,139 +93,157 @@ class _VideosPageState extends State<VideosPage> {
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
-      // TopicId formatı: {lessonId}_{topicFolderName}
-      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
-      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
+      // Topic ID'den topic folder name'i çıkar
+      // Format: lessonId_topicFolderName
       final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
           ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName; // Fallback: topic name'i direkt kullan
+          : widget.topicName.toLowerCase().replaceAll(' ', '_'); // Fallback
       
-      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
-      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
-      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/video';
+      // Storage path'lerini oluştur (konu, konu_anlatimi, pdf klasörleri)
+      final konuAnlatimiPath = 'dersler/$lessonNameForPath/konular/$topicFolderName/konu';
+      final konuAnlatimiPathAlt = 'dersler/$lessonNameForPath/konular/$topicFolderName/konu_anlatimi';
+      final pdfPath = 'dersler/$lessonNameForPath/konular/$topicFolderName/pdf';
+      
+      // Tüm PDF'leri topla
+      final List<String> allPdfUrls = [];
+      final List<String> pdfNames = [];
+      
+      // 1. konu/ klasöründen PDF'leri al (öncelikli)
       try {
-        print('📂 Trying storage path: $storagePath');
-        final testResult = await _storageService.listVideoFiles(storagePath);
-        if (testResult.isEmpty) {
-          // Konular altında yoksa, direkt ders altından dene
-          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
-          print('📂 Trying alternative path: $storagePath');
+        final konuFiles = await _storageService.listFiles(konuAnlatimiPath);
+        print('📄 Found ${konuFiles.length} files in konu/ folder');
+        for (final pdfUrl in konuFiles) {
+          // PDF kontrolü yap - URL'de .pdf geçiyorsa veya dosya adı .pdf ile bitiyorsa
+          final urlLower = pdfUrl.toLowerCase();
+          // URL'de .pdf geçiyorsa veya dosya adı .pdf ile bitiyorsa ekle
+          if (urlLower.contains('.pdf')) {
+            allPdfUrls.add(pdfUrl);
+            // Dosya adını URL'den çıkar
+            final uri = Uri.parse(pdfUrl);
+            var fileName = uri.pathSegments.last;
+            // Query parametrelerini temizle
+            fileName = fileName.split('?').first;
+            // Uzantıyı kaldır ve formatla
+            fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
+            if (fileName.isEmpty) {
+              fileName = 'PDF ${allPdfUrls.length}';
+            }
+            pdfNames.add(fileName);
+            print('  ✅ Added PDF: $fileName');
+          }
         }
       } catch (e) {
-        // Hata varsa alternatif path'i dene
-        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
-        print('📂 Using fallback path: $storagePath');
+        print('⚠️ Error loading from konu/ folder: $e');
       }
       
-      // Storage'dan video dosyalarını listele
-      final videoUrls = await _storageService.listVideoFiles(storagePath);
-      
-      // Video listesini oluştur
-      _videos = [];
-      for (int index = 0; index < videoUrls.length; index++) {
-        final url = videoUrls[index];
-        
-        try {
-          // URL'den sadece dosya adını çıkar (path değil)
-          String fileName = '';
-          try {
-            final uri = Uri.parse(url);
-            // Query parametrelerini kaldır ve sadece path'i al
-            final pathWithoutQuery = uri.path;
-            // Path'ten sadece dosya adını al (son segment)
-            if (pathWithoutQuery.isNotEmpty) {
-              final segments = pathWithoutQuery.split('/');
-              fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
-            }
-            
-            // Eğer hala boşsa, pathSegments'ten dene
-            if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
-              fileName = uri.pathSegments.last;
-            }
-            
-            // Hala boşsa, URL'den son kısmı al
-            if (fileName.isEmpty) {
-              final parts = url.split('/');
-              fileName = parts.isNotEmpty ? parts.last : '';
-              // Query parametrelerini kaldır
-              if (fileName.contains('?')) {
-                fileName = fileName.split('?').first;
+      // 2. konu_anlatimi/ klasöründen PDF'leri al
+      try {
+        final konuAnlatimiFiles = await _storageService.listFiles(konuAnlatimiPathAlt);
+        print('📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder');
+        for (final pdfUrl in konuAnlatimiFiles) {
+          final urlLower = pdfUrl.toLowerCase();
+          // URL'de .pdf geçiyorsa ekle
+          if (urlLower.contains('.pdf')) {
+            // Zaten eklenmişse atla
+            if (!allPdfUrls.contains(pdfUrl)) {
+              allPdfUrls.add(pdfUrl);
+              final uri = Uri.parse(pdfUrl);
+              var fileName = uri.pathSegments.last.split('?').first;
+              fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
+              if (fileName.isEmpty) {
+                fileName = 'PDF ${allPdfUrls.length}';
               }
+              pdfNames.add(fileName);
+              print('  ✅ Added PDF: $fileName');
             }
-            
-            // Decode et, ama hata olursa direkt kullan
-            try {
-              fileName = Uri.decodeComponent(fileName);
-            } catch (e) {
-              // Decode edilemezse direkt kullan
-              print('⚠️ Could not decode filename, using as-is: $fileName');
-            }
-          } catch (e) {
-            // URI parse edilemezse, URL'den son kısmı al
-            final parts = url.split('/');
-            fileName = parts.isNotEmpty ? parts.last : 'Video ${index + 1}';
-            // Query parametrelerini kaldır
-            if (fileName.contains('?')) {
-              fileName = fileName.split('?').first;
-            }
-            print('⚠️ Could not parse URI, extracted filename: $fileName');
           }
+        }
+      } catch (e) {
+        print('⚠️ Error loading from konu_anlatimi/ folder: $e');
+      }
+      
+      // 3. pdf/ klasöründen PDF'leri al
+      try {
+        final pdfFiles = await _storageService.listFiles(pdfPath);
+        print('📄 Found ${pdfFiles.length} files in pdf/ folder');
+        for (final pdfUrl in pdfFiles) {
+          final urlLower = pdfUrl.toLowerCase();
+          // URL'de .pdf geçiyorsa ekle
+          if (urlLower.contains('.pdf')) {
+            // Zaten eklenmişse atla
+            if (!allPdfUrls.contains(pdfUrl)) {
+              allPdfUrls.add(pdfUrl);
+              final uri = Uri.parse(pdfUrl);
+              var fileName = uri.pathSegments.last.split('?').first;
+              fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
+              if (fileName.isEmpty) {
+                fileName = 'PDF ${allPdfUrls.length}';
+              }
+              pdfNames.add(fileName);
+              print('  ✅ Added PDF: $fileName');
+            }
+          }
+        }
+      } catch (e) {
+        print('⚠️ Error loading from pdf/ folder: $e');
+      }
+      
+      // PDF listesini oluştur
+      _pdfs = [];
+      print('📊 Processing PDFs: ${allPdfUrls.length} URLs found, ${pdfNames.length} names');
+      
+      if (allPdfUrls.isNotEmpty) {
+        for (int i = 0; i < allPdfUrls.length; i++) {
+          final pdfUrl = allPdfUrls[i];
+          print('  🔍 Checking PDF ${i + 1}: $pdfUrl');
           
-          // Path karakterlerini temizle (sadece dosya adı kalmalı)
-          fileName = fileName.replaceAll('\\', '/').split('/').last;
-          
-          // Dosya adından başlık oluştur
-          final title = fileName
-              .replaceAll('.mp4', '')
-              .replaceAll('.mov', '')
-              .replaceAll('.avi', '')
-              .replaceAll('.mkv', '')
-              .replaceAll('.webm', '')
-              .replaceAll('_', ' ')
-              .replaceAll('%20', ' ')
-              .trim();
-          
-          _videos.add(Video(
-            id: 'video_${widget.topicId}_$index',
-            title: title.isNotEmpty ? title : 'Video ${index + 1}',
-            description: '${widget.topicName} video',
-            videoUrl: url,
-            durationMinutes: 0, // Duration will be loaded when video is played
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
-        } catch (e) {
-          print('⚠️ Error processing video $index: $e');
-          // Hata olsa bile video ekle (URL ile)
-          _videos.add(Video(
-            id: 'video_${widget.topicId}_$index',
-            title: 'Video ${index + 1}',
-            description: '${widget.topicName} video',
-            videoUrl: url,
-            durationMinutes: 0,
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
+          // PDF URL'inin geçerli olduğunu kontrol et
+          if (pdfUrl.isNotEmpty && (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://'))) {
+            final pdfName = i < pdfNames.length && pdfNames[i].isNotEmpty 
+                ? pdfNames[i] 
+                : 'PDF ${i + 1}';
+            _pdfs.add({
+              'name': pdfName,
+              'pdfUrl': pdfUrl,
+            });
+            print('  ✅ Added PDF ${i + 1}: $pdfName');
+            print('     URL: $pdfUrl');
+          } else {
+            print('  ⚠️ Invalid PDF URL skipped: $pdfUrl (empty: ${pdfUrl.isEmpty}, starts with http: ${pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')})');
+          }
+        }
+        print('✅ Loaded ${_pdfs.length} PDF files from Storage (total found: ${allPdfUrls.length})');
+      } else {
+        print('⚠️ No PDF URLs found in allPdfUrls list');
+        // Fallback: topic.pdfUrl'i kullan
+        if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty) {
+          _pdfs.add({
+            'name': 'Konu Anlatımı',
+            'pdfUrl': widget.topic.pdfUrl!,
+          });
+          print('⚠️ No PDFs found in Storage, using topic.pdfUrl: ${widget.topic.pdfUrl}');
+        } else {
+          print('⚠️ No PDFs found for this topic (topic.pdfUrl is also null)');
         }
       }
       
-      print('✅ Found ${_videos.length} videos from Storage');
+      print('📋 Final PDF list: ${_pdfs.length} PDFs');
+      for (int i = 0; i < _pdfs.length; i++) {
+        print('  PDF ${i + 1}: ${_pdfs[i]['name']} - ${_pdfs[i]['pdfUrl']}');
+      }
       
       setState(() {
         _isLoading = false;
       });
       
-      // Check downloaded status for all videos
-      _checkDownloadedVideos();
+      // Check downloaded status
+      _checkDownloadedPdfs();
     } catch (e) {
-      print('❌ Error loading videos: $e');
+      print('❌ Error loading PDFs: $e');
       
       setState(() {
         _isLoading = false;
-        _videos = [];
+        _pdfs = [];
       });
     }
   }
@@ -242,13 +265,13 @@ class _VideosPageState extends State<VideosPage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFFE74C3C),
-                const Color(0xFFC0392B),
+                const Color(0xFFFF9800),
+                const Color(0xFFFF6B35),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFE74C3C).withValues(alpha: 0.3),
+                color: const Color(0xFFFF9800).withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -269,7 +292,7 @@ class _VideosPageState extends State<VideosPage> {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            Navigator.of(context).pop(_shouldRefresh); // Return refresh status
+                            Navigator.of(context).pop(_shouldRefresh);
                           },
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
@@ -308,7 +331,7 @@ class _VideosPageState extends State<VideosPage> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Videolar',
+                              'PDF Dosyaları',
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 18,
                                 fontWeight: FontWeight.bold,
@@ -333,23 +356,31 @@ class _VideosPageState extends State<VideosPage> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : _videos.isEmpty
+          : _pdfs.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.video_library_outlined,
+                        Icons.picture_as_pdf_outlined,
                         size: 64,
                         color: Colors.grey.shade400,
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Henüz video eklenmemiş',
+                        'PDF bulunamadı',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.grey.shade600,
                           fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Debug: _pdfs.length = ${_pdfs.length}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
                         ),
                       ),
                     ],
@@ -357,19 +388,27 @@ class _VideosPageState extends State<VideosPage> {
                 )
               : ListView.builder(
                   padding: EdgeInsets.all(isTablet ? 20 : 16),
-                  itemCount: _videos.length,
+                  itemCount: _pdfs.length,
                   itemBuilder: (context, index) {
-                    final video = _videos[index];
-                    return _buildVideoCard(video, isSmallScreen);
+                    print('📋 Building PDF card ${index + 1}/${_pdfs.length}');
+                    final pdf = _pdfs[index];
+                    print('   PDF data: $pdf');
+                    return _buildPdfCard(pdf, isSmallScreen);
                   },
                 ),
     );
   }
 
-  Widget _buildVideoCard(Video video, bool isSmallScreen) {
-    final isDownloaded = _downloadedVideos[video.id] ?? false;
-    final isDownloading = _downloadingVideos[video.id] ?? false;
-    final downloadProgress = _downloadProgress[video.id] ?? 0.0;
+  Widget _buildPdfCard(Map<String, String> pdf, bool isSmallScreen) {
+    print('🎨 Building PDF card widget');
+    print('   PDF map: $pdf');
+    final pdfUrl = pdf['pdfUrl'] ?? '';
+    final pdfName = pdf['name'] ?? 'Unknown';
+    final isDownloaded = _downloadedPdfs[pdfUrl] ?? false;
+    
+    print('   PDF Name: $pdfName');
+    print('   PDF URL: $pdfUrl');
+    print('   Is Downloaded: $isDownloaded');
     
     return Card(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
@@ -379,30 +418,69 @@ class _VideosPageState extends State<VideosPage> {
       ),
       child: InkWell(
         onTap: () async {
+          print('🖱️🖱️🖱️ PDF CARD TAPPED! 🖱️🖱️🖱️');
+          print('   PDF data: $pdf');
+          print('   PDF keys: ${pdf.keys}');
+          final pdfUrl = pdf['pdfUrl'];
+          final pdfName = pdf['name'];
+          print('📄 Opening PDF: $pdfName');
+          print('   URL: $pdfUrl');
+          print('   URL is null: ${pdfUrl == null}');
+          print('   URL is empty: ${pdfUrl?.isEmpty ?? true}');
+          
+          if (pdfUrl == null || pdfUrl.isEmpty) {
+            print('❌ PDF URL is null or empty!');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('PDF URL bulunamadı.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          
+          print('✅ PDF URL is valid, navigating to viewer...');
+          
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => VideoPlayerPage(
-                video: video,
-                topicName: widget.topicName,
+              builder: (context) => TopicPdfViewerPage(
+                topic: Topic(
+                  id: widget.topic.id,
+                  lessonId: widget.topic.lessonId,
+                  name: pdfName ?? 'Konu Anlatımı',
+                  subtitle: widget.topic.subtitle,
+                  duration: widget.topic.duration,
+                  averageQuestionCount: widget.topic.averageQuestionCount,
+                  testCount: widget.topic.testCount,
+                  podcastCount: widget.topic.podcastCount,
+                  videoCount: widget.topic.videoCount,
+                  noteCount: widget.topic.noteCount,
+                  progress: widget.topic.progress,
+                  order: widget.topic.order,
+                  pdfUrl: pdfUrl,
+                ),
               ),
             ),
           );
-          // If video player returned true, mark for refresh
           if (result == true) {
             setState(() {
               _shouldRefresh = true;
             });
             // Recheck downloaded status
-            _checkDownloadedVideos();
+            _checkDownloadedPdfs();
           }
+        },
+        onTapDown: (_) {
+          print('👆 PDF card onTapDown triggered!');
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
           child: Row(
             children: [
-              // Video thumbnail/icon
+              // PDF thumbnail/icon
               Container(
                 width: isSmallScreen ? 80 : 100,
                 height: isSmallScreen ? 60 : 75,
@@ -411,8 +489,8 @@ class _VideosPageState extends State<VideosPage> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      const Color(0xFFE74C3C),
-                      const Color(0xFFC0392B),
+                      const Color(0xFFFF9800),
+                      const Color(0xFFFF6B35),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
@@ -421,7 +499,7 @@ class _VideosPageState extends State<VideosPage> {
                   alignment: Alignment.center,
                   children: [
                     Icon(
-                      Icons.play_circle_filled,
+                      Icons.picture_as_pdf_rounded,
                       color: Colors.white,
                       size: isSmallScreen ? 32 : 40,
                     ),
@@ -446,13 +524,13 @@ class _VideosPageState extends State<VideosPage> {
                 ),
               ),
               SizedBox(width: isSmallScreen ? 12 : 16),
-              // Video info
+              // PDF info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      video.title,
+                      widget.topicName,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 16,
                         fontWeight: FontWeight.bold,
@@ -466,7 +544,7 @@ class _VideosPageState extends State<VideosPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            video.description,
+                            'PDF Dosyası',
                             style: TextStyle(
                               fontSize: isSmallScreen ? 12 : 13,
                               color: AppColors.textSecondary,
@@ -500,30 +578,6 @@ class _VideosPageState extends State<VideosPage> {
                           ),
                       ],
                     ),
-                    if (isDownloading)
-                      Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            LinearProgressIndicator(
-                              value: downloadProgress,
-                              backgroundColor: Colors.grey.shade300,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                const Color(0xFFE74C3C),
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'İndiriliyor: ${(downloadProgress * 100).toStringAsFixed(0)}%',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -533,7 +587,7 @@ class _VideosPageState extends State<VideosPage> {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () => _handleDelete(video),
+                    onTap: () => _handleDelete(pdfUrl, pdf['name'] ?? 'Konu Anlatımı'),
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       padding: EdgeInsets.all(8),
@@ -549,7 +603,7 @@ class _VideosPageState extends State<VideosPage> {
                     ),
                   ),
                 ),
-              if (isDownloaded) SizedBox(width: 4),
+              SizedBox(width: 4),
               Icon(
                 Icons.chevron_right_rounded,
                 color: Colors.grey.shade400,
@@ -562,13 +616,12 @@ class _VideosPageState extends State<VideosPage> {
     );
   }
   
-  Future<void> _handleDelete(Video video) async {
-    // Delete video
+  Future<void> _handleDelete(String pdfUrl, String pdfName) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Videoyu Sil'),
-        content: Text('${video.title} videosunu silmek istediğinize emin misiniz?'),
+        title: const Text('PDF\'yi Sil'),
+        content: Text('$pdfName PDF\'sini silmek istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -583,14 +636,14 @@ class _VideosPageState extends State<VideosPage> {
     );
     
     if (confirm == true) {
-      final deleted = await _downloadService.deleteVideo(video.videoUrl);
+      final deleted = await _downloadService.deletePdf(pdfUrl);
       if (deleted && mounted) {
         setState(() {
-          _downloadedVideos[video.id] = false;
+          _downloadedPdfs[pdfUrl] = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Video silindi. Tekrar açıldığında otomatik indirilecek.'),
+            content: Text('PDF silindi. Tekrar açıldığında otomatik indirilecek.'),
             backgroundColor: Colors.green,
           ),
         );

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/run_pdf_update.dart';
+import '../../../core/services/storage_cleanup_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,6 +19,12 @@ class _ProfilePageState extends State<ProfilePage> {
   String _selectedLanguage = 'Türkçe';
   String _selectedTheme = 'Otomatik';
   bool _isUpdatingPdfUrls = false;
+  final StorageCleanupService _cleanupService = StorageCleanupService();
+  bool _autoCleanupEnabled = true;
+  int _cleanupDays = 7;
+  double _maxStorageGB = 5.0;
+  double _currentStorageGB = 0.0;
+  bool _isLoadingStorage = false;
 
   @override
   void initState() {
@@ -32,6 +39,13 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
+      
+      // Load storage settings
+      _autoCleanupEnabled = await _cleanupService.isAutoCleanupEnabled();
+      _cleanupDays = await _cleanupService.getCleanupDays();
+      _maxStorageGB = await _cleanupService.getMaxStorageGB();
+      _currentStorageGB = await _cleanupService.getTotalStorageUsed();
+      
       setState(() {
         _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
         _soundEnabled = prefs.getBool('sound_enabled') ?? true;
@@ -47,6 +61,22 @@ class _ProfilePageState extends State<ProfilePage> {
           // Keep default values already set in field declarations
         });
       }
+    }
+  }
+  
+  Future<void> _refreshStorageInfo() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingStorage = true;
+    });
+    
+    final currentStorage = await _cleanupService.getTotalStorageUsed();
+    
+    if (mounted) {
+      setState(() {
+        _currentStorageGB = currentStorage;
+        _isLoadingStorage = false;
+      });
     }
   }
 
@@ -242,6 +272,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ],
                     ),
+                    SizedBox(height: compactSpacing),
+                    
+                    // Depolama Yönetimi
+                    _buildSectionTitle('Depolama Yönetimi', isSmallScreen),
+                    SizedBox(height: compactSpacing / 2),
+                    _buildStorageCard(isSmallScreen, compactSpacing, iconSize, fontSize),
                     SizedBox(height: compactSpacing),
                     
                     // Çalışma Ayarları
@@ -579,6 +615,251 @@ class _ProfilePageState extends State<ProfilePage> {
       indent: 60,
       color: AppColors.progressGray,
     );
+  }
+  
+  Widget _buildStorageCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
+    return _buildSettingsCard(
+      children: [
+        // Storage Usage Info
+        Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.storage,
+                    size: iconSize,
+                    color: AppColors.primaryBlue,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Depolama Kullanımı',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Spacer(),
+                  if (_isLoadingStorage)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: Icon(Icons.refresh, size: 18),
+                      onPressed: _refreshStorageInfo,
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
+                ],
+              ),
+              SizedBox(height: 12),
+              // Storage progress bar
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${_currentStorageGB.toStringAsFixed(2)} GB',
+                        style: TextStyle(
+                          fontSize: fontSize - 1,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '/ ${_maxStorageGB.toStringAsFixed(1)} GB',
+                        style: TextStyle(
+                          fontSize: fontSize - 1,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _maxStorageGB > 0 ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0) : 0.0,
+                      minHeight: 8,
+                      backgroundColor: AppColors.progressGray,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _currentStorageGB > _maxStorageGB * 0.9
+                            ? Colors.red
+                            : _currentStorageGB > _maxStorageGB * 0.7
+                                ? Colors.orange
+                                : AppColors.primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _buildDivider(),
+        // Auto Cleanup Toggle
+        _buildSwitchTile(
+          icon: Icons.auto_delete_outlined,
+          title: 'Otomatik Temizleme',
+          subtitle: _autoCleanupEnabled 
+              ? 'Kullanılmayan içerikler otomatik silinir'
+              : 'Otomatik temizleme kapalı',
+          value: _autoCleanupEnabled,
+          onChanged: (value) async {
+            setState(() => _autoCleanupEnabled = value);
+            await _cleanupService.setAutoCleanupEnabled(value);
+          },
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        // Cleanup Days
+        _buildSettingTile(
+          icon: Icons.calendar_today_outlined,
+          title: 'Temizleme Süresi',
+          subtitle: '$_cleanupDays gün (kullanılmayan içerikler silinir)',
+          onTap: () => _showCleanupDaysDialog(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        // Max Storage
+        _buildSettingTile(
+          icon: Icons.data_usage_outlined,
+          title: 'Maksimum Depolama',
+          subtitle: _maxStorageGB == 0.0
+              ? 'Sınırsız'
+              : '${_maxStorageGB.toStringAsFixed(1)} GB (limit aşıldığında en az kullanılan silinir)',
+          onTap: () => _showMaxStorageDialog(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        // Manual Cleanup
+        _buildSettingTile(
+          icon: Icons.cleaning_services_outlined,
+          title: 'Manuel Temizleme',
+          subtitle: 'Şimdi temizle',
+          onTap: () => _runManualCleanup(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+      ],
+    );
+  }
+  
+  Future<void> _showCleanupDaysDialog() async {
+    final selectedDays = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Temizleme Süresi'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [1, 3, 7, 14, 30].map((days) {
+            return RadioListTile<int>(
+              title: Text('$days gün'),
+              value: days,
+              groupValue: _cleanupDays,
+              onChanged: (value) => Navigator.pop(context, value),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+    
+    if (selectedDays != null && selectedDays != _cleanupDays) {
+      setState(() => _cleanupDays = selectedDays);
+      await _cleanupService.setCleanupDays(selectedDays);
+    }
+  }
+  
+  Future<void> _showMaxStorageDialog() async {
+    final storageOptions = [1.0, 3.0, 5.0, 10.0, 20.0, 0.0]; // 0.0 = unlimited
+    final selectedStorage = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Maksimum Depolama'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: storageOptions.map((gb) {
+            final label = gb == 0.0 ? 'Sınırsız' : '${gb.toStringAsFixed(0)} GB';
+            return RadioListTile<double>(
+              title: Text(label),
+              value: gb,
+              groupValue: _maxStorageGB,
+              onChanged: (value) => Navigator.pop(context, value),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+    
+    if (selectedStorage != null && selectedStorage != _maxStorageGB) {
+      setState(() => _maxStorageGB = selectedStorage);
+      await _cleanupService.setMaxStorageGB(selectedStorage);
+      // Refresh storage info
+      await _refreshStorageInfo();
+    }
+  }
+  
+  Future<void> _runManualCleanup() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Manuel Temizleme'),
+        content: const Text('Kullanılmayan içerikler temizlenecek. Devam etmek istiyor musunuz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Temizle'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm == true) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      final deletedCount = await _cleanupService.runCleanup();
+      
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        await _refreshStorageInfo();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              deletedCount > 0
+                  ? '$deletedCount dosya temizlendi'
+                  : 'Temizlenecek dosya bulunamadı',
+            ),
+            backgroundColor: deletedCount > 0 ? Colors.green : Colors.orange,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildLogoutButton(bool isSmallScreen, double fontSize) {

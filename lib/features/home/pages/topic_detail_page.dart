@@ -8,10 +8,9 @@ import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
 import 'notes_page.dart';
 import 'past_questions_page.dart';
-import 'topic_pdf_viewer_page.dart';
 import 'videos_page.dart';
-import 'topic_explanations_list_page.dart';
 import 'tests_list_page.dart';
+import 'pdfs_page.dart';
 
 class TopicDetailPage extends StatefulWidget {
   final Topic topic;
@@ -36,7 +35,14 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   void initState() {
     super.initState();
     _topic = widget.topic;
-    _loadContentCounts();
+    // İçerik sayıları zaten yüklenmiş olarak geliyor (lesson_detail_page'den)
+    // Eğer yüklenmemişse yükle (hızlı yükleme - sadece sayılar)
+    if (_topic.videoCount == 0 && _topic.podcastCount == 0 && _topic.testCount == 0 && 
+        _topic.noteCount == 0 && _topic.flashCardCount == 0 && _topic.pdfCount == 0) {
+      _loadContentCounts();
+    } else {
+      _isLoadingContent = false;
+    }
   }
 
   Future<void> _loadContentCounts() async {
@@ -190,51 +196,36 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                       _buildPremiumCard(
                         context: context,
                         title: 'Konu Anlatımı',
-                        count: _isLoadingContent ? 0 : (_topic.pdfUrl != null && _topic.pdfUrl!.isNotEmpty ? 1 : 0),
+                        count: _isLoadingContent ? 0 : _topic.pdfCount,
                         icon: Icons.picture_as_pdf_rounded,
                         color: const Color(0xFFFF9800),
                         isSmallScreen: isSmallScreen,
-                        onTap: () {
-                          // Şimdilik tek PDF varsa direkt aç, birden fazla olursa liste göster
-                          // Gelecekte birden fazla PDF olabilir, o zaman liste ekranına yönlendir
-                          final explanations = <Map<String, String>>[];
-                          if (_topic.pdfUrl != null && _topic.pdfUrl!.isNotEmpty) {
-                            explanations.add({
-                              'name': 'Konu Anlatımı',
-                              'pdfUrl': _topic.pdfUrl!,
-                            });
-                          }
+                        onTap: () async {
+                          print('📄 Konu Anlatımı kartına tıklandı');
+                          print('   PDF Count: ${_topic.pdfCount}');
+                          print('   Topic ID: ${_topic.id}');
+                          print('   Lesson ID: ${_topic.lessonId}');
                           
-                          if (explanations.length > 1) {
-                            // Birden fazla içerik varsa liste ekranına git
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => TopicExplanationsListPage(
-                                  topic: _topic,
-                                  lessonName: widget.lessonName,
-                                  explanations: explanations,
-                                ),
+                          // Her zaman PDF sayfasına git (PDF'ler Storage'dan yüklenecek)
+                          // PDF sayısı 0 olsa bile, Storage'da PDF olabilir
+                          print('✅ Navigating to PDFsPage (PDFs will be loaded from Storage)...');
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PdfsPage(
+                                topicName: _topic.name,
+                                pdfCount: _topic.pdfCount,
+                                topicId: _topic.id,
+                                lessonId: _topic.lessonId,
+                                topic: _topic,
                               ),
-                            );
-                          } else if (explanations.isNotEmpty) {
-                            // Tek içerik varsa direkt aç
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => TopicPdfViewerPage(
-                                  topic: _topic,
-                                ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Bu konu için PDF dosyası bulunamadı.'),
-                                backgroundColor: Colors.orange,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
+                            ),
+                          );
+                          if (result == true) {
+                            final mainScreen = MainScreen.of(context);
+                            if (mainScreen != null) {
+                              mainScreen.refreshHomePage();
+                            }
                           }
                         },
                       ),
@@ -383,7 +374,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                       _buildPremiumCard(
                         context: context,
                         title: 'Bilgi Kartları',
-                        count: _isLoadingContent ? 0 : _topic.noteCount,
+                        count: _isLoadingContent ? 0 : _topic.flashCardCount,
                         icon: Icons.style_rounded,
                         color: AppColors.gradientRedStart,
                         isSmallScreen: isSmallScreen,
@@ -393,7 +384,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                             MaterialPageRoute(
                               builder: (context) => FlashCardsPage(
                                 topicName: _topic.name,
-                                cardCount: _topic.noteCount,
+                                cardCount: _topic.flashCardCount,
                                 topicId: _topic.id,
                                 lessonId: _topic.lessonId,
                               ),

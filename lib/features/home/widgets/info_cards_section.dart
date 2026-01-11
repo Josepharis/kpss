@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/info_card.dart';
 import 'info_card_widget.dart';
+import '../pages/info_cards_list_page.dart';
 
 class InfoCardsSection extends StatelessWidget {
   final List<InfoCard> infoCards;
@@ -37,33 +38,54 @@ class InfoCardsSection extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF27AE60).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => InfoCardsListPage(
+                        infoCards: infoCards,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.info_outline,
-                      size: isSmallScreen ? 16.0 : 18.0,
-                      color: const Color(0xFF27AE60),
+                  );
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF27AE60).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: isSmallScreen ? 16.0 : 18.0,
+                        color: const Color(0xFF27AE60),
+                      ),
                     ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 6.0 : 8.0),
-                  Text(
-                    'Bilgi Kartları',
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 14.0 : 18.0,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                    SizedBox(width: isSmallScreen ? 6.0 : 8.0),
+                    Text(
+                      'Bilgi Kartları',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14.0 : 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => InfoCardsListPage(
+                        infoCards: infoCards,
+                      ),
+                    ),
+                  );
+                },
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.symmetric(
                     horizontal: isSmallScreen ? 8.0 : 12.0,

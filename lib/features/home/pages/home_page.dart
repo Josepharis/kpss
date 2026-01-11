@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/daily_summary.dart';
 import '../../../core/models/ongoing_test.dart';
 import '../../../core/models/ongoing_podcast.dart';
 import '../../../core/models/ongoing_video.dart';
 import '../../../core/models/info_card.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/lessons_service.dart';
-import '../widgets/motivational_quote.dart';
-import '../widgets/daily_summary_card.dart';
 import '../widgets/ongoing_tests_section.dart';
 import '../widgets/ongoing_podcasts_section.dart';
 import '../widgets/ongoing_videos_section.dart';
 import '../widgets/info_cards_section.dart';
+import '../widgets/daily_quote_card.dart';
+import '../widgets/exam_countdown_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,31 +28,6 @@ class _HomePageState extends State<HomePage> {
   List<OngoingPodcast> _ongoingPodcasts = [];
   List<OngoingVideo> _ongoingVideos = [];
   List<InfoCard> _infoCards = [];
-
-  // Mock data - will be replaced with real data later
-  final List<String> motivationalQuotes = [
-    'Başarı, hazırlık ve fırsatın buluştuğu noktadır.',
-    'Bugün yaptığın çalışma, yarının başarısını belirler.',
-    'Her soru, seni hedefine bir adım daha yaklaştırır.',
-    'Azim ve sabır, başarının anahtarıdır.',
-    'Çalışmak, hayallerini gerçeğe dönüştüren tek yoldur.',
-  ];
-
-  String get currentQuote {
-    final dayOfYear = DateTime.now().difference(
-      DateTime(DateTime.now().year, 1, 1),
-    ).inDays;
-    return motivationalQuotes[dayOfYear % motivationalQuotes.length];
-  }
-
-  DailySummary get dailySummary {
-    return DailySummary(
-      solvedQuestions: 45,
-      studyTimeMinutes: 180,
-      lessonCount: 3,
-      successRate: 78.5,
-    );
-  }
 
   @override
   void initState() {
@@ -230,15 +204,15 @@ class _HomePageState extends State<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Motivational Quote
-                            MotivationalQuote(
-                              quote: currentQuote,
+                            // Daily Quote Card
+                            DailyQuoteCard(
+                              quote: '',
                               isSmallScreen: isSmallScreen,
                             ),
-                            SizedBox(height: isSmallScreen ? 4.0 : 6.0),
-                            // Daily Summary Card
-                            DailySummaryCard(
-                              summary: dailySummary,
+                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                            // Exam Countdown Card
+                            ExamCountdownCard(
+                              examDate: DateTime(2026, 7, 1), // KPSS & AGS 2026 sınav tarihi
                               isSmallScreen: isSmallScreen,
                             ),
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),

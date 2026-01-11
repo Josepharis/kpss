@@ -303,16 +303,55 @@ class LessonDetailPage extends StatelessWidget {
                     final topicNumber = (index + 1).toString().padLeft(2, '0');
                     
                     return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TopicDetailPage(
-                              topic: topic,
-                              lessonName: lesson.name,
+                      onTap: () async {
+                        // Loading göster ve içerik sayılarını yükle
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => Center(
+                            child: Container(
+                              padding: EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'İçerikler yükleniyor...',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
+                        
+                        // İçerik sayılarını yükle
+                        final lessonsService = LessonsService();
+                        final updatedTopic = await lessonsService.getTopicContentCounts(topic);
+                        
+                        // Loading'i kapat
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                          
+                          // Sayfayı aç
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TopicDetailPage(
+                                topic: updatedTopic,
+                                lessonName: lesson.name,
+                              ),
+                            ),
+                          );
+                        }
                       },
                       child: Container(
                         padding: EdgeInsets.symmetric(
