@@ -305,24 +305,30 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
     final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 56 : 64),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFFFF9800),
-                const Color(0xFFFF6B35),
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFFF9800),
+                      const Color(0xFFFF6B35),
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF9800).withValues(alpha: 0.2),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : const Color(0xFFFF9800).withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -405,11 +411,12 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
           ),
         ),
       ),
-      body: _buildBody(),
+      body: _buildBody(context),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -420,14 +427,14 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
               Icon(
                 Icons.picture_as_pdf_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
               SizedBox(height: 16),
               Text(
                 _errorMessage!,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -437,7 +444,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                 'Lütfen daha sonra tekrar deneyin.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey.shade500,
+                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -457,14 +464,14 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
               Icon(
                 Icons.picture_as_pdf_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
               SizedBox(height: 16),
               Text(
                 'PDF dosyası bulunamadı',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -629,8 +636,11 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
           },
         ),
         if (_isLoading)
-          Container(
-            color: AppColors.backgroundLight,
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Container(
+                color: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -645,12 +655,14 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                     'PDF yükleniyor...',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
                 ],
               ),
             ),
+          );
+            },
           ),
       ],
     );

@@ -64,13 +64,20 @@ class OngoingTestsSection extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: isSmallScreen ? 6.0 : 8.0),
-                    Text(
-                      'Devam Eden Testler',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 14.0 : 18.0,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                        final textColor = isDark ? Colors.white : AppColors.textPrimary;
+                        
+                        return Text(
+                          'Devam Eden Testler',
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 14.0 : 18.0,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

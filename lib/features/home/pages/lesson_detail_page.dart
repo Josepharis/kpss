@@ -43,9 +43,10 @@ class LessonDetailPage extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundWhite,
       body: Column(
         children: [
           // Blue Header Card
@@ -58,21 +59,26 @@ class LessonDetailPage extends StatelessWidget {
               bottom: isSmallScreen ? 20 : 24,
             ),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primaryBlue,
-                  AppColors.primaryDarkBlue,
-                ],
-              ),
+              gradient: isDark
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primaryBlue,
+                        AppColors.primaryDarkBlue,
+                      ],
+                    ),
+              color: isDark ? const Color(0xFF1E1E1E) : null,
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(30),
                 bottomRight: Radius.circular(30),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.3)
+                      : AppColors.primaryBlue.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -251,13 +257,13 @@ class LessonDetailPage extends StatelessWidget {
                         Icon(
                           Icons.error_outline,
                           size: 48,
-                          color: Colors.grey.shade400,
+                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Konular yüklenirken bir hata oluştu',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                             fontSize: 14,
                           ),
                         ),
@@ -274,13 +280,13 @@ class LessonDetailPage extends StatelessWidget {
                         Icon(
                           Icons.book_outlined,
                           size: 64,
-                          color: Colors.grey.shade300,
+                          color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Henüz konu eklenmemiş',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                           ),
@@ -323,7 +329,7 @@ class LessonDetailPage extends StatelessWidget {
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: Colors.grey.withValues(alpha: 0.2),
+                              color: isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
                               width: 1,
                             ),
                           ),
@@ -352,7 +358,7 @@ class LessonDetailPage extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: isSmallScreen ? 16 : 18,
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
+                                      color: isDark ? Colors.white : AppColors.textPrimary,
                                     ),
                               ),
                             ),

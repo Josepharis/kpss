@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/flash_card.dart';
 
@@ -67,22 +70,98 @@ class SavedCard {
 
 class SavedCardsService {
   static const String _key = 'saved_cards';
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Tüm kaydedilmiş kartları getir
-  static Future<List<SavedCard>> getAllSavedCards() async {
+  /// Get current user ID
+  static String? get _userId => _auth.currentUser?.uid;
+
+  /// Get user progress document reference
+  static DocumentReference get _userProgressDoc => 
+      _firestore.collection('userProgress').doc(_userId ?? '');
+
+  /// Get saved cards collection reference
+  static CollectionReference get _savedCardsCollection => 
+      _userProgressDoc.collection('savedCards');
+
+  /// Migrate old SharedPreferences data to Firestore
+  static Future<void> migrateToFirestore() async {
+    if (_userId == null) return;
+    
     try {
+      // Check if migration already done
       final prefs = await SharedPreferences.getInstance();
+      final bool? migrated = prefs.getBool('saved_cards_migrated');
+      if (migrated == true) {
+        debugPrint('✅ Saved cards already migrated to Firestore');
+        return;
+      }
+
+      // Get old data from SharedPreferences
       final String? jsonString = prefs.getString(_key);
-      
       if (jsonString == null || jsonString.isEmpty) {
-        return [];
+        await prefs.setBool('saved_cards_migrated', true);
+        return;
       }
 
       final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
-      return jsonList
+      final List<SavedCard> cards = jsonList
           .map((json) => SavedCard.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      // Migrate to Firestore
+      final batch = _firestore.batch();
+      for (var card in cards) {
+        final docRef = _savedCardsCollection.doc('${card.topicId}_${card.id}');
+        batch.set(docRef, {
+          'id': card.id,
+          'frontText': card.frontText,
+          'backText': card.backText,
+          'topicId': card.topicId,
+          'topicName': card.topicName,
+          'lessonId': card.lessonId,
+          'savedAt': Timestamp.fromDate(card.savedAt),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+
+      // Mark as migrated
+      await prefs.setBool('saved_cards_migrated', true);
+      debugPrint('✅ Migrated ${cards.length} saved cards to Firestore');
     } catch (e) {
+      debugPrint('❌ Error migrating saved cards to Firestore: $e');
+    }
+  }
+
+  // Tüm kaydedilmiş kartları getir
+  static Future<List<SavedCard>> getAllSavedCards() async {
+    if (_userId == null) {
+      // Not logged in, try to migrate old data first
+      await migrateToFirestore();
+      return [];
+    }
+
+    try {
+      // Migrate old data if exists
+      await migrateToFirestore();
+
+      // Get from Firestore
+      final snapshot = await _savedCardsCollection.get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return SavedCard(
+          id: data['id'] ?? '',
+          frontText: data['frontText'] ?? '',
+          backText: data['backText'] ?? '',
+          topicId: data['topicId'] ?? '',
+          topicName: data['topicName'] ?? '',
+          lessonId: data['lessonId'] ?? '',
+          savedAt: (data['savedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting saved cards from Firestore: $e');
       return [];
     }
   }
@@ -131,88 +210,155 @@ class SavedCardsService {
 
   // Kaydedilmiş kart ekle
   static Future<bool> addSavedCard(SavedCard card) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot save card');
+      return false;
+    }
+
     try {
-      final allCards = await getAllSavedCards();
-      
-      // Aynı ID'ye sahip kart zaten varsa ekleme
-      if (allCards.any((c) => c.id == card.id && c.topicId == card.topicId)) {
-        return false;
+      // Migrate old data first
+      await migrateToFirestore();
+
+      // Check if already exists
+      final docId = '${card.topicId}_${card.id}';
+      final doc = await _savedCardsCollection.doc(docId).get();
+      if (doc.exists) {
+        return false; // Already exists
       }
 
-      allCards.add(card);
-      return await _saveSavedCards(allCards);
+      // Add to Firestore
+      await _savedCardsCollection.doc(docId).set({
+        'id': card.id,
+        'frontText': card.frontText,
+        'backText': card.backText,
+        'topicId': card.topicId,
+        'topicName': card.topicName,
+        'lessonId': card.lessonId,
+        'savedAt': Timestamp.fromDate(card.savedAt),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Saved card added to Firestore: ${card.id}');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error adding saved card to Firestore: $e');
       return false;
     }
   }
 
   // Kaydedilmiş kartı kaldır
   static Future<bool> removeSavedCard(String cardId, String topicId) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot remove card');
+      return false;
+    }
+
     try {
-      final allCards = await getAllSavedCards();
-      allCards.removeWhere(
-        (c) => c.id == cardId && c.topicId == topicId,
-      );
-      return await _saveSavedCards(allCards);
+      final docId = '${topicId}_${cardId}';
+      await _savedCardsCollection.doc(docId).delete();
+      debugPrint('✅ Saved card removed from Firestore: $cardId');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error removing saved card from Firestore: $e');
       return false;
     }
   }
 
   // Tüm kaydedilmiş kartları temizle
   static Future<bool> clearAllSavedCards() async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear cards');
+      return false;
+    }
+
     try {
+      // Delete all from Firestore
+      final snapshot = await _savedCardsCollection.get();
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Also clear old SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      return await prefs.remove(_key);
+      await prefs.remove(_key);
+
+      debugPrint('✅ All saved cards cleared from Firestore');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing saved cards from Firestore: $e');
       return false;
     }
   }
 
   // Belirli bir konudaki tüm kaydedilmiş kartları temizle
   static Future<bool> clearSavedCardsByTopic(String topicName, {String? lessonId}) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear cards');
+      return false;
+    }
+
     try {
-      final allCards = await getAllSavedCards();
+      Query query = _savedCardsCollection.where('topicName', isEqualTo: topicName);
       if (lessonId != null) {
-        allCards.removeWhere((c) => c.topicName == topicName && c.lessonId == lessonId);
-      } else {
-        allCards.removeWhere((c) => c.topicName == topicName);
+        query = query.where('lessonId', isEqualTo: lessonId);
       }
-      return await _saveSavedCards(allCards);
+
+      final snapshot = await query.get();
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      debugPrint('✅ Saved cards cleared for topic: $topicName');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing saved cards by topic: $e');
       return false;
     }
   }
 
   // Belirli bir dersteki tüm kaydedilmiş kartları temizle
   static Future<bool> clearSavedCardsByLesson(String lessonId) async {
-    try {
-      final allCards = await getAllSavedCards();
-      allCards.removeWhere((c) => c.lessonId == lessonId);
-      return await _saveSavedCards(allCards);
-    } catch (e) {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear cards');
       return false;
     }
-  }
 
-  // Kaydedilmiş kartları kaydet
-  static Future<bool> _saveSavedCards(List<SavedCard> cards) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final List<Map<String, dynamic>> jsonList =
-          cards.map((c) => c.toJson()).toList();
-      final String jsonString = json.encode(jsonList);
-      return await prefs.setString(_key, jsonString);
+      final snapshot = await _savedCardsCollection
+          .where('lessonId', isEqualTo: lessonId)
+          .get();
+      
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      debugPrint('✅ Saved cards cleared for lesson: $lessonId');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing saved cards by lesson: $e');
       return false;
     }
   }
 
   // Kart zaten kaydedilmiş mi kontrol et
   static Future<bool> isCardSaved(String cardId, String topicId) async {
-    final allCards = await getAllSavedCards();
-    return allCards.any(
-      (c) => c.id == cardId && c.topicId == topicId,
-    );
+    if (_userId == null) {
+      return false;
+    }
+
+    try {
+      final docId = '${topicId}_${cardId}';
+      final doc = await _savedCardsCollection.doc(docId).get();
+      return doc.exists;
+    } catch (e) {
+      debugPrint('❌ Error checking if card is saved: $e');
+      return false;
+    }
   }
 }

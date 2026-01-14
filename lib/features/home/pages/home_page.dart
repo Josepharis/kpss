@@ -438,13 +438,19 @@ class _HomePageState extends State<HomePage> {
     final greetingFontSize = isSmallScreen ? 12.0 : 14.0;
     final titleFontSize = isSmallScreen ? 16.0 : 20.0;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarStyle = isDark 
+        ? SystemUiOverlayStyle.light 
+        : SystemUiOverlayStyle.light;
+    final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
+    final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
+    
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: AppColors.primaryBlue,
+      value: statusBarStyle.copyWith(
+        statusBarColor: headerColor,
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
         body: Column(
           children: [
             // Custom AppBar with Status Bar
@@ -460,8 +466,8 @@ class _HomePageState extends State<HomePage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.primaryBlue,
-                    AppColors.primaryDarkBlue,
+                    headerColor,
+                    headerDarkColor,
                   ],
                 ),
                 boxShadow: [

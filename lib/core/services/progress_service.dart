@@ -260,7 +260,7 @@ class ProgressService {
     try {
       final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
       if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>?;
+        final data = doc.data();
         if (data != null && data['currentQuestionIndex'] != null) {
           return data['currentQuestionIndex'] as int;
         }
@@ -279,7 +279,7 @@ class ProgressService {
     try {
       final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
       if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>?;
+        final data = doc.data();
         if (data != null && data['score'] != null) {
           return data['score'] as int;
         }
@@ -574,6 +574,101 @@ class ProgressService {
       await _userProgressDoc.collection('flashCards').doc(topicId).delete();
     } catch (e) {
       debugPrint('❌ Error deleting flash card progress: $e');
+    }
+  }
+
+  /// Get user statistics (solved questions, correct, wrong, total)
+  Future<Map<String, int>> getUserStatistics() async {
+    if (_userId == null) {
+      return {
+        'solvedQuestions': 0,
+        'correctAnswers': 0,
+        'wrongAnswers': 0,
+        'totalQuestions': 0,
+      };
+    }
+
+    try {
+      // Get total score (each correct answer = 10 points)
+      final totalScore = await getUserTotalScore();
+      final correctAnswers = totalScore ~/ 10;
+      
+      // Get all completed tests from test results collection
+      int totalSolved = 0;
+      int totalWrong = 0;
+      
+      try {
+        final resultsSnapshot = await _userProgressDoc
+            .collection('testResults')
+            .get();
+        
+        for (var doc in resultsSnapshot.docs) {
+          final data = doc.data();
+          final total = data['totalQuestions'] as int? ?? 0;
+          final correct = data['correctAnswers'] as int? ?? 0;
+          totalSolved += total;
+          totalWrong += (total - correct);
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error reading test results: $e');
+      }
+      
+      // If no test results found, use score-based calculation
+      if (totalSolved == 0 && correctAnswers > 0) {
+        // Estimate: assume average 50% success rate for remaining questions
+        totalSolved = correctAnswers * 2; // Rough estimate
+        totalWrong = totalSolved - correctAnswers;
+      }
+      
+      return {
+        'solvedQuestions': totalSolved,
+        'correctAnswers': correctAnswers,
+        'wrongAnswers': totalWrong,
+        'totalQuestions': totalSolved,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting user statistics: $e');
+      return {
+        'solvedQuestions': 0,
+        'correctAnswers': 0,
+        'wrongAnswers': 0,
+        'totalQuestions': 0,
+      };
+    }
+  }
+
+  /// Save test result (when test is completed)
+  Future<bool> saveTestResult({
+    required String topicId,
+    required String topicName,
+    required String lessonId,
+    required int totalQuestions,
+    required int correctAnswers,
+    required int wrongAnswers,
+    required int score,
+  }) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot save test result');
+      return false;
+    }
+
+    try {
+      await _userProgressDoc.collection('testResults').doc(topicId).set({
+        'topicId': topicId,
+        'topicName': topicName,
+        'lessonId': lessonId,
+        'totalQuestions': totalQuestions,
+        'correctAnswers': correctAnswers,
+        'wrongAnswers': wrongAnswers,
+        'score': score,
+        'completedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      debugPrint('✅ Test result saved: $topicName - $correctAnswers/$totalQuestions');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error saving test result: $e');
+      return false;
     }
   }
 }

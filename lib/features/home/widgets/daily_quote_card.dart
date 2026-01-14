@@ -101,38 +101,51 @@ class DailyQuoteCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Günün Sözü',
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 9.0 : 10.0,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryBlue,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: AppColors.primaryBlue.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: isSmallScreen ? 4.0 : 5.0),
-                  Text(
-                    quoteText,
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 11.0 : 12.0,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                      height: 1.4,
-                      fontStyle: FontStyle.italic,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Builder(
+                    builder: (context) {
+                      final isDark = Theme.of(context).brightness == Brightness.dark;
+                      final textColor = isDark ? Colors.white : AppColors.textPrimary;
+                      
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Günün Sözü',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 9.0 : 10.0,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primaryBlue,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Container(
+                                  height: 1,
+                                  color: AppColors.primaryBlue.withValues(alpha: 0.2),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: isSmallScreen ? 4.0 : 5.0),
+                          Text(
+                            quoteText,
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 11.0 : 12.0,
+                              fontWeight: FontWeight.w500,
+                              color: textColor,
+                              height: 1.4,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

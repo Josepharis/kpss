@@ -160,25 +160,31 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       extendBodyBehindAppBar: false,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 70 : 80),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primaryBlue,
-                AppColors.primaryDarkBlue,
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryBlue,
+                      AppColors.primaryDarkBlue,
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : AppColors.primaryBlue.withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),

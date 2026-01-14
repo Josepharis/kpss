@@ -343,24 +343,30 @@ class _NotesPageState extends State<NotesPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 80 : 90),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.gradientGreenStart,
-                AppColors.gradientGreenEnd,
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.gradientGreenStart,
+                      AppColors.gradientGreenEnd,
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: AppColors.gradientGreenStart.withValues(alpha: 0.3),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : AppColors.gradientGreenStart.withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -470,7 +476,7 @@ class _NotesPageState extends State<NotesPage> {
               vertical: isSmallScreen ? 10 : 12,
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -485,6 +491,7 @@ class _NotesPageState extends State<NotesPage> {
               child: Row(
                 children: [
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.format_bold_rounded,
                     isActive: _isBold,
                     onTap: _toggleBold,
@@ -492,6 +499,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.format_italic_rounded,
                     isActive: _isItalic,
                     onTap: _toggleItalic,
@@ -499,6 +507,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.format_underlined_rounded,
                     isActive: _isUnderline,
                     onTap: _toggleUnderline,
@@ -512,6 +521,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 8 : 12),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.palette_rounded,
                     isActive: false,
                     onTap: _showColorPickerDialog,
@@ -520,6 +530,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.highlight_rounded,
                     isActive: false,
                     onTap: () {
@@ -536,6 +547,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 8 : 12),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.mood_rounded,
                     isActive: false,
                     onTap: _showEmojiPickerDialog,
@@ -543,6 +555,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.tag_rounded,
                     isActive: false,
                     onTap: () {
@@ -552,6 +565,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.star_rounded,
                     isActive: false,
                     onTap: () {
@@ -561,6 +575,7 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                   SizedBox(width: isSmallScreen ? 6 : 8),
                   _buildToolbarButton(
+                    context: context,
                     icon: Icons.check_circle_rounded,
                     isActive: false,
                     onTap: () {
@@ -632,7 +647,7 @@ class _NotesPageState extends State<NotesPage> {
                         style: TextStyle(
                           fontSize: isSmallScreen ? 16 : 18,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: isDark ? Colors.white : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -645,7 +660,7 @@ class _NotesPageState extends State<NotesPage> {
                   decoration: InputDecoration(
                     hintText: 'Notunuzu buraya yazın...\n\nİpuçları:\n• **kalın** için **metin**\n• _italik_ için _metin_\n• ~~üstü çizili~~ için ~~metin~~',
                     hintStyle: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: isDark ? Colors.grey.shade500 : AppColors.textSecondary,
                       fontSize: isSmallScreen ? 13 : 14,
                       height: 1.5,
                     ),
@@ -654,7 +669,7 @@ class _NotesPageState extends State<NotesPage> {
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: AppColors.backgroundLight,
+                    fillColor: isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight,
                     contentPadding: EdgeInsets.all(isSmallScreen ? 16 : 20),
                   ),
                   style: TextStyle(
@@ -736,7 +751,7 @@ class _NotesPageState extends State<NotesPage> {
                           'Henüz not eklenmedi',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 16 : 18,
-                            color: AppColors.textSecondary,
+                            color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -745,7 +760,7 @@ class _NotesPageState extends State<NotesPage> {
                           'İlk notunuzu ekleyerek başlayın',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 13 : 14,
-                            color: AppColors.textSecondary.withValues(alpha: 0.7),
+                            color: isDark ? Colors.grey.shade500 : AppColors.textSecondary.withValues(alpha: 0.7),
                           ),
                         ),
                       ],
@@ -769,8 +784,8 @@ class _NotesPageState extends State<NotesPage> {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              Colors.white,
-                              Colors.grey.withValues(alpha: 0.02),
+                              isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                              isDark ? const Color(0xFF1A1A1A) : Colors.grey.withValues(alpha: 0.02),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(20),
@@ -824,7 +839,7 @@ class _NotesPageState extends State<NotesPage> {
                                   PopupMenuButton(
                                     icon: Icon(
                                       Icons.more_vert_rounded,
-                                      color: AppColors.textSecondary,
+                                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                                       size: isSmallScreen ? 20 : 22,
                                     ),
                                     itemBuilder: (context) => [
@@ -871,7 +886,7 @@ class _NotesPageState extends State<NotesPage> {
                                     '${note.createdAt.day}/${note.createdAt.month}/${note.createdAt.year} ${note.createdAt.hour.toString().padLeft(2, '0')}:${note.createdAt.minute.toString().padLeft(2, '0')}',
                                     style: TextStyle(
                                       fontSize: isSmallScreen ? 11 : 12,
-                                      color: AppColors.textSecondary,
+                                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -889,12 +904,14 @@ class _NotesPageState extends State<NotesPage> {
   }
 
   Widget _buildToolbarButton({
+    required BuildContext context,
     required IconData icon,
     required bool isActive,
     required VoidCallback onTap,
     required bool isSmallScreen,
     Color? color,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -919,7 +936,7 @@ class _NotesPageState extends State<NotesPage> {
             size: isSmallScreen ? 20 : 22,
             color: color ?? (isActive
                 ? AppColors.gradientGreenStart
-                : AppColors.textPrimary),
+                : (isDark ? Colors.white : AppColors.textPrimary)),
           ),
         ),
       ),

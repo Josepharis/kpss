@@ -300,7 +300,6 @@ class StorageService {
         return [];
       }
     } catch (e) {
-      debugPrint('❌ Error listing JSON files: $e');
       return [];
     }
   }
@@ -315,7 +314,6 @@ class StorageService {
       // Download as bytes and convert to string
       final bytes = await storageRef.getData();
       if (bytes == null) {
-        debugPrint('❌ Failed to download JSON: bytes is null');
         return null;
       }
       
@@ -328,7 +326,6 @@ class StorageService {
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       return jsonData;
     } catch (e) {
-      debugPrint('❌ Error downloading/parsing JSON: $e');
       
       // Try one more time with line-by-line fixes
       try {
@@ -439,15 +436,12 @@ class StorageService {
   /// Returns parsed JSON as Map
   Future<Map<String, dynamic>?> downloadAndParseJsonFromUrl(String jsonUrl) async {
     try {
-      debugPrint('📥 Downloading JSON from URL: $jsonUrl');
-      
       // If it's a Firebase Storage URL, extract the path
       if (jsonUrl.contains('firebasestorage.googleapis.com')) {
         try {
           final ref = _storage.refFromURL(jsonUrl);
           final bytes = await ref.getData();
           if (bytes == null) {
-            debugPrint('❌ Failed to download JSON: bytes is null');
             return null;
           }
           final jsonString = utf8.decode(bytes);
@@ -463,7 +457,6 @@ class StorageService {
       // Silent error handling
       return null;
     } catch (e) {
-      debugPrint('❌ Error downloading/parsing JSON from URL: $e');
       return null;
     }
   }

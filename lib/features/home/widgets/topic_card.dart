@@ -17,16 +17,22 @@ class TopicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderRadius = isSmallScreen ? 16.0 : 18.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final progressBgColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.backgroundLight;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(borderRadius),
           boxShadow: [
             BoxShadow(
-              color: AppColors.cardShadow,
+              color: shadowColor,
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -46,7 +52,7 @@ class TopicCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 16 : 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: textColor,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -105,7 +111,7 @@ class TopicCard extends StatelessWidget {
                           child: CircularProgressIndicator(
                             value: topic.progress,
                             strokeWidth: isSmallScreen ? 4 : 5,
-                            backgroundColor: AppColors.backgroundLight,
+                            backgroundColor: progressBgColor,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               AppColors.primaryBlue,
                             ),
@@ -127,7 +133,7 @@ class TopicCard extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: isSmallScreen ? 16 : 18,
-                    color: AppColors.textSecondary,
+                    color: secondaryTextColor,
                   ),
                 ],
               ),

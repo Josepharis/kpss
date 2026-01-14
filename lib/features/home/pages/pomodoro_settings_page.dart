@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/app_theme.dart';
 
 class PomodoroSettingsPage extends StatefulWidget {
   final int sessionCount;
@@ -57,10 +57,17 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarStyle = isDark 
+        ? SystemUiOverlayStyle.light 
+        : SystemUiOverlayStyle.dark;
+    final statusBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     
-    return Theme(
-      data: isDark ? AppTheme.darkTheme : AppTheme.lightTheme,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: statusBarStyle.copyWith(
+        statusBarColor: statusBarColor,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
@@ -193,7 +200,7 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     required List<Color> gradientColors,
     required List<Widget> children,
   }) {
-    final isDark = widget.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Container(
       decoration: BoxDecoration(
@@ -270,7 +277,7 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     required String unit,
     required ValueChanged<int> onChanged,
   }) {
-    final isDark = widget.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? Colors.white : Colors.black87;
     
     return Column(
@@ -367,7 +374,7 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    final isDark = widget.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? Colors.white : Colors.black87;
     
     return Row(

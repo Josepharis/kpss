@@ -38,17 +38,34 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   final ProgressService _progressService = ProgressService();
   final VideoDownloadService _downloadService = VideoDownloadService();
   final StorageCleanupService _cleanupService = StorageCleanupService();
+  bool _isTablet = false; // Ekran boyutunu sakla
 
   @override
   void initState() {
     super.initState();
-    // Allow all orientations initially
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Ekran boyutunu kontrol et ve orientation ayarla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
+      _isTablet = screenWidth > 600 || screenHeight > 600;
+      
+      // Tablet ise tüm orientation'lara izin ver, küçük ekranlarda sadece portrait
+      if (_isTablet) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        // Küçük ekranlarda sadece portrait
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+      }
+    });
     // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için)
     _initializeVideo();
   }
@@ -277,19 +294,30 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     } else {
-      // Portrait mode - önce tüm orientation'ları aç, sonra portrait'e geç
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-      // Kısa bir gecikme ile portrait'e geç
-      await Future.delayed(const Duration(milliseconds: 100));
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
+      // Fullscreen'den çıkınca - ekran boyutuna göre ayarla
+      if (_isTablet) {
+        // Tablet ise tüm orientation'lara izin ver
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        // Küçük ekranlarda sadece portrait
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+        // Kısa bir gecikme ile portrait'e geç
+        await Future.delayed(const Duration(milliseconds: 100));
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+      }
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
   }
@@ -326,25 +354,43 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _resetOrientation() async {
-    // Önce tüm orientation'ları aç, sonra portrait'e geç
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    await Future.delayed(const Duration(milliseconds: 100));
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Ekran boyutuna göre orientation ayarla
+    if (_isTablet) {
+      // Tablet ise tüm orientation'lara izin ver (döndürme serbest)
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      // Küçük ekranlarda sadece portrait'e kilitli
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      await Future.delayed(const Duration(milliseconds: 100));
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isSmallScreen = screenHeight < 700;
+    
+    // Ekran boyutunu güncelle (orientation değiştiğinde de doğru çalışması için)
+    final currentIsTablet = screenWidth > 600 || screenHeight > 600;
+    if (currentIsTablet != _isTablet) {
+      _isTablet = currentIsTablet;
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,

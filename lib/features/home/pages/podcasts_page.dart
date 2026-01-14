@@ -1085,9 +1085,11 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         final isSmallScreen = screenHeight < 700;
         final isVerySmallScreen = screenWidth < 360;
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        
         if (_isLoading) {
           return Scaffold(
-            backgroundColor: AppColors.backgroundLight,
+            backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
             appBar: AppBar(
               backgroundColor: AppColors.gradientPurpleStart,
               elevation: 0,
@@ -1135,7 +1137,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
 
         if (_podcasts.isEmpty) {
           return Scaffold(
-            backgroundColor: AppColors.backgroundLight,
+            backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
             appBar: AppBar(
               backgroundColor: AppColors.gradientPurpleStart,
               elevation: 0,
@@ -1182,14 +1184,14 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                   Icon(
                     Icons.podcasts_outlined,
                     size: 64,
-                    color: Colors.grey.shade400,
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Bu konu için henüz podcast eklenmemiş',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -1201,7 +1203,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         final currentPodcast = _podcasts[_selectedPodcastIndex];
 
         return Scaffold(
-          backgroundColor: AppColors.backgroundLight,
+          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
           extendBodyBehindAppBar: false,
           appBar: PreferredSize(
             preferredSize: Size.fromHeight(isSmallScreen ? 80 : 90),
@@ -1209,134 +1211,145 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
               backgroundColor: Colors.transparent,
               elevation: 0,
               automaticallyImplyLeading: false,
-              flexibleSpace: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.gradientPurpleStart,
-                    AppColors.gradientPurpleEnd,
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.gradientPurpleStart.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Watermark
-                    Positioned(
-                      top: -10,
-                      right: -10,
-                      child: Transform.rotate(
-                        angle: -0.5,
-                        child: Text(
-                          'PODCAST',
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 40 : 50,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white.withValues(alpha: 0.08),
-                            letterSpacing: 2,
-                          ),
+              flexibleSpace: Builder(
+                builder: (context) {
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: isDark
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                AppColors.gradientPurpleStart,
+                                AppColors.gradientPurpleEnd,
+                              ],
+                            ),
+                      color: isDark ? const Color(0xFF1E1E1E) : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: isDark
+                              ? Colors.black.withValues(alpha: 0.3)
+                              : AppColors.gradientPurpleStart.withValues(alpha: 0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
+                      ],
                     ),
-                    // Content
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 20 : 14,
-                        vertical: isSmallScreen ? 6 : 8,
-                      ),
-                      child: Row(
+                    child: SafeArea(
+                      bottom: false,
+                      child: Stack(
+                        clipBehavior: Clip.none,
                         children: [
-                          // Back button
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () async {
-                                // Save progress before leaving
-                                if (_podcasts.isNotEmpty && 
-                                    _selectedPodcastIndex < _podcasts.length && 
-                                    _totalDuration != null && 
-                                    _totalDuration!.inSeconds > 0) {
-                                  await _saveProgress();
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('İlerlemeniz kaydediliyor...'),
-                                        duration: Duration(seconds: 2),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                    // Wait for message to be visible
-                                    await Future.delayed(const Duration(milliseconds: 2000));
-                                  }
-                                }
-                                if (mounted) {
-                                  Navigator.of(context).pop(true);
-                                  // MainScreen'e refresh sinyali gönder
-                                  final mainScreen = MainScreen.of(context);
-                                  if (mainScreen != null) {
-                                    mainScreen.refreshHomePage();
-                                  }
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: EdgeInsets.all(isSmallScreen ? 5 : 7),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  color: Colors.white,
-                                  size: isSmallScreen ? 14 : 16,
+                          // Watermark
+                          Positioned(
+                            top: -10,
+                            right: -10,
+                            child: Transform.rotate(
+                              angle: -0.5,
+                              child: Text(
+                                'PODCAST',
+                                style: TextStyle(
+                                  fontSize: isVerySmallScreen ? 40 : 50,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  letterSpacing: 2,
                                 ),
                               ),
                             ),
                           ),
-                          SizedBox(width: isSmallScreen ? 10 : 12),
-                          // Title
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
+                          // Content
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isTablet ? 20 : 14,
+                              vertical: isSmallScreen ? 6 : 8,
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  'Podcastler',
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 10 : 11,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontWeight: FontWeight.w500,
+                                // Back button
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      // Save progress before leaving
+                                      if (_podcasts.isNotEmpty && 
+                                          _selectedPodcastIndex < _podcasts.length && 
+                                          _totalDuration != null && 
+                                          _totalDuration!.inSeconds > 0) {
+                                        await _saveProgress();
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('İlerlemeniz kaydediliyor...'),
+                                              duration: Duration(seconds: 2),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                          // Wait for message to be visible
+                                          await Future.delayed(const Duration(milliseconds: 2000));
+                                        }
+                                      }
+                                      if (mounted) {
+                                        Navigator.of(context).pop(true);
+                                        // MainScreen'e refresh sinyali gönder
+                                        final mainScreen = MainScreen.of(context);
+                                        if (mainScreen != null) {
+                                          mainScreen.refreshHomePage();
+                                        }
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                      padding: EdgeInsets.all(isSmallScreen ? 5 : 7),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.arrow_back_ios_new_rounded,
+                                        color: Colors.white,
+                                        size: isSmallScreen ? 14 : 16,
+                                      ),
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                SizedBox(height: 2),
-                                Text(
-                                  widget.topicName,
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 14 : 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.2,
+                                SizedBox(width: isSmallScreen ? 10 : 12),
+                                // Title
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Podcastler',
+                                        style: TextStyle(
+                                          fontSize: isSmallScreen ? 10 : 11,
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        widget.topicName,
+                                        style: TextStyle(
+                                          fontSize: isSmallScreen ? 14 : 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          letterSpacing: 0.2,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -1344,10 +1357,9 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ),
             ),
           ),
           body: Column(
@@ -1870,7 +1882,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                   ],
                                 )
                               : null,
-                          color: isSelected ? null : Colors.white,
+                          color: isSelected ? null : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isSelected
@@ -1965,7 +1977,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                         fontWeight: FontWeight.bold,
                                         color: isSelected
                                             ? AppColors.gradientPurpleStart
-                                            : AppColors.textPrimary,
+                                            : (isDark ? Colors.white : AppColors.textPrimary),
                                         letterSpacing: 0.1,
                                       ),
                                       maxLines: 2,
@@ -1980,7 +1992,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                           size: isSmallScreen ? 12 : 14,
                                           color: isSelected
                                               ? AppColors.gradientPurpleStart
-                                              : AppColors.textSecondary,
+                                              : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                                         ),
                                         SizedBox(width: 4),
                                         Flexible(
@@ -1990,7 +2002,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                               fontSize: isSmallScreen ? 11 : 12,
                                               color: isSelected
                                                   ? AppColors.gradientPurpleStart
-                                                  : AppColors.textSecondary,
+                                                  : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                                               fontWeight: FontWeight.w500,
                                             ),
                                             maxLines: 1,
@@ -2040,7 +2052,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                               'İndiriliyor: ${((_downloadProgress[podcast.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
                                               style: TextStyle(
                                                 fontSize: 10,
-                                                color: AppColors.textSecondary,
+                                                color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                                               ),
                                             ),
                                           ],

@@ -287,24 +287,30 @@ class _PdfsPageState extends State<PdfsPage> {
     final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFFFF9800),
-                const Color(0xFFFF6B35),
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFFF9800),
+                      const Color(0xFFFF6B35),
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF9800).withValues(alpha: 0.3),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : const Color(0xFFFF9800).withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -397,14 +403,14 @@ class _PdfsPageState extends State<PdfsPage> {
                       Icon(
                         Icons.picture_as_pdf_outlined,
                         size: 64,
-                        color: Colors.grey.shade400,
+                        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'PDF bulunamadı',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey.shade600,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -443,9 +449,12 @@ class _PdfsPageState extends State<PdfsPage> {
     print('   PDF URL: $pdfUrl');
     print('   Is Downloaded: $isDownloaded');
     
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Card(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
       elevation: 2,
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -567,7 +576,7 @@ class _PdfsPageState extends State<PdfsPage> {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -580,7 +589,7 @@ class _PdfsPageState extends State<PdfsPage> {
                             'PDF Dosyası',
                             style: TextStyle(
                               fontSize: isSmallScreen ? 12 : 13,
-                              color: AppColors.textSecondary,
+                              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

@@ -1,25 +1,108 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/weakness_question.dart';
 
 class WeaknessesService {
   static const String _key = 'weakness_questions';
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Tüm eksik soruları getir
-  static Future<List<WeaknessQuestion>> getAllWeaknesses() async {
+  /// Get current user ID
+  static String? get _userId => _auth.currentUser?.uid;
+
+  /// Get user progress document reference
+  static DocumentReference get _userProgressDoc => 
+      _firestore.collection('userProgress').doc(_userId ?? '');
+
+  /// Get weaknesses collection reference
+  static CollectionReference get _weaknessesCollection => 
+      _userProgressDoc.collection('weaknesses');
+
+  /// Migrate old SharedPreferences data to Firestore
+  static Future<void> migrateToFirestore() async {
+    if (_userId == null) return;
+    
     try {
+      // Check if migration already done
       final prefs = await SharedPreferences.getInstance();
+      final bool? migrated = prefs.getBool('weaknesses_migrated');
+      if (migrated == true) {
+        debugPrint('✅ Weaknesses already migrated to Firestore');
+        return;
+      }
+
+      // Get old data from SharedPreferences
       final String? jsonString = prefs.getString(_key);
-      
       if (jsonString == null || jsonString.isEmpty) {
-        return [];
+        await prefs.setBool('weaknesses_migrated', true);
+        return;
       }
 
       final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
-      return jsonList
+      final List<WeaknessQuestion> weaknesses = jsonList
           .map((json) => WeaknessQuestion.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      // Migrate to Firestore
+      final batch = _firestore.batch();
+      for (var weakness in weaknesses) {
+        final docRef = _weaknessesCollection.doc('${weakness.topicName}_${weakness.id}');
+        batch.set(docRef, {
+          'id': weakness.id,
+          'question': weakness.question,
+          'options': weakness.options,
+          'correctAnswerIndex': weakness.correctAnswerIndex,
+          'explanation': weakness.explanation,
+          'lessonId': weakness.lessonId,
+          'topicName': weakness.topicName,
+          'addedAt': Timestamp.fromDate(weakness.addedAt),
+          'isFromWrongAnswer': weakness.isFromWrongAnswer,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+
+      // Mark as migrated
+      await prefs.setBool('weaknesses_migrated', true);
+      debugPrint('✅ Migrated ${weaknesses.length} weaknesses to Firestore');
     } catch (e) {
+      debugPrint('❌ Error migrating weaknesses to Firestore: $e');
+    }
+  }
+
+  // Tüm eksik soruları getir
+  static Future<List<WeaknessQuestion>> getAllWeaknesses() async {
+    if (_userId == null) {
+      // Not logged in, try to migrate old data first
+      await migrateToFirestore();
+      return [];
+    }
+
+    try {
+      // Migrate old data if exists
+      await migrateToFirestore();
+
+      // Get from Firestore
+      final snapshot = await _weaknessesCollection.get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return WeaknessQuestion(
+          id: data['id'] ?? '',
+          question: data['question'] ?? '',
+          options: List<String>.from(data['options'] ?? []),
+          correctAnswerIndex: data['correctAnswerIndex'] ?? 0,
+          explanation: data['explanation'] ?? '',
+          lessonId: data['lessonId'] ?? '',
+          topicName: data['topicName'] ?? '',
+          addedAt: (data['addedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          isFromWrongAnswer: data['isFromWrongAnswer'] ?? false,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting weaknesses from Firestore: $e');
       return [];
     }
   }
@@ -99,100 +182,179 @@ class WeaknessesService {
 
   // Eksik soru ekle
   static Future<bool> addWeakness(WeaknessQuestion weakness) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot save weakness');
+      return false;
+    }
+
     try {
-      final allWeaknesses = await getAllWeaknesses();
-      
-      // Aynı ID'ye sahip soru zaten varsa ekleme
-      if (allWeaknesses.any((w) => w.id == weakness.id && w.topicName == weakness.topicName)) {
-        return false;
+      // Migrate old data first
+      await migrateToFirestore();
+
+      // Check if already exists
+      final docId = '${weakness.topicName}_${weakness.id}';
+      final doc = await _weaknessesCollection.doc(docId).get();
+      if (doc.exists) {
+        return false; // Already exists
       }
 
-      allWeaknesses.add(weakness);
-      return await _saveWeaknesses(allWeaknesses);
+      // Add to Firestore
+      await _weaknessesCollection.doc(docId).set({
+        'id': weakness.id,
+        'question': weakness.question,
+        'options': weakness.options,
+        'correctAnswerIndex': weakness.correctAnswerIndex,
+        'explanation': weakness.explanation,
+        'lessonId': weakness.lessonId,
+        'topicName': weakness.topicName,
+        'addedAt': Timestamp.fromDate(weakness.addedAt),
+        'isFromWrongAnswer': weakness.isFromWrongAnswer,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Weakness added to Firestore: ${weakness.id}');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error adding weakness to Firestore: $e');
       return false;
     }
   }
 
   // Eksik soruyu kaldır
   static Future<bool> removeWeakness(String questionId, String topicName, {String? lessonId}) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot remove weakness');
+      return false;
+    }
+
     try {
-      final allWeaknesses = await getAllWeaknesses();
-      if (lessonId != null) {
-        allWeaknesses.removeWhere(
-          (w) => w.id == questionId && w.topicName == topicName && w.lessonId == lessonId,
-        );
-      } else {
-        allWeaknesses.removeWhere(
-          (w) => w.id == questionId && w.topicName == topicName,
-        );
+      final docId = '${topicName}_${questionId}';
+      final doc = await _weaknessesCollection.doc(docId).get();
+      
+      // If lessonId is provided, verify it matches
+      if (lessonId != null && doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data?['lessonId'] != lessonId) {
+          return false; // Lesson ID doesn't match
+        }
       }
-      return await _saveWeaknesses(allWeaknesses);
+
+      await _weaknessesCollection.doc(docId).delete();
+      debugPrint('✅ Weakness removed from Firestore: $questionId');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error removing weakness from Firestore: $e');
       return false;
     }
   }
 
   // Tüm eksik soruları temizle
   static Future<bool> clearAllWeaknesses() async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear weaknesses');
+      return false;
+    }
+
     try {
+      // Delete all from Firestore
+      final snapshot = await _weaknessesCollection.get();
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Also clear old SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      return await prefs.remove(_key);
+      await prefs.remove(_key);
+
+      debugPrint('✅ All weaknesses cleared from Firestore');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing weaknesses from Firestore: $e');
       return false;
     }
   }
 
   // Belirli bir konudaki tüm eksik soruları temizle
   static Future<bool> clearWeaknessesByTopic(String topicName, {String? lessonId}) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear weaknesses');
+      return false;
+    }
+
     try {
-      final allWeaknesses = await getAllWeaknesses();
+      Query query = _weaknessesCollection.where('topicName', isEqualTo: topicName);
       if (lessonId != null) {
-        allWeaknesses.removeWhere((w) => w.topicName == topicName && w.lessonId == lessonId);
-      } else {
-        allWeaknesses.removeWhere((w) => w.topicName == topicName);
+        query = query.where('lessonId', isEqualTo: lessonId);
       }
-      return await _saveWeaknesses(allWeaknesses);
+
+      final snapshot = await query.get();
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      debugPrint('✅ Weaknesses cleared for topic: $topicName');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing weaknesses by topic: $e');
       return false;
     }
   }
 
   // Belirli bir dersteki tüm eksik soruları temizle
   static Future<bool> clearWeaknessesByLesson(String lessonId) async {
-    try {
-      final allWeaknesses = await getAllWeaknesses();
-      allWeaknesses.removeWhere((w) => w.lessonId == lessonId);
-      return await _saveWeaknesses(allWeaknesses);
-    } catch (e) {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot clear weaknesses');
       return false;
     }
-  }
 
-  // Eksik soruları kaydet
-  static Future<bool> _saveWeaknesses(List<WeaknessQuestion> weaknesses) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final List<Map<String, dynamic>> jsonList =
-          weaknesses.map((w) => w.toJson()).toList();
-      final String jsonString = json.encode(jsonList);
-      return await prefs.setString(_key, jsonString);
+      final snapshot = await _weaknessesCollection
+          .where('lessonId', isEqualTo: lessonId)
+          .get();
+      
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      debugPrint('✅ Weaknesses cleared for lesson: $lessonId');
+      return true;
     } catch (e) {
+      debugPrint('❌ Error clearing weaknesses by lesson: $e');
       return false;
     }
   }
 
   // Soru zaten eksiklerde mi kontrol et
   static Future<bool> isQuestionInWeaknesses(String questionId, String topicName, {String? lessonId}) async {
-    final allWeaknesses = await getAllWeaknesses();
-    if (lessonId != null) {
-      return allWeaknesses.any(
-        (w) => w.id == questionId && w.topicName == topicName && w.lessonId == lessonId,
-      );
+    if (_userId == null) {
+      return false;
     }
-    return allWeaknesses.any(
-      (w) => w.id == questionId && w.topicName == topicName,
-    );
+
+    try {
+      final docId = '${topicName}_${questionId}';
+      final doc = await _weaknessesCollection.doc(docId).get();
+      
+      if (!doc.exists) {
+        return false;
+      }
+
+      // If lessonId is provided, verify it matches
+      if (lessonId != null) {
+        final data = doc.data() as Map<String, dynamic>?;
+        return data?['lessonId'] == lessonId;
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error checking if question is in weaknesses: $e');
+      return false;
+    }
   }
 }
 

@@ -22,16 +22,21 @@ class ContentSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderRadius = isSmallScreen ? 16.0 : 18.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(borderRadius),
           boxShadow: [
             BoxShadow(
-              color: AppColors.cardShadow,
+              color: shadowColor,
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -65,7 +70,7 @@ class ContentSectionCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 16 : 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: textColor,
                       ),
                     ),
                     SizedBox(height: isSmallScreen ? 4 : 6),
@@ -73,7 +78,7 @@ class ContentSectionCard extends StatelessWidget {
                       '$count içerik',
                       style: TextStyle(
                         fontSize: isSmallScreen ? 13 : 14,
-                        color: AppColors.textSecondary,
+                        color: secondaryTextColor,
                       ),
                     ),
                   ],
@@ -83,7 +88,7 @@ class ContentSectionCard extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: isSmallScreen ? 18 : 20,
-                color: AppColors.textSecondary,
+                color: secondaryTextColor,
               ),
             ],
           ),

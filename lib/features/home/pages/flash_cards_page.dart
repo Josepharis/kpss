@@ -488,11 +488,13 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
     
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: AppColors.gradientRedStart,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -526,9 +528,9 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     
     if (_cards.isEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: AppColors.gradientRedStart,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -561,14 +563,14 @@ class _FlashCardsPageState extends State<FlashCardsPage>
               Icon(
                 Icons.style_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               Text(
                 'Bu konu için henüz bilgi kartı eklenmemiş',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -580,9 +582,9 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     final currentCard = _cards[_currentCardIndex];
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.gradientRedStart,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
         elevation: 0,
         leading: IconButton(
           icon: Icon(
@@ -692,7 +694,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                   bottom: isSmallScreen ? 16 : 20,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.backgroundLight,
+                  color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundLight,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -762,8 +764,8 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                               overflow: TextOverflow.ellipsis,
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.textPrimary,
+                              backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
                                 horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
                                 vertical: isSmallScreen ? 10 : 12,
@@ -772,7 +774,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: Colors.grey.withValues(alpha: 0.3),
+                                  color: isDark ? Colors.grey.withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3),
                                   width: 1.5,
                                 ),
                               ),
@@ -830,8 +832,8 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                               overflow: TextOverflow.ellipsis,
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.textPrimary,
+                              backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
                                 horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
                                 vertical: isSmallScreen ? 10 : 12,
@@ -840,7 +842,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: Colors.grey.withValues(alpha: 0.3),
+                                  color: isDark ? Colors.grey.withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3),
                                   width: 1.5,
                                 ),
                               ),

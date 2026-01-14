@@ -42,7 +42,6 @@ class QuestionsService {
       }
       
       // Fallback to Firestore
-      debugPrint('📂 Loading questions from Firestore (Storage had no questions)');
       final snapshot = await _questionsCollection
           .where('topicId', isEqualTo: topicId)
           .get();
@@ -81,7 +80,6 @@ class QuestionsService {
       }
       return [];
     } catch (e) {
-      debugPrint('⚠️ Error loading questions from cache: $e');
       return [];
     }
   }
@@ -124,8 +122,6 @@ class QuestionsService {
   /// Load questions from Storage (soru folder)
   Future<List<TestQuestion>> _loadQuestionsFromStorage(String topicId, String lessonId) async {
     try {
-      debugPrint('🔍 Loading questions from Storage for topicId: $topicId, lessonId: $lessonId');
-      
       // Get lesson to construct path
       final lesson = await _lessonsService.getLessonById(lessonId);
       if (lesson == null) {
@@ -158,11 +154,8 @@ class QuestionsService {
       final jsonUrls = await _storageService.listJsonFiles(soruPath);
       
       if (jsonUrls.isEmpty) {
-        debugPrint('⚠️ No JSON files found in soru folder: $soruPath');
         return [];
       }
-      
-      debugPrint('✅ Found ${jsonUrls.length} JSON file(s) in soru folder');
       
       // Parse all JSON files and combine questions
       final List<TestQuestion> allQuestions = [];
@@ -201,7 +194,7 @@ class QuestionsService {
             }
           }
         } catch (e) {
-          debugPrint('⚠️ Error parsing JSON file $jsonUrl: $e');
+          // Error parsing JSON file
         }
       }
       
@@ -213,10 +206,8 @@ class QuestionsService {
         return aId.compareTo(bId);
       });
       
-      debugPrint('✅ Parsed ${allQuestions.length} questions from Storage JSON files');
       return allQuestions;
     } catch (e) {
-      debugPrint('❌ Error loading questions from Storage: $e');
       return [];
     }
   }
@@ -233,7 +224,6 @@ class QuestionsService {
       // Get questions array
       final questionsList = jsonData['questions'] as List<dynamic>?;
       if (questionsList == null) {
-        debugPrint('⚠️ No questions array found in JSON');
         return [];
       }
       
@@ -302,7 +292,6 @@ class QuestionsService {
       
       return questions;
     } catch (e) {
-      debugPrint('❌ Error parsing JSON questions: $e');
       return [];
     }
   }

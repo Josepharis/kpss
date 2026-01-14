@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/app_theme.dart';
 import 'pomodoro_settings_page.dart';
 import 'pomodoro_stats_page.dart';
 import 'pomodoro_save_session_page.dart';
@@ -64,98 +64,66 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   }
 
   Future<void> _initializeVideo() async {
-    await Future.delayed(const Duration(milliseconds: 2000));
-    
     if (!mounted) return;
     
-    int retryCount = 0;
-    const maxRetries = 5;
-    
-    while (retryCount < maxRetries && mounted) {
-      try {
-        if (_videoController != null) {
-          try {
-            await _videoController!.dispose();
-          } catch (e) {
-            debugPrint('Dispose error (ignored): $e');
-          }
-          _videoController = null;
-        }
+    try {
+      // Eski controller'ı temizle
+      if (_videoController != null) {
+        await _videoController!.dispose();
+        _videoController = null;
+      }
+      
+      if (!mounted) return;
+      
+      // Video controller'ı oluştur
+      _videoController = VideoPlayerController.asset('assets/images/kum.mp4');
+      
+      // Listener ekle
+      _videoController!.addListener(_videoListener);
+      
+      // Video'yu initialize et
+      await _videoController!.initialize();
+      
+      if (!mounted) return;
+      
+      // Video başarıyla yüklendi
+      if (_videoController!.value.isInitialized && !_videoController!.value.hasError) {
+        _videoController!.setLooping(true);
+        _videoController!.setVolume(0);
+        _videoAvailable = true;
         
-        if (retryCount > 0) {
-          await Future.delayed(Duration(milliseconds: 2000 * retryCount));
-        }
+        // Video'yu oynatma - sadece timer başlatıldığında oynatılacak
         
-        if (!mounted) return;
-        
-        _videoController = VideoPlayerController.asset('assets/images/41514-429682539.mp4');
-        
-        await _videoController!.initialize().timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException('Video initialization timeout');
-          },
-        );
-        
-        if (_videoController != null && 
-            _videoController!.value.isInitialized && 
-            !_videoController!.value.hasError) {
-          _videoController!.setLooping(true);
-          _videoController!.setVolume(0);
-          _videoAvailable = true;
-          if (mounted) {
-            setState(() {});
-          }
-          debugPrint('Video başarıyla yüklendi');
-          return;
-        } else {
-          debugPrint('Video initialize edildi ama hata var: ${_videoController?.value.errorDescription}');
-          retryCount++;
-          continue;
+        if (mounted) {
+          setState(() {});
         }
-      } on PlatformException catch (e) {
-        debugPrint('Video platform error (deneme ${retryCount + 1}/$maxRetries): ${e.message}');
-        if (retryCount < maxRetries - 1) {
-          retryCount++;
-          continue;
-        } else {
-          debugPrint('Video yüklenemedi, video olmadan devam ediliyor');
-          _videoAvailable = false;
-          if (mounted) {
-            setState(() {});
-          }
-          return;
-        }
-      } on TimeoutException catch (e) {
-        debugPrint('Video timeout (deneme ${retryCount + 1}/$maxRetries): $e');
-        if (retryCount < maxRetries - 1) {
-          retryCount++;
-          continue;
-        } else {
-          _videoAvailable = false;
-          if (mounted) {
-            setState(() {});
-          }
-          return;
-        }
-      } catch (e) {
-        debugPrint('Video initialization error (deneme ${retryCount + 1}/$maxRetries): $e');
-        if (retryCount < maxRetries - 1) {
-          retryCount++;
-          continue;
-        } else {
-          _videoAvailable = false;
-          if (mounted) {
-            setState(() {});
-          }
-          return;
+      } else {
+        _videoAvailable = false;
+        if (mounted) {
+          setState(() {});
         }
       }
+    } catch (e) {
+      _videoAvailable = false;
+      if (mounted) {
+        setState(() {});
+      }
     }
-    
-    _videoAvailable = false;
-    if (mounted) {
-      setState(() {});
+  }
+  
+  void _videoListener() {
+    if (_videoController != null && _videoController!.value.hasError) {
+      _videoAvailable = false;
+      if (mounted) {
+        setState(() {});
+      }
+    } else if (_videoController != null && _videoController!.value.isInitialized) {
+      if (!_videoAvailable) {
+        _videoAvailable = true;
+        if (mounted) {
+          setState(() {});
+        }
+      }
     }
   }
 
@@ -184,6 +152,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   @override
   void dispose() {
     _timer?.cancel();
+    _videoController?.removeListener(_videoListener);
     _videoController?.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -250,7 +219,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
       try {
         _videoController?.play();
       } catch (e) {
-        debugPrint('Video play error: $e');
+        // Video play error
       }
     }
 
@@ -280,7 +249,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
       try {
         _videoController?.pause();
       } catch (e) {
-        debugPrint('Video pause error: $e');
+        // Video pause error
       }
     }
   }
@@ -295,7 +264,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
       try {
         _videoController?.play();
       } catch (e) {
-        debugPrint('Video play error: $e');
+        // Video play error
       }
     }
 
@@ -345,7 +314,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
       try {
         _videoController?.play();
       } catch (e) {
-        debugPrint('Video play error: $e');
+        // Video play error
       }
     }
 
@@ -383,7 +352,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         _videoController?.pause();
         _videoController?.seekTo(Duration.zero);
       } catch (e) {
-        debugPrint('Video seek error: $e');
+        // Video seek error
       }
     }
 
@@ -443,7 +412,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         _videoController?.pause();
         _videoController?.seekTo(Duration.zero);
       } catch (e) {
-        debugPrint('Video stop error: $e');
+        // Video stop error
       }
     }
   }
@@ -455,7 +424,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         _videoController?.pause();
         _videoController?.seekTo(Duration.zero);
       } catch (e) {
-        debugPrint('Video seek error: $e');
+        // Video seek error
       }
     }
 
@@ -674,7 +643,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         _videoController?.pause();
         _videoController?.seekTo(Duration.zero);
       } catch (e) {
-        debugPrint('Video stop error: $e');
+        // Video stop error
       }
     }
     
@@ -1043,22 +1012,27 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = _isDarkMode || Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
     final screenWidth = size.width;
+    final isLandscape = screenWidth > screenHeight;
     
-    // Responsive timer size - mümkün olduğunca büyük
-    final timerSize = screenWidth < 400 
-        ? screenWidth * 0.85 
-        : screenHeight < 700 
-            ? screenWidth * 0.80 
-            : screenWidth * 0.85;
+    // Responsive timer size - landscape mode'da daha küçük
+    double timerSize;
+    if (isLandscape) {
+      // Landscape mode'da ekran yüksekliğine göre ayarla
+      timerSize = math.min(screenHeight * 0.5, screenWidth * 0.4);
+    } else {
+      // Portrait mode'da normal hesaplama
+      timerSize = screenWidth < 400 
+          ? screenWidth * 0.85 
+          : screenHeight < 700 
+              ? screenWidth * 0.80 
+              : screenWidth * 0.85;
+    }
     
-    return Theme(
-      data: isDark ? AppTheme.darkTheme : AppTheme.lightTheme,
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+    return Scaffold(
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.transparent,
@@ -1144,8 +1118,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
             },
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildCircularTimerWithVideo(double size, bool isDark) {
@@ -1211,21 +1184,21 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
                 ),
                 
                 // Video Container (Circular)
-                ClipOval(
-                  child: Container(
-                    width: size * 0.7,
-                    height: size * 0.7,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isDark ? Colors.black87 : Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 20,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
+                Container(
+                  width: size * 0.7,
+                  height: size * 0.7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDark ? Colors.black87 : Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
                     child: _buildVideoContent(size * 0.7),
                   ),
                 ),
@@ -1239,10 +1212,13 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   }
 
   Widget _buildVideoContent(double size) {
-    if (_videoAvailable && 
-        _videoController != null && 
-        _videoController!.value.isInitialized && 
-        !_videoController!.value.hasError) {
+    // Video controller durumunu kontrol et
+    final isInitialized = _videoController != null && 
+        _videoController!.value.isInitialized;
+    final hasError = _videoController != null && 
+        _videoController!.value.hasError;
+    
+    if (_videoAvailable && isInitialized && !hasError) {
       return SizedBox(
         width: size,
         height: size,
@@ -1257,7 +1233,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
       );
     }
     
-    // Placeholder
+    // Video yüklenene kadar placeholder
     return Container(
       width: size,
       height: size,

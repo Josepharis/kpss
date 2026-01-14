@@ -150,24 +150,30 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFFFF6B35),
-                const Color(0xFFFF9800),
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFFF6B35),
+                      const Color(0xFFFF9800),
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF6B35).withValues(alpha: 0.3),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : const Color(0xFFFF6B35).withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -273,7 +279,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               vertical: isSmallScreen ? 10 : 12,
             ),
             decoration: BoxDecoration(
-              color: AppColors.backgroundWhite,
+              color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -321,6 +327,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     IconData icon,
     bool isSmallScreen,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedView == value;
     return GestureDetector(
       onTap: () {
@@ -341,12 +348,12 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                   ],
                 )
               : null,
-          color: isSelected ? null : AppColors.backgroundLight,
+          color: isSelected ? null : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : AppColors.textSecondary.withValues(alpha: 0.2),
+                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
             width: 1,
           ),
         ),
@@ -356,7 +363,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
             Icon(
               icon,
               size: isSmallScreen ? 18 : 20,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
+              color: isSelected ? Colors.white : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
             ),
             SizedBox(width: isSmallScreen ? 6 : 8),
             Text(
@@ -364,7 +371,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               style: TextStyle(
                 fontSize: isSmallScreen ? 13 : 14,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : AppColors.textPrimary,
+                color: isSelected ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
               ),
             ),
           ],
@@ -469,150 +476,163 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           ),
           SizedBox(height: isSmallScreen ? 20 : 24),
           // Chart Title
-          Text(
-            'Yıllara Göre Soru Dağılımı',
-            style: TextStyle(
-              fontSize: isSmallScreen ? 18 : 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Text(
+                'Yıllara Göre Soru Dağılımı',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
+                ),
+              );
+            },
           ),
           SizedBox(height: isSmallScreen ? 16 : 20),
           // Distribution Chart
-          Container(
-            padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
-            decoration: BoxDecoration(
-              color: AppColors.backgroundWhite,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Container(
+                padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Column(
-              children: _distribution.map((dist) {
-                final percentage = dist.questionCount / maxCount;
-                final isSelected = _selectedYear == dist.year;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedYear = isSelected ? null : dist.year;
-                    });
-                  },
-                  child: Container(
-                    margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  children: _distribution.map((dist) {
+                    final percentage = dist.questionCount / maxCount;
+                    final isSelected = _selectedYear == dist.year;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedYear = isSelected ? null : dist.year;
+                        });
+                      },
+                      child: Container(
+                        margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isSelected
-                                        ? const Color(0xFFFF6B35)
-                                        : const Color(0xFFFF9800),
-                                  ),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isSelected
+                                            ? const Color(0xFFFF6B35)
+                                            : const Color(0xFFFF9800),
+                                      ),
+                                    ),
+                                    SizedBox(width: isSmallScreen ? 8 : 10),
+                                    Text(
+                                      '${dist.year}',
+                                      style: TextStyle(
+                                        fontSize: isSmallScreen ? 14 : 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.white : AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                SizedBox(width: isSmallScreen ? 8 : 10),
                                 Text(
-                                  '${dist.year}',
+                                  '${dist.questionCount} soru',
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 14 : 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFFFF6B35),
                                   ),
                                 ),
                               ],
                             ),
-                            Text(
-                              '${dist.questionCount} soru',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFFFF6B35),
+                            SizedBox(height: isSmallScreen ? 8 : 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    height: isSmallScreen ? 32 : 36,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  FractionallySizedBox(
+                                    widthFactor: percentage,
+                                    child: Container(
+                                      height: isSmallScreen ? 32 : 36,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            isSelected
+                                                ? const Color(0xFFFF6B35)
+                                                : const Color(0xFFFF9800),
+                                            isSelected
+                                                ? const Color(0xFFFF9800)
+                                                : const Color(0xFFFF6B35).withValues(alpha: 0.7),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: isSmallScreen ? 8 : 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Stack(
-                            children: [
-                              Container(
-                                height: isSmallScreen ? 32 : 36,
-                                decoration: BoxDecoration(
-                                  color: AppColors.backgroundLight,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              FractionallySizedBox(
-                                widthFactor: percentage,
-                                child: Container(
-                                  height: isSmallScreen ? 32 : 36,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        isSelected
-                                            ? const Color(0xFFFF6B35)
-                                            : const Color(0xFFFF9800),
-                                        isSelected
-                                            ? const Color(0xFFFF9800)
-                                            : const Color(0xFFFF6B35).withValues(alpha: 0.7),
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
           ),
           if (_selectedYear != null) ...[
             SizedBox(height: isSmallScreen ? 20 : 24),
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
-              decoration: BoxDecoration(
-                color: AppColors.backgroundWhite,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '$_selectedYear Yılı Soruları',
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 16 : 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+            Builder(
+              builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                return Container(
+                  padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$_selectedYear Yılı Soruları',
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 16 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
                       GestureDetector(
                         onTap: () {
                           setState(() {
@@ -652,13 +672,15 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                     '${_questions.where((q) => q.year == _selectedYear).length} soru bulundu',
                     style: TextStyle(
                       fontSize: isSmallScreen ? 13 : 14,
-                      color: AppColors.textSecondary,
+                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+            );
+          },
+        ),
+      ],
           SizedBox(height: isSmallScreen ? 20 : 24),
         ],
       ),
@@ -689,6 +711,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
   }
 
   Widget _buildQuestionsView(bool isTablet, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
         // Year Filter
@@ -699,7 +722,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               vertical: isSmallScreen ? 10 : 12,
             ),
             decoration: BoxDecoration(
-              color: AppColors.backgroundWhite,
+              color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -731,25 +754,30 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
         // Questions List
         Expanded(
           child: _filteredQuestions.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.quiz_outlined,
-                        size: 64,
-                        color: AppColors.textSecondary,
+              ? Builder(
+                  builder: (context) {
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.quiz_outlined,
+                            size: 64,
+                            color: isDark ? Colors.grey.shade600 : AppColors.textSecondary,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Soru bulunamadı',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Soru bulunamadı',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 )
               : ListView.builder(
                   padding: EdgeInsets.all(isTablet ? 20 : 14),
@@ -771,6 +799,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
   }
 
   Widget _buildYearFilterButton(int? year, String label, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedYear == year;
     return GestureDetector(
       onTap: () {
@@ -794,12 +823,12 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                   ],
                 )
               : null,
-          color: isSelected ? null : AppColors.backgroundLight,
+          color: isSelected ? null : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : AppColors.textSecondary.withValues(alpha: 0.2),
+                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
             width: 1,
           ),
         ),
@@ -808,7 +837,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           style: TextStyle(
             fontSize: isSmallScreen ? 12 : 13,
             fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.textPrimary,
+            color: isSelected ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
           ),
         ),
       ),
@@ -821,6 +850,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     bool isSelected,
     bool isSmallScreen,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -831,7 +861,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
       child: Container(
         margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
         decoration: BoxDecoration(
-          color: AppColors.backgroundWhite,
+          color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
@@ -899,7 +929,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                         style: TextStyle(
                           fontSize: isSmallScreen ? 13 : 14,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: isDark ? Colors.white : AppColors.textPrimary,
                         ),
                       ),
                     ],
@@ -925,7 +955,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 15 : 17,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                         height: 1.6,
                       ),
                     ),
@@ -941,12 +971,12 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                         decoration: BoxDecoration(
                           color: showCorrect
                               ? Colors.green.withValues(alpha: 0.1)
-                              : AppColors.backgroundLight,
+                              : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: showCorrect
                                 ? Colors.green
-                                : AppColors.textSecondary.withValues(alpha: 0.2),
+                                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
                             width: showCorrect ? 2 : 1,
                           ),
                         ),
@@ -964,7 +994,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                                 option,
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 14 : 16,
-                                  color: AppColors.textPrimary,
+                                  color: isDark ? Colors.white : AppColors.textPrimary,
                                   fontWeight: showCorrect
                                       ? FontWeight.bold
                                       : FontWeight.normal,
@@ -1040,13 +1070,18 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                               ],
                             ),
                             SizedBox(height: isSmallScreen ? 10 : 12),
-                            Text(
-                              question.explanation,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
-                                color: AppColors.textPrimary,
-                                height: 1.6,
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final isDark = Theme.of(context).brightness == Brightness.dark;
+                                return Text(
+                                  question.explanation,
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                    height: 1.6,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),

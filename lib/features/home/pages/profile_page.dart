@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/run_pdf_update.dart';
 import '../../../core/services/storage_cleanup_service.dart';
+import '../../../core/services/progress_service.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../../main.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,25 +16,32 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool _notificationsEnabled = true;
-  bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
-  String _selectedLanguage = 'Türkçe';
-  String _selectedTheme = 'Otomatik';
+  String _selectedTheme = 'Açık';
   bool _isUpdatingPdfUrls = false;
   final StorageCleanupService _cleanupService = StorageCleanupService();
+  final ProgressService _progressService = ProgressService();
+  final AuthService _authService = AuthService();
   bool _autoCleanupEnabled = true;
   int _cleanupDays = 7;
   double _maxStorageGB = 5.0;
   double _currentStorageGB = 0.0;
   bool _isLoadingStorage = false;
+  
+  // User statistics
+  String _userName = 'Kullanıcı';
+  int _solvedQuestions = 0;
+  int _correctAnswers = 0;
+  int _wrongAnswers = 0;
+  double _successRate = 0.0;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
-    // Load settings after the first frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadSettings();
+      _loadUserData();
+      _loadStatistics();
     });
   }
 
@@ -40,25 +50,57 @@ class _ProfilePageState extends State<ProfilePage> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       
-      // Load storage settings
       _autoCleanupEnabled = await _cleanupService.isAutoCleanupEnabled();
       _cleanupDays = await _cleanupService.getCleanupDays();
       _maxStorageGB = await _cleanupService.getMaxStorageGB();
       _currentStorageGB = await _cleanupService.getTotalStorageUsed();
       
       setState(() {
-        _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-        _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-        _vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
-        _selectedLanguage = prefs.getString('selected_language') ?? 'Türkçe';
-        _selectedTheme = prefs.getString('selected_theme') ?? 'Otomatik';
+        _selectedTheme = prefs.getString('selected_theme') ?? 'Açık';
       });
     } catch (e) {
-      // If there's an error loading settings, use default values
-      // Don't call setState if widget is not mounted
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userName = await _authService.getUserName();
       if (mounted) {
         setState(() {
-          // Keep default values already set in field declarations
+          _userName = userName ?? 'Kullanıcı';
+        });
+      }
+    } catch (e) {
+      // Silent error handling
+    }
+  }
+
+  Future<void> _loadStatistics() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingStats = true;
+    });
+
+    try {
+      final stats = await _progressService.getUserStatistics();
+      if (mounted) {
+        setState(() {
+          _solvedQuestions = stats['solvedQuestions'] ?? 0;
+          _correctAnswers = stats['correctAnswers'] ?? 0;
+          _wrongAnswers = stats['wrongAnswers'] ?? 0;
+          _successRate = _solvedQuestions > 0
+              ? (_correctAnswers / _solvedQuestions * 100)
+              : 0.0;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
         });
       }
     }
@@ -89,8 +131,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await prefs.setString(key, value);
       }
     } catch (e) {
-      // Silently fail if saving settings fails
-      // This prevents crashes if storage is unavailable
+      // Silent error handling
     }
   }
 
@@ -107,16 +148,22 @@ class _ProfilePageState extends State<ProfilePage> {
     final iconSize = isSmallScreen ? 18.0 : 20.0;
     final fontSize = isSmallScreen ? 13.0 : 14.0;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarStyle = isDark 
+        ? SystemUiOverlayStyle.light 
+        : SystemUiOverlayStyle.light;
+    final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
+    final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
+    
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: AppColors.primaryBlue,
+      value: statusBarStyle.copyWith(
+        statusBarColor: headerColor,
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
         body: Column(
           children: [
-            // Compact Header
+            // Header with user name
             Container(
               padding: EdgeInsets.only(
                 top: statusBarHeight + (isSmallScreen ? 8 : 12),
@@ -129,8 +176,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.primaryBlue,
-                    AppColors.primaryDarkBlue,
+                    headerColor,
+                    headerDarkColor,
                   ],
                 ),
               ),
@@ -160,7 +207,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Kullanıcı',
+                          _userName,
                           style: TextStyle(
                             fontSize: isSmallScreen ? 16 : 18,
                             fontWeight: FontWeight.bold,
@@ -179,14 +226,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.edit_outlined, color: Colors.white, size: iconSize),
-                    onPressed: () {
-                      // Edit profile action
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
-                  ),
                 ],
               ),
             ),
@@ -197,76 +236,20 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // İstatistikler - Kompakt
-                    _buildStatsCard(isSmallScreen, compactSpacing),
+                    // Statistics Card
+                    _buildStatisticsCard(isSmallScreen, compactSpacing),
                     SizedBox(height: compactSpacing),
                     
-                    // Genel Ayarlar
-                    _buildSectionTitle('Genel', isSmallScreen),
+                    // Tema Ayarları
+                    _buildSectionTitle('Ayarlar', isSmallScreen),
                     SizedBox(height: compactSpacing / 2),
                     _buildSettingsCard(
                       children: [
-                        _buildSettingTile(
-                          icon: Icons.language,
-                          title: 'Dil',
-                          subtitle: _selectedLanguage,
-                          onTap: () => _showLanguageDialog(),
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
                         _buildSettingTile(
                           icon: Icons.palette_outlined,
                           title: 'Tema',
                           subtitle: _selectedTheme,
                           onTap: () => _showThemeDialog(),
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compactSpacing),
-                    
-                    // Bildirimler
-                    _buildSectionTitle('Bildirimler', isSmallScreen),
-                    SizedBox(height: compactSpacing / 2),
-                    _buildSettingsCard(
-                      children: [
-                        _buildSwitchTile(
-                          icon: Icons.notifications_outlined,
-                          title: 'Bildirimler',
-                          subtitle: 'Yeni içerik ve hatırlatmalar',
-                          value: _notificationsEnabled,
-                          onChanged: (value) {
-                            setState(() => _notificationsEnabled = value);
-                            _saveSetting('notifications_enabled', value);
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSwitchTile(
-                          icon: Icons.volume_up_outlined,
-                          title: 'Ses',
-                          subtitle: 'Bildirim sesleri',
-                          value: _soundEnabled,
-                          onChanged: (value) {
-                            setState(() => _soundEnabled = value);
-                            _saveSetting('sound_enabled', value);
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSwitchTile(
-                          icon: Icons.vibration,
-                          title: 'Titreşim',
-                          subtitle: 'Bildirim titreşimleri',
-                          value: _vibrationEnabled,
-                          onChanged: (value) {
-                            setState(() => _vibrationEnabled = value);
-                            _saveSetting('vibration_enabled', value);
-                          },
                           iconSize: iconSize,
                           fontSize: fontSize,
                         ),
@@ -280,39 +263,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildStorageCard(isSmallScreen, compactSpacing, iconSize, fontSize),
                     SizedBox(height: compactSpacing),
                     
-                    // Çalışma Ayarları
-                    _buildSectionTitle('Çalışma', isSmallScreen),
+                    // Hakkında
+                    _buildSectionTitle('Hakkında', isSmallScreen),
                     SizedBox(height: compactSpacing / 2),
                     _buildSettingsCard(
                       children: [
                         _buildSettingTile(
-                          icon: Icons.timer_outlined,
-                          title: 'Pomodoro Ayarları',
-                          subtitle: 'Çalışma zamanlayıcısı',
+                          icon: Icons.info_outline,
+                          title: 'Uygulama Hakkında',
+                          subtitle: 'Versiyon 1.0.0',
                           onTap: () {
-                            // Navigate to pomodoro settings
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSettingTile(
-                          icon: Icons.backup_outlined,
-                          title: 'Yedekleme',
-                          subtitle: 'Verilerinizi yedekleyin',
-                          onTap: () {
-                            // Backup action
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSettingTile(
-                          icon: Icons.restore_outlined,
-                          title: 'Geri Yükle',
-                          subtitle: 'Yedekten geri yükleyin',
-                          onTap: () {
-                            // Restore action
+                            _showAboutDialog();
                           },
                           iconSize: iconSize,
                           fontSize: fontSize,
@@ -334,47 +295,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     SizedBox(height: compactSpacing),
                     
-                    // Hakkında
-                    _buildSectionTitle('Hakkında', isSmallScreen),
-                    SizedBox(height: compactSpacing / 2),
-                    _buildSettingsCard(
-                      children: [
-                        _buildSettingTile(
-                          icon: Icons.info_outline,
-                          title: 'Uygulama Hakkında',
-                          subtitle: 'Versiyon 1.0.0',
-                          onTap: () {
-                            _showAboutDialog();
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSettingTile(
-                          icon: Icons.privacy_tip_outlined,
-                          title: 'Gizlilik Politikası',
-                          subtitle: 'Kullanım koşulları',
-                          onTap: () {
-                            // Privacy policy
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSettingTile(
-                          icon: Icons.help_outline,
-                          title: 'Yardım & Destek',
-                          subtitle: 'SSS ve destek',
-                          onTap: () {
-                            // Help & support
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compactSpacing),
-                    
                     // Çıkış
                     _buildLogoutButton(isSmallScreen, fontSize),
                     SizedBox(height: compactSpacing),
@@ -388,58 +308,96 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildStatsCard(bool isSmallScreen, double spacing) {
+  Widget _buildStatisticsCard(bool isSmallScreen, double spacing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    
     return Container(
-      padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.cardShadow,
+            color: shadowColor,
             blurRadius: 4,
             offset: Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.check_circle_outline,
-              value: '1,234',
-              label: 'Çözülen Soru',
-              isSmallScreen: isSmallScreen,
+      child: _isLoadingStats
+          ? Center(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                ),
+              ),
+            )
+          : Builder(
+              builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final dividerColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
+                
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.quiz_outlined,
+                        value: _solvedQuestions.toString(),
+                        label: 'Çözülen',
+                        color: AppColors.primaryBlue,
+                        isSmallScreen: isSmallScreen,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: dividerColor,
+                    ),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.check_circle_outline,
+                        value: _correctAnswers.toString(),
+                        label: 'Doğru',
+                        color: Colors.green,
+                        isSmallScreen: isSmallScreen,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: dividerColor,
+                    ),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.cancel_outlined,
+                        value: _wrongAnswers.toString(),
+                        label: 'Yanlış',
+                        color: Colors.red,
+                        isSmallScreen: isSmallScreen,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: dividerColor,
+                    ),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.trending_up_outlined,
+                        value: '${_successRate.toStringAsFixed(0)}%',
+                        label: 'Oran',
+                        color: AppColors.gradientPurpleStart,
+                        isSmallScreen: isSmallScreen,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: AppColors.progressGray,
-          ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.access_time,
-              value: '45s',
-              label: 'Çalışma Süresi',
-              isSmallScreen: isSmallScreen,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: AppColors.progressGray,
-          ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.trending_up,
-              value: '78%',
-              label: 'Başarı Oranı',
-              isSmallScreen: isSmallScreen,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -447,15 +405,20 @@ class _ProfilePageState extends State<ProfilePage> {
     required IconData icon,
     required String value,
     required String label,
+    required Color color,
     required bool isSmallScreen,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           icon,
-          size: isSmallScreen ? 18 : 20,
-          color: AppColors.primaryBlue,
+          size: isSmallScreen ? 16 : 18,
+          color: color,
         ),
         SizedBox(height: 4),
         Text(
@@ -463,7 +426,7 @@ class _ProfilePageState extends State<ProfilePage> {
           style: TextStyle(
             fontSize: isSmallScreen ? 14 : 16,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: textColor,
           ),
         ),
         SizedBox(height: 2),
@@ -471,10 +434,10 @@ class _ProfilePageState extends State<ProfilePage> {
           label,
           style: TextStyle(
             fontSize: isSmallScreen ? 9 : 10,
-            color: AppColors.textSecondary,
+            color: secondaryTextColor,
           ),
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
       ],
@@ -482,6 +445,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildSectionTitle(String title, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 4),
       child: Text(
@@ -489,7 +455,7 @@ class _ProfilePageState extends State<ProfilePage> {
         style: TextStyle(
           fontSize: isSmallScreen ? 13 : 14,
           fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
+          color: textColor,
           letterSpacing: 0.5,
         ),
       ),
@@ -497,13 +463,17 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildSettingsCard({required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.cardShadow,
+            color: shadowColor,
             blurRadius: 4,
             offset: Offset(0, 2),
           ),
@@ -523,6 +493,11 @@ class _ProfilePageState extends State<ProfilePage> {
     required double iconSize,
     required double fontSize,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final lightTextColor = isDark ? Colors.white60 : AppColors.textLight;
+    
     return ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       enabled: onTap != null,
@@ -543,22 +518,176 @@ class _ProfilePageState extends State<ProfilePage> {
         style: TextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: textColor,
         ),
       ),
       subtitle: Text(
         subtitle,
         style: TextStyle(
           fontSize: fontSize - 2,
-          color: AppColors.textSecondary,
+          color: secondaryTextColor,
         ),
       ),
       trailing: Icon(
         Icons.chevron_right,
         size: 20,
-        color: AppColors.textLight,
+        color: lightTextColor,
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildDivider() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dividerColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
+    
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 60,
+      color: dividerColor,
+    );
+  }
+  
+  Widget _buildStorageCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final progressBgColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
+    final iconColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    
+    return _buildSettingsCard(
+      children: [
+        Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.storage,
+                    size: iconSize,
+                    color: AppColors.primaryBlue,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Depolama Kullanımı',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  Spacer(),
+                  if (_isLoadingStorage)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: Icon(Icons.refresh, size: 18, color: iconColor),
+                      onPressed: _refreshStorageInfo,
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${_currentStorageGB.toStringAsFixed(2)} GB',
+                        style: TextStyle(
+                          fontSize: fontSize - 1,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      Text(
+                        '/ ${_maxStorageGB.toStringAsFixed(1)} GB',
+                        style: TextStyle(
+                          fontSize: fontSize - 1,
+                          color: secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _maxStorageGB > 0 ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0) : 0.0,
+                      minHeight: 8,
+                      backgroundColor: progressBgColor,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _currentStorageGB > _maxStorageGB * 0.9
+                            ? Colors.red
+                            : _currentStorageGB > _maxStorageGB * 0.7
+                                ? Colors.orange
+                                : AppColors.primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _buildDivider(),
+        _buildSwitchTile(
+          icon: Icons.auto_delete_outlined,
+          title: 'Otomatik Temizleme',
+          subtitle: _autoCleanupEnabled 
+              ? 'Kullanılmayan içerikler otomatik silinir'
+              : 'Otomatik temizleme kapalı',
+          value: _autoCleanupEnabled,
+          onChanged: (value) async {
+            setState(() => _autoCleanupEnabled = value);
+            await _cleanupService.setAutoCleanupEnabled(value);
+          },
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        _buildSettingTile(
+          icon: Icons.calendar_today_outlined,
+          title: 'Temizleme Süresi',
+          subtitle: '$_cleanupDays gün (kullanılmayan içerikler silinir)',
+          onTap: () => _showCleanupDaysDialog(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        _buildSettingTile(
+          icon: Icons.data_usage_outlined,
+          title: 'Maksimum Depolama',
+          subtitle: _maxStorageGB == 0.0
+              ? 'Sınırsız'
+              : '${_maxStorageGB.toStringAsFixed(1)} GB (limit aşıldığında en az kullanılan silinir)',
+          onTap: () => _showMaxStorageDialog(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+        _buildDivider(),
+        _buildSettingTile(
+          icon: Icons.cleaning_services_outlined,
+          title: 'Manuel Temizleme',
+          subtitle: 'Şimdi temizle',
+          onTap: () => _runManualCleanup(),
+          iconSize: iconSize,
+          fontSize: fontSize,
+        ),
+      ],
     );
   }
 
@@ -571,6 +700,10 @@ class _ProfilePageState extends State<ProfilePage> {
     required double iconSize,
     required double fontSize,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    
     return ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
@@ -590,14 +723,14 @@ class _ProfilePageState extends State<ProfilePage> {
         style: TextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: textColor,
         ),
       ),
       subtitle: Text(
         subtitle,
         style: TextStyle(
           fontSize: fontSize - 2,
-          color: AppColors.textSecondary,
+          color: secondaryTextColor,
         ),
       ),
       trailing: Switch(
@@ -605,157 +738,6 @@ class _ProfilePageState extends State<ProfilePage> {
         onChanged: onChanged,
         activeColor: AppColors.primaryBlue,
       ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: 60,
-      color: AppColors.progressGray,
-    );
-  }
-  
-  Widget _buildStorageCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
-    return _buildSettingsCard(
-      children: [
-        // Storage Usage Info
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.storage,
-                    size: iconSize,
-                    color: AppColors.primaryBlue,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Depolama Kullanımı',
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Spacer(),
-                  if (_isLoadingStorage)
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
-                      ),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(Icons.refresh, size: 18),
-                      onPressed: _refreshStorageInfo,
-                      padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
-                    ),
-                ],
-              ),
-              SizedBox(height: 12),
-              // Storage progress bar
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${_currentStorageGB.toStringAsFixed(2)} GB',
-                        style: TextStyle(
-                          fontSize: fontSize - 1,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        '/ ${_maxStorageGB.toStringAsFixed(1)} GB',
-                        style: TextStyle(
-                          fontSize: fontSize - 1,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _maxStorageGB > 0 ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0) : 0.0,
-                      minHeight: 8,
-                      backgroundColor: AppColors.progressGray,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        _currentStorageGB > _maxStorageGB * 0.9
-                            ? Colors.red
-                            : _currentStorageGB > _maxStorageGB * 0.7
-                                ? Colors.orange
-                                : AppColors.primaryBlue,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        _buildDivider(),
-        // Auto Cleanup Toggle
-        _buildSwitchTile(
-          icon: Icons.auto_delete_outlined,
-          title: 'Otomatik Temizleme',
-          subtitle: _autoCleanupEnabled 
-              ? 'Kullanılmayan içerikler otomatik silinir'
-              : 'Otomatik temizleme kapalı',
-          value: _autoCleanupEnabled,
-          onChanged: (value) async {
-            setState(() => _autoCleanupEnabled = value);
-            await _cleanupService.setAutoCleanupEnabled(value);
-          },
-          iconSize: iconSize,
-          fontSize: fontSize,
-        ),
-        _buildDivider(),
-        // Cleanup Days
-        _buildSettingTile(
-          icon: Icons.calendar_today_outlined,
-          title: 'Temizleme Süresi',
-          subtitle: '$_cleanupDays gün (kullanılmayan içerikler silinir)',
-          onTap: () => _showCleanupDaysDialog(),
-          iconSize: iconSize,
-          fontSize: fontSize,
-        ),
-        _buildDivider(),
-        // Max Storage
-        _buildSettingTile(
-          icon: Icons.data_usage_outlined,
-          title: 'Maksimum Depolama',
-          subtitle: _maxStorageGB == 0.0
-              ? 'Sınırsız'
-              : '${_maxStorageGB.toStringAsFixed(1)} GB (limit aşıldığında en az kullanılan silinir)',
-          onTap: () => _showMaxStorageDialog(),
-          iconSize: iconSize,
-          fontSize: fontSize,
-        ),
-        _buildDivider(),
-        // Manual Cleanup
-        _buildSettingTile(
-          icon: Icons.cleaning_services_outlined,
-          title: 'Manuel Temizleme',
-          subtitle: 'Şimdi temizle',
-          onTap: () => _runManualCleanup(),
-          iconSize: iconSize,
-          fontSize: fontSize,
-        ),
-      ],
     );
   }
   
@@ -785,7 +767,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
   
   Future<void> _showMaxStorageDialog() async {
-    final storageOptions = [1.0, 3.0, 5.0, 10.0, 20.0, 0.0]; // 0.0 = unlimited
+    final storageOptions = [1.0, 3.0, 5.0, 10.0, 20.0, 0.0];
     final selectedStorage = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
@@ -808,7 +790,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (selectedStorage != null && selectedStorage != _maxStorageGB) {
       setState(() => _maxStorageGB = selectedStorage);
       await _cleanupService.setMaxStorageGB(selectedStorage);
-      // Refresh storage info
       await _refreshStorageInfo();
     }
   }
@@ -845,7 +826,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final deletedCount = await _cleanupService.runCleanup();
       
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
         await _refreshStorageInfo();
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -863,14 +844,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildLogoutButton(bool isSmallScreen, double fontSize) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.cardShadow,
+            color: shadowColor,
             blurRadius: 4,
             offset: Offset(0, 2),
           ),
@@ -905,40 +890,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showLanguageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Dil Seçin'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<String>(
-              title: Text('Türkçe'),
-              value: 'Türkçe',
-              groupValue: _selectedLanguage,
-              onChanged: (value) {
-                setState(() => _selectedLanguage = value!);
-                _saveSetting('selected_language', value);
-                Navigator.pop(context);
-              },
-            ),
-            RadioListTile<String>(
-              title: Text('English'),
-              value: 'English',
-              groupValue: _selectedLanguage,
-              onChanged: (value) {
-                setState(() => _selectedLanguage = value!);
-                _saveSetting('selected_language', value);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showThemeDialog() {
     showDialog(
       context: context,
@@ -948,16 +899,6 @@ class _ProfilePageState extends State<ProfilePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<String>(
-              title: Text('Otomatik'),
-              value: 'Otomatik',
-              groupValue: _selectedTheme,
-              onChanged: (value) {
-                setState(() => _selectedTheme = value!);
-                _saveSetting('selected_theme', value);
-                Navigator.pop(context);
-              },
-            ),
-            RadioListTile<String>(
               title: Text('Açık'),
               value: 'Açık',
               groupValue: _selectedTheme,
@@ -965,6 +906,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 setState(() => _selectedTheme = value!);
                 _saveSetting('selected_theme', value);
                 Navigator.pop(context);
+                // Notify app to update theme
+                _updateAppTheme();
               },
             ),
             RadioListTile<String>(
@@ -975,6 +918,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 setState(() => _selectedTheme = value!);
                 _saveSetting('selected_theme', value);
                 Navigator.pop(context);
+                // Notify app to update theme
+                _updateAppTheme();
               },
             ),
           ],
@@ -983,8 +928,20 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _updateAppTheme() {
+    // Update MyApp theme
+    final myAppState = MyApp.of(context);
+    final mainScreenState = MainScreen.of(context);
+    if (myAppState != null) {
+      myAppState.updateTheme(_selectedTheme);
+      // Refresh MainScreen to update all pages
+      if (mainScreenState != null) {
+        mainScreenState.refreshForThemeChange();
+      }
+    }
+  }
+
   Future<void> _updatePdfUrls() async {
-    // Show confirmation dialog
     final shouldUpdate = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1013,7 +970,6 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -1029,15 +985,12 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
 
-      // Run the update script
       await runPdfUpdate();
 
-      // Close loading dialog
       if (mounted) {
         Navigator.pop(context);
       }
 
-      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1048,12 +1001,10 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
     } catch (e) {
-      // Close loading dialog if still open
       if (mounted) {
         Navigator.pop(context);
       }
 
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1111,9 +1062,12 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Text('İptal'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Logout logic here
+              await _authService.logout();
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              }
             },
             child: Text(
               'Çıkış Yap',

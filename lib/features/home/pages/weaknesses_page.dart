@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
@@ -353,47 +354,56 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
     final lessonsWithWeaknesses = _getLessonsWithWeaknesses();
-
-    return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryBlue,
-        elevation: 0,
-        title: const Text(
-          'Kaydedilenler',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarStyle = isDark 
+        ? SystemUiOverlayStyle.light 
+        : SystemUiOverlayStyle.light;
+    final appBarColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
+    
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: statusBarStyle.copyWith(
+        statusBarColor: appBarColor,
+        statusBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 0,
+          title: const Text(
+            'Kaydedilenler',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.normal,
+              fontSize: 14,
+            ),
+            tabs: const [
+              Tab(text: 'Test Soruları'),
+              Tab(text: 'Bilgi Kartları'),
+            ],
           ),
-          unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.normal,
-            fontSize: 14,
-          ),
-          tabs: const [
-            Tab(text: 'Test Soruları'),
-            Tab(text: 'Bilgi Kartları'),
+          actions: [
+            if (lessonsWithWeaknesses.isNotEmpty || _getLessonsWithSavedCards().isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                onPressed: _loadData,
+                tooltip: 'Yenile',
+              ),
           ],
         ),
-        actions: [
-          if (lessonsWithWeaknesses.isNotEmpty || _getLessonsWithSavedCards().isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-              onPressed: _loadData,
-              tooltip: 'Yenile',
-            ),
-        ],
-      ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
@@ -409,6 +419,7 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
                 _buildCardsTab(isTablet, isSmallScreen),
               ],
             ),
+      ),
     );
   }
 
@@ -424,22 +435,34 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
               color: Colors.grey.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Henüz kaydedilmiş soru yok',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Test çözerken yanlış yaptığınız sorular\nveya manuel olarak eklediğiniz sorular\nburada görünecek.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textLight,
-              ),
+            Builder(
+              builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final textColor = isDark ? Colors.white70 : AppColors.textSecondary;
+                final lightTextColor = isDark ? Colors.white60 : AppColors.textLight;
+                
+                return Column(
+                  children: [
+                    Text(
+                      'Henüz kaydedilmiş soru yok',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Test çözerken yanlış yaptığınız sorular\nveya manuel olarak eklediğiniz sorular\nburada görünecek.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: lightTextColor,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -498,13 +521,20 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
           ),
           SizedBox(height: isSmallScreen ? 16 : 20),
           // Dersler Listesi
-          Text(
-            'Dersler',
-            style: TextStyle(
-              fontSize: isSmallScreen ? 18 : 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final textColor = isDark ? Colors.white : AppColors.textPrimary;
+              
+              return Text(
+                'Dersler',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           GridView.builder(
@@ -625,13 +655,20 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
           ),
           SizedBox(height: isSmallScreen ? 16 : 20),
           // Dersler Listesi
-          Text(
-            'Dersler',
-            style: TextStyle(
-              fontSize: isSmallScreen ? 18 : 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final textColor = isDark ? Colors.white : AppColors.textPrimary;
+              
+              return Text(
+                'Dersler',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           GridView.builder(

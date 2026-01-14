@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/pages/home_page.dart';
@@ -79,14 +80,54 @@ Future<void> _runStorageCleanup() async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+  
+  static _MyAppState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_MyAppState>();
+  }
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isDarkMode = false;
+  int _themeKey = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final theme = prefs.getString('selected_theme') ?? 'Açık';
+      setState(() {
+        _isDarkMode = theme == 'Koyu';
+      });
+    } catch (e) {
+      // Silent error handling
+    }
+  }
+
+  void updateTheme(String theme) {
+    setState(() {
+      _isDarkMode = theme == 'Koyu';
+      _themeKey++; // Force MaterialApp rebuild
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      key: ValueKey(_themeKey),
       title: 'KPSS & AGS 2026',
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
@@ -116,37 +157,60 @@ class _MainScreenState extends State<MainScreen> {
   final Map<int, Widget> _pageCache = {};
   int _homePageKey = 0; // Key to force rebuild
   final GlobalKey _homePageStateKey = GlobalKey();
+  int _themeKey = 0; // Key to force rebuild when theme changes
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to theme changes from MyApp
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkThemeChange();
+    });
+  }
+
+  void _checkThemeChange() {
+    // This will be called when theme changes
+    // Theme changes are handled via refreshForThemeChange
+  }
+
+  void refreshForThemeChange() {
+    _pageCache.clear();
+    setState(() {
+      _themeKey++;
+    });
+  }
 
   Widget _getPage(int index) {
     if (index == 0) {
       // Always return fresh HomePage instance with unique key
-      return HomePage(key: _homePageStateKey);
+      return HomePage(key: ValueKey('home_$_homePageKey'));
     }
     
-    if (_pageCache.containsKey(index)) {
+    // Use theme key to force rebuild when theme changes
+    if (_pageCache.containsKey(index) && _themeKey == 0) {
       return _pageCache[index]!;
     }
     
     Widget page;
     switch (index) {
       case 1:
-        page = const LessonsPage();
+        page = LessonsPage(key: ValueKey('lessons_$_themeKey'));
         break;
       case 2:
-        page = const WeaknessesPage();
+        page = WeaknessesPage(key: ValueKey('weaknesses_$_themeKey'));
         break;
       case 3:
-        page = const StudyPage();
+        page = StudyPage(key: ValueKey('study_$_themeKey'));
         break;
       case 4:
-        page = const ProfilePage();
+        page = ProfilePage(key: ValueKey('profile_$_themeKey'));
         break;
       default:
-        page = HomePage(key: ValueKey(_homePageKey));
+        page = HomePage(key: ValueKey('home_$_homePageKey'));
     }
     
-    if (index != 0) {
-    _pageCache[index] = page;
+    if (index != 0 && _themeKey == 0) {
+      _pageCache[index] = page;
     }
     return page;
   }
@@ -193,6 +257,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
+        key: ValueKey(_themeKey),
         index: _currentIndex,
         children: List.generate(5, (index) => _getPage(index)),
       ),

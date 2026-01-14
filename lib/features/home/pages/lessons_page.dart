@@ -93,13 +93,20 @@ class _LessonsPageState extends State<LessonsPage> {
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarStyle = isDark 
+        ? SystemUiOverlayStyle.light 
+        : SystemUiOverlayStyle.light;
+    final headerColor1 = isDark ? const Color(0xFF1E1E1E) : const Color(0xFF8B5CF6);
+    final headerColor2 = isDark ? const Color(0xFF1A1A1A) : const Color(0xFF7C3AED);
+    final headerColor3 = isDark ? const Color(0xFF121212) : const Color(0xFF6D28D9);
+    
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: const Color(0xFF8B5CF6),
+      value: statusBarStyle.copyWith(
+        statusBarColor: headerColor1,
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-      backgroundColor: AppColors.backgroundLight,
         body: Column(
           children: [
             // Custom AppBar with Status Bar (like homepage but different color)
@@ -115,9 +122,9 @@ class _LessonsPageState extends State<LessonsPage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF8B5CF6),
-                    const Color(0xFF7C3AED),
-                    const Color(0xFF6D28D9),
+                    headerColor1,
+                    headerColor2,
+                    headerColor3,
                   ],
                 ),
                 boxShadow: [
@@ -386,14 +393,21 @@ class _LessonsPageState extends State<LessonsPage> {
                 ),
               ),
               SizedBox(width: isSmallScreen ? 8 : 10),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 15 : 17,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.3,
-                ),
+              Builder(
+                builder: (context) {
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final textColor = isDark ? Colors.white : AppColors.textPrimary;
+                  
+                  return Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 15 : 17,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                      letterSpacing: 0.3,
+                    ),
+                  );
+                },
               ),
             ],
           ),

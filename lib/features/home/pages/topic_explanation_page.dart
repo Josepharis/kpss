@@ -175,24 +175,30 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 56 : 64),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFFFF9800),
-                const Color(0xFFFF6B35),
-              ],
-            ),
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFFF9800),
+                      const Color(0xFFFF6B35),
+                    ],
+                  ),
+            color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF9800).withValues(alpha: 0.2),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : const Color(0xFFFF9800).withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -261,15 +267,15 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
             Container(
               width: 240,
               decoration: BoxDecoration(
-                color: AppColors.backgroundWhite,
+                color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
                 border: Border(
                   right: BorderSide(
-                    color: AppColors.textSecondary.withValues(alpha: 0.1),
+                    color: isDark ? Colors.grey.withValues(alpha: 0.1) : AppColors.textSecondary.withValues(alpha: 0.1),
                     width: 1,
                   ),
                 ),
               ),
-              child: _buildSidebar(isSmallScreen),
+              child: _buildSidebar(context, isSmallScreen),
             ),
           // Main Content
           Expanded(
@@ -281,15 +287,15 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                     height: 56,
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.backgroundWhite,
+                      color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
                       border: Border(
                         bottom: BorderSide(
-                          color: AppColors.textSecondary.withValues(alpha: 0.1),
+                          color: isDark ? Colors.grey.withValues(alpha: 0.1) : AppColors.textSecondary.withValues(alpha: 0.1),
                           width: 1,
                         ),
                       ),
                     ),
-                    child: _buildMobileSectionSelector(isSmallScreen),
+                    child: _buildMobileSectionSelector(context, isSmallScreen),
                   ),
                 // Content
                 Expanded(
@@ -300,7 +306,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                       constraints: BoxConstraints(
                         maxWidth: isTablet ? 700 : double.infinity,
                       ),
-                      child: _buildContent(isSmallScreen),
+                      child: _buildContent(context, isSmallScreen),
                     ),
                   ),
                 ),
@@ -312,7 +318,8 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     );
   }
 
-  Widget _buildSidebar(bool isSmallScreen) {
+  Widget _buildSidebar(BuildContext context, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
       padding: EdgeInsets.symmetric(vertical: 12),
       children: [
@@ -323,27 +330,29 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
               letterSpacing: 0.5,
             ),
           ),
         ),
-        Divider(height: 1),
+        Divider(height: 1, color: isDark ? Colors.grey.withValues(alpha: 0.1) : null),
         ...List.generate(_sections.length, (index) {
           final section = _sections[index];
           final isSelected = _selectedSectionIndex == index;
-          return _buildSectionItem(section, index, isSelected, isSmallScreen);
+          return _buildSectionItem(context, section, index, isSelected, isSmallScreen);
         }),
       ],
     );
   }
 
   Widget _buildSectionItem(
+    BuildContext context,
     TopicExplanationSection section,
     int index,
     bool isSelected,
     bool isSmallScreen,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       onTap: () {
         setState(() {
@@ -379,7 +388,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                 shape: BoxShape.circle,
                 color: isSelected
                     ? const Color(0xFFFF9800)
-                    : AppColors.textSecondary.withValues(alpha: 0.3),
+                    : (isDark ? Colors.grey.shade600 : AppColors.textSecondary.withValues(alpha: 0.3)),
               ),
               child: Center(
                 child: Text(
@@ -387,7 +396,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                    color: isSelected ? Colors.white : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                   ),
                 ),
               ),
@@ -404,7 +413,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                       color: isSelected
                           ? const Color(0xFFFF9800)
-                          : AppColors.textPrimary,
+                          : (isDark ? Colors.white : AppColors.textPrimary),
                       height: 1.3,
                     ),
                     maxLines: 2,
@@ -437,7 +446,8 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     );
   }
 
-  Widget _buildMobileSectionSelector(bool isSmallScreen) {
+  Widget _buildMobileSectionSelector(BuildContext context, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       itemCount: _sections.length,
@@ -467,12 +477,12 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                       ],
                     )
                   : null,
-              color: isSelected ? null : AppColors.backgroundLight,
+              color: isSelected ? null : (isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundLight),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
                     ? Colors.transparent
-                    : AppColors.textSecondary.withValues(alpha: 0.2),
+                    : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
                 width: 1,
               ),
             ),
@@ -491,7 +501,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    color: isSelected ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -502,7 +512,8 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     );
   }
 
-  Widget _buildContent(bool isSmallScreen) {
+  Widget _buildContent(BuildContext context, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final section = _sections[_selectedSectionIndex];
 
     return Column(
@@ -584,10 +595,10 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
         Container(
           padding: EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.backgroundWhite,
+            color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.textSecondary.withValues(alpha: 0.1),
+              color: isDark ? Colors.grey.withValues(alpha: 0.1) : AppColors.textSecondary.withValues(alpha: 0.1),
               width: 1,
             ),
           ),
@@ -600,32 +611,33 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                 style: TextStyle(
                   fontSize: isSmallScreen ? 15 : 16,
                   height: 1.7,
-                  color: AppColors.textPrimary,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
                   letterSpacing: 0.1,
                 ),
               ),
               // Key Points
               if (section.keyPoints != null && section.keyPoints!.isNotEmpty) ...[
                 SizedBox(height: 24),
-                _buildKeyPointsSection(section.keyPoints!, isSmallScreen),
+                _buildKeyPointsSection(context, section.keyPoints!, isSmallScreen),
               ],
               // Examples
               if (section.examples != null && section.examples!.isNotEmpty) ...[
                 SizedBox(height: 24),
-                _buildExamplesSection(section.examples!, isSmallScreen),
+                _buildExamplesSection(context, section.examples!, isSmallScreen),
               ],
             ],
           ),
         ),
         SizedBox(height: 16),
         // Compact Navigation
-        _buildNavigationButtons(isSmallScreen),
+        _buildNavigationButtons(context, isSmallScreen),
         SizedBox(height: 8),
       ],
     );
   }
 
-  Widget _buildKeyPointsSection(List<String> keyPoints, bool isSmallScreen) {
+  Widget _buildKeyPointsSection(BuildContext context, List<String> keyPoints, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -649,7 +661,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
               style: TextStyle(
                 fontSize: isSmallScreen ? 15 : 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: isDark ? Colors.white : AppColors.textPrimary,
               ),
             ),
           ],
@@ -676,7 +688,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 15,
                         height: 1.6,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -687,7 +699,8 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     );
   }
 
-  Widget _buildExamplesSection(List<String> examples, bool isSmallScreen) {
+  Widget _buildExamplesSection(BuildContext context, List<String> examples, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -711,7 +724,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
               style: TextStyle(
                 fontSize: isSmallScreen ? 15 : 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: isDark ? Colors.white : AppColors.textPrimary,
               ),
             ),
           ],
@@ -773,7 +786,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                     style: TextStyle(
                       fontSize: isSmallScreen ? 14 : 15,
                       height: 1.6,
-                      color: AppColors.textPrimary,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
                       fontWeight: isCorrect || isWrong ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
@@ -786,7 +799,8 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
     );
   }
 
-  Widget _buildNavigationButtons(bool isSmallScreen) {
+  Widget _buildNavigationButtons(BuildContext context, bool isSmallScreen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final canGoPrevious = _selectedSectionIndex > 0;
     final canGoNext = _selectedSectionIndex < _sections.length - 1;
 
@@ -810,12 +824,12 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
             child: Container(
               padding: EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: canGoPrevious ? AppColors.backgroundWhite : AppColors.backgroundLight,
+                color: canGoPrevious ? (isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite) : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: canGoPrevious
                       ? const Color(0xFFFF9800)
-                      : AppColors.textSecondary.withValues(alpha: 0.2),
+                      : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
                   width: 1.5,
                 ),
               ),
@@ -827,7 +841,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                     size: 16,
                     color: canGoPrevious
                         ? const Color(0xFFFF9800)
-                        : AppColors.textSecondary,
+                        : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                   ),
                   SizedBox(width: 6),
                   Text(
@@ -837,7 +851,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                       fontWeight: FontWeight.bold,
                       color: canGoPrevious
                           ? const Color(0xFFFF9800)
-                          : AppColors.textSecondary,
+                          : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                     ),
                   ),
                 ],
@@ -872,7 +886,7 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                         ],
                       )
                     : null,
-                color: canGoNext ? null : AppColors.backgroundLight,
+                color: canGoNext ? null : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: canGoNext
                     ? [
@@ -892,14 +906,14 @@ Bu ipuçları sayesinde soruları hızlı ve doğru çözebilirsiniz.
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: canGoNext ? Colors.white : AppColors.textSecondary,
+                      color: canGoNext ? Colors.white : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                     ),
                   ),
                   SizedBox(width: 6),
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 16,
-                    color: canGoNext ? Colors.white : AppColors.textSecondary,
+                    color: canGoNext ? Colors.white : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
                   ),
                 ],
               ),

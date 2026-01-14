@@ -193,9 +193,25 @@ class _TestsPageState extends State<TestsPage> {
       _startTimer();
       _saveProgress(); // Save progress after moving to next question
     } else {
-      // Test completed - save final score before showing results
+      // Test completed - save final score and results before showing results
       await _saveProgress();
-      // Puan zaten her soru için eklendi, burada eklemeye gerek yok
+      
+      // Calculate correct and wrong answers
+      final correctAnswers = _score ~/ 10;
+      final wrongAnswers = _questions.length - correctAnswers;
+      
+      // Save test result
+      await _progressService.saveTestResult(
+        topicId: widget.topicId,
+        topicName: widget.topicName,
+        lessonId: widget.lessonId,
+        totalQuestions: _questions.length,
+        correctAnswers: correctAnswers,
+        wrongAnswers: wrongAnswers,
+        score: _score,
+      );
+      
+      // Delete ongoing test progress
       _progressService.deleteTestProgress(widget.topicId);
       _showResults();
     }
@@ -455,11 +471,13 @@ class _TestsPageState extends State<TestsPage> {
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
     
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: AppColors.primaryBlue,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue,
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -549,9 +567,9 @@ class _TestsPageState extends State<TestsPage> {
     
     if (_questions.isEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: AppColors.primaryBlue,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue,
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -647,14 +665,14 @@ class _TestsPageState extends State<TestsPage> {
               Icon(
                 Icons.quiz_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               Text(
                 'Bu konu için henüz soru eklenmemiş',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -666,9 +684,9 @@ class _TestsPageState extends State<TestsPage> {
     final currentQuestion = _questions[_currentQuestionIndex];
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue,
         elevation: 0,
         leading: IconButton(
           icon: Icon(
@@ -801,7 +819,7 @@ class _TestsPageState extends State<TestsPage> {
               horizontal: isTablet ? 20 : 16,
               vertical: isSmallScreen ? 12 : 14,
             ),
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             child: Column(
               children: [
                 Row(
@@ -812,7 +830,7 @@ class _TestsPageState extends State<TestsPage> {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 13 : 14,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                     ),
                     Row(
@@ -918,7 +936,7 @@ class _TestsPageState extends State<TestsPage> {
                 SizedBox(height: isSmallScreen ? 8 : 10),
                 LinearProgressIndicator(
                   value: (_currentQuestionIndex + 1) / _questions.length,
-                  backgroundColor: AppColors.backgroundLight,
+                  backgroundColor: isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight,
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
                   minHeight: isSmallScreen ? 4 : 5,
                 ),
@@ -943,7 +961,7 @@ class _TestsPageState extends State<TestsPage> {
                       vertical: isSmallScreen ? 12 : 14,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
@@ -958,7 +976,7 @@ class _TestsPageState extends State<TestsPage> {
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 15,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                         height: 1.4,
                       ),
                     ),
@@ -999,10 +1017,10 @@ class _TestsPageState extends State<TestsPage> {
                             vertical: isSmallScreen ? 10 : 12,
                           ),
                           decoration: BoxDecoration(
-                            color: optionColor?.withValues(alpha: 0.1) ?? Colors.white,
+                            color: optionColor?.withValues(alpha: 0.1) ?? (isDark ? const Color(0xFF1E1E1E) : Colors.white),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: optionColor ?? Colors.grey.withValues(alpha: 0.2),
+                              color: optionColor ?? (isDark ? Colors.grey.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.2)),
                               width: isSelected ? 1.5 : 1,
                             ),
                             boxShadow: isSelected
@@ -1048,10 +1066,10 @@ class _TestsPageState extends State<TestsPage> {
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 12 : 13,
                                     fontWeight: FontWeight.bold,
-                                    color: optionColor ?? 
-                                           (isSelected 
-                                             ? AppColors.primaryBlue
-                                             : AppColors.textPrimary),
+                                  color: optionColor ?? 
+                                         (isSelected 
+                                           ? AppColors.primaryBlue
+                                           : (isDark ? Colors.white : AppColors.textPrimary)),
                                   ),
                                 ),
                               ),
@@ -1064,7 +1082,7 @@ class _TestsPageState extends State<TestsPage> {
                                     fontWeight: isSelected
                                         ? FontWeight.w500
                                         : FontWeight.normal,
-                                    color: optionColor ?? AppColors.textPrimary,
+                                    color: optionColor ?? (isDark ? Colors.white : AppColors.textPrimary),
                                     height: 1.3,
                                   ),
                                 ),
@@ -1123,7 +1141,7 @@ class _TestsPageState extends State<TestsPage> {
                               currentQuestion.explanation,
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 12 : 13,
-                                color: AppColors.textPrimary,
+                                color: isDark ? Colors.white : AppColors.textPrimary,
                                 height: 1.35,
                               ),
                             ),
