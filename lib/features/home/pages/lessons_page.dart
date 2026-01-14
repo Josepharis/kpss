@@ -14,45 +14,23 @@ class LessonsPage extends StatefulWidget {
   State<LessonsPage> createState() => _LessonsPageState();
 }
 
-class _LessonsPageState extends State<LessonsPage> {
+class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
   final LessonsService _lessonsService = LessonsService();
   final ProgressService _progressService = ProgressService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Calculate lesson progress from all topics' progress
-  Future<double> _getProgress(String lessonId) async {
-    try {
-      // Get all topics for this lesson
-      final topics = await _lessonsService.getTopicsByLessonId(lessonId);
-      if (topics.isEmpty) return 0.0;
-      
-      // Calculate total solved questions and total questions
-      int totalSolvedQuestions = 0;
-      int totalQuestions = 0;
-      
-      for (var topic in topics) {
-        final testProgress = await _progressService.getTestProgress(topic.id);
-        final topicQuestionCount = topic.averageQuestionCount;
-        
-        if (topicQuestionCount > 0) {
-          totalQuestions += topicQuestionCount;
-          if (testProgress != null) {
-            // testProgress is the currentQuestionIndex (0-based), so solved = testProgress + 1
-            totalSolvedQuestions += (testProgress + 1);
-          }
-        }
-      }
-      
-      // Return progress: solved / total
-      if (totalQuestions > 0) {
-        return (totalSolvedQuestions / totalQuestions).clamp(0.0, 1.0);
-      }
-      
-      return 0.0;
-    } catch (e) {
-      return 0.0;
-    }
+  // Navigate to detail page
+  Future<void> _navigateToDetail(Lesson lesson) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LessonDetailPage(
+          lesson: lesson,
+        ),
+      ),
+    );
+    // Stream will automatically update when progress changes
   }
 
   String _getCategoryTitle(String category) {
@@ -80,9 +58,21 @@ class _LessonsPageState extends State<LessonsPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Stream will automatically update when app resumes
   }
 
   @override
@@ -425,24 +415,37 @@ class _LessonsPageState extends State<LessonsPage> {
           itemCount: lessons.length,
           itemBuilder: (context, index) {
             final lesson = lessons[index];
-            return FutureBuilder<double>(
-              future: _getProgress(lesson.id),
+            return StreamBuilder<double?>(
+              stream: _progressService.streamLessonProgress(lesson.id),
               builder: (context, snapshot) {
-                final progress = snapshot.hasData ? snapshot.data! : 0.0;
+                double progress = 0.0;
+                
+                if (snapshot.hasData && snapshot.data != null) {
+                  // Stream has data, use it
+                  progress = snapshot.data!;
+                } else if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                  // While waiting or no data, try to get from cache
+                  return FutureBuilder<double?>(
+                    future: _progressService.getLessonProgress(lesson.id),
+                    builder: (context, cacheSnapshot) {
+                      final cachedProgress = cacheSnapshot.hasData && cacheSnapshot.data != null
+                          ? cacheSnapshot.data!
+                          : 0.0;
+                      return LessonCard(
+                        lesson: lesson,
+                        progress: cachedProgress,
+                        isSmallScreen: isSmallScreen,
+                        onTap: () => _navigateToDetail(lesson),
+                      );
+                    },
+                  );
+                }
+                
                 return LessonCard(
                   lesson: lesson,
                   progress: progress,
                   isSmallScreen: isSmallScreen,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LessonDetailPage(
-                          lesson: lesson,
-                        ),
-                      ),
-                    );
-                  },
+                  onTap: () => _navigateToDetail(lesson),
                 );
               },
             );

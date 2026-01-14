@@ -178,6 +178,9 @@ class _TestsPageState extends State<TestsPage> {
     if (!isCorrect) {
       _addToWeaknesses(isFromWrongAnswer: true);
     }
+
+    // İlerlemeyi hemen kaydet (cevap verildiğinde)
+    _saveProgress();
   }
 
   Future<void> _nextQuestion() async {

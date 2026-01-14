@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ongoing_video.dart';
 import '../models/ongoing_podcast.dart';
 import '../models/ongoing_test.dart';
@@ -133,15 +134,20 @@ class ProgressService {
   }) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot save progress');
+      debugPrint('⚠️ Current user: ${_auth.currentUser?.uid ?? "null"}');
       return false;
     }
 
     try {
       final progress = (currentQuestionIndex + 1) / totalQuestions;
+      debugPrint('💾 Saving test progress: $topicName - Question ${currentQuestionIndex + 1}/$totalQuestions (${(progress * 100).toStringAsFixed(1)}%)');
+      debugPrint('💾 User ID: $_userId');
+      debugPrint('💾 Topic ID: $topicId, Lesson ID: $lessonId');
 
       // Only save if test is not completed
       if (progress >= 1.0) {
         // Test completed, remove from ongoing
+        debugPrint('✅ Test completed, removing from ongoing tests');
         await _userProgressDoc.collection('tests').doc(topicId).delete();
         return true;
       }
@@ -161,15 +167,26 @@ class ProgressService {
         data['score'] = score;
       }
 
-      await _userProgressDoc.collection('tests').doc(topicId).set(
+      final docRef = _userProgressDoc.collection('tests').doc(topicId);
+      await docRef.set(
         data,
         SetOptions(merge: true),
       );
 
-      debugPrint('✅ Test progress saved: $topicName - ${currentQuestionIndex + 1}/$totalQuestions${score != null ? ' (score: $score)' : ''}');
+      // Verify it was saved
+      final savedDoc = await docRef.get();
+      if (savedDoc.exists) {
+        debugPrint('✅ Test progress saved successfully: $topicName - ${currentQuestionIndex + 1}/$totalQuestions${score != null ? ' (score: $score)' : ''}');
+        // Update lesson progress in background (non-blocking)
+        _updateLessonProgress(lessonId);
+      } else {
+        debugPrint('❌ Failed to save test progress - document does not exist after save');
+      }
+      
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Error saving test progress: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
       return false;
     }
   }
@@ -255,19 +272,30 @@ class ProgressService {
 
   /// Get test progress
   Future<int?> getTestProgress(String topicId) async {
-    if (_userId == null) return null;
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot get test progress');
+      return null;
+    }
 
     try {
+      debugPrint('🔍 Getting test progress for topic: $topicId, user: $_userId');
       final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['currentQuestionIndex'] != null) {
-          return data['currentQuestionIndex'] as int;
+          final index = data['currentQuestionIndex'] as int;
+          debugPrint('✅ Found test progress for topic $topicId: question index $index');
+          return index;
+        } else {
+          debugPrint('⚠️ Test progress document exists but has no currentQuestionIndex');
         }
+      } else {
+        debugPrint('⚪ No test progress found for topic: $topicId');
       }
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Error getting test progress: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
       return null;
     }
   }
@@ -287,6 +315,29 @@ class ProgressService {
       return null;
     } catch (e) {
       debugPrint('❌ Error getting test score: $e');
+      return null;
+    }
+  }
+
+  /// Get completed test result for a topic
+  Future<Map<String, int>?> getTestResult(String topicId) async {
+    if (_userId == null) return null;
+
+    try {
+      final doc = await _userProgressDoc.collection('testResults').doc(topicId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null) {
+          return {
+            'totalQuestions': data['totalQuestions'] as int? ?? 0,
+            'correctAnswers': data['correctAnswers'] as int? ?? 0,
+            'wrongAnswers': data['wrongAnswers'] as int? ?? 0,
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting test result: $e');
       return null;
     }
   }
@@ -665,11 +716,119 @@ class ProgressService {
       }, SetOptions(merge: true));
 
       debugPrint('✅ Test result saved: $topicName - $correctAnswers/$totalQuestions');
+      // Update lesson progress in background
+      _updateLessonProgress(lessonId);
       return true;
     } catch (e) {
       debugPrint('❌ Error saving test result: $e');
       return false;
     }
+  }
+
+  /// Update lesson progress (called when test progress changes)
+  Future<void> _updateLessonProgress(String lessonId) async {
+    if (_userId == null) return;
+    
+    try {
+      // Get all topics for this lesson
+      final lessonsService = LessonsService();
+      final topics = await lessonsService.getTopicsByLessonId(lessonId);
+      if (topics.isEmpty) return;
+      
+      int totalSolvedQuestions = 0;
+      int totalQuestions = 0;
+      
+      // Check all topics for progress
+      for (var topic in topics) {
+        int topicQuestionCount = topic.averageQuestionCount;
+        
+        // Get from cache if available
+        if (topicQuestionCount == 0) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final cacheKey = 'questions_count_${topic.id}';
+            final cachedCount = prefs.getInt(cacheKey);
+            if (cachedCount != null && cachedCount > 0) {
+              topicQuestionCount = cachedCount;
+            }
+          } catch (e) {
+            // Skip if no cache
+          }
+        }
+        
+        if (topicQuestionCount > 0) {
+          totalQuestions += topicQuestionCount;
+          
+          // Check test result first
+          final testResult = await getTestResult(topic.id);
+          if (testResult != null) {
+            totalSolvedQuestions += testResult['totalQuestions']!;
+          } else {
+            // Check ongoing test
+            final testProgress = await getTestProgress(topic.id);
+            if (testProgress != null) {
+              totalSolvedQuestions += (testProgress + 1);
+            }
+          }
+        }
+      }
+      
+      // Calculate and save lesson progress
+      double progress = 0.0;
+      if (totalQuestions > 0) {
+        progress = (totalSolvedQuestions / totalQuestions).clamp(0.0, 1.0);
+      }
+      
+      await _userProgressDoc.collection('lessons').doc(lessonId).set({
+        'lessonId': lessonId,
+        'progress': progress,
+        'solvedQuestions': totalSolvedQuestions,
+        'totalQuestions': totalQuestions,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+    } catch (e) {
+      debugPrint('⚠️ Error updating lesson progress: $e');
+    }
+  }
+
+  /// Get lesson progress (from cache)
+  Future<double?> getLessonProgress(String lessonId) async {
+    if (_userId == null) return null;
+    
+    try {
+      final doc = await _userProgressDoc.collection('lessons').doc(lessonId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['progress'] != null) {
+          return (data['progress'] as num).toDouble();
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Stream lesson progress (real-time updates)
+  Stream<double?> streamLessonProgress(String lessonId) {
+    if (_userId == null) {
+      return Stream.value(null);
+    }
+    
+    return _userProgressDoc
+        .collection('lessons')
+        .doc(lessonId)
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data();
+            if (data != null && data['progress'] != null) {
+              return (data['progress'] as num).toDouble();
+            }
+          }
+          return null;
+        });
   }
 }
 
