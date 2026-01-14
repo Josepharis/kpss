@@ -32,7 +32,6 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
   late int _shortBreakDuration;
   late int _longBreakDuration;
   late bool _useLongBreak;
-  late bool _isDarkMode;
 
   @override
   void initState() {
@@ -42,7 +41,6 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     _shortBreakDuration = widget.shortBreakDuration;
     _longBreakDuration = widget.longBreakDuration;
     _useLongBreak = widget.useLongBreak;
-    _isDarkMode = widget.isDarkMode;
   }
 
   void _saveSettings() {
@@ -52,111 +50,135 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
       'shortBreakDuration': _shortBreakDuration,
       'longBreakDuration': _longBreakDuration,
       'useLongBreak': _useLongBreak,
-      'isDarkMode': _isDarkMode,
+      'isDarkMode': widget.isDarkMode, // Keep existing dark mode setting
     });
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = _isDarkMode;
+    final isDark = widget.isDarkMode;
     
     return Theme(
       data: isDark ? AppTheme.darkTheme : AppTheme.lightTheme,
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          title: const Text('Ayarlar'),
+          title: const Text(
+            'Pomodoro Ayarları',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+            ),
+          ),
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          foregroundColor: isDark ? Colors.white : Colors.black87,
+          elevation: 0,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(
+              height: 1,
+              color: isDark 
+                  ? Colors.white.withOpacity(0.1) 
+                  : Colors.black.withOpacity(0.1),
+            ),
+          ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.check),
+            TextButton.icon(
               onPressed: _saveSettings,
-              tooltip: 'Kaydet',
+              icon: Icon(
+                Icons.check_rounded,
+                size: 20,
+                color: isDark ? Colors.white : AppColors.primaryBlue,
+              ),
+              label: Text(
+                'Kaydet',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: isDark ? Colors.white : AppColors.primaryBlue,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
             ),
           ],
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Column(
             children: [
-              // Oturum Ayarları - Kompakt Grid
-              _buildCompactSection(
-                title: 'Oturum',
+              // Oturum Ayarları - Profesyonel Tasarım
+              _buildProfessionalSection(
+                title: 'Oturum Ayarları',
                 icon: Icons.timer,
+                gradientColors: const [], // Not used anymore
                 children: [
-                  _buildCompactSlider(
+                  _buildProfessionalSlider(
                     icon: Icons.repeat,
                     label: 'Oturum Sayısı',
+                    description: 'Toplam çalışma oturumu sayısı',
                     value: _sessionCount,
                     min: 1,
                     max: 8,
-                    unit: '',
+                    unit: 'oturum',
                     onChanged: (v) => setState(() => _sessionCount = v),
                   ),
-                  _buildCompactSlider(
+                  const Divider(height: 24),
+                  _buildProfessionalSlider(
                     icon: Icons.access_time,
-                    label: 'Süre',
+                    label: 'Oturum Süresi',
+                    description: 'Her oturumun süresi',
                     value: _sessionDuration,
                     min: 5,
                     max: 60,
-                    unit: 'dk',
+                    unit: 'dakika',
                     onChanged: (v) => setState(() => _sessionDuration = v),
                   ),
                 ],
-                isDark: isDark,
               ),
               
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               
-              // Mola Ayarları - Kompakt Grid
-              _buildCompactSection(
-                title: 'Mola',
+              // Mola Ayarları - Profesyonel Tasarım
+              _buildProfessionalSection(
+                title: 'Mola Ayarları',
                 icon: Icons.coffee,
+                gradientColors: const [], // Not used anymore
                 children: [
-                  _buildCompactSlider(
+                  _buildProfessionalSlider(
                     icon: Icons.pause_circle_outline,
                     label: 'Kısa Mola',
+                    description: 'Her oturum arası kısa mola süresi',
                     value: _shortBreakDuration,
                     min: 1,
                     max: 15,
-                    unit: 'dk',
+                    unit: 'dakika',
                     onChanged: (v) => setState(() => _shortBreakDuration = v),
                   ),
-                  _buildCompactSwitch(
+                  const Divider(height: 24),
+                  _buildProfessionalSwitch(
                     icon: Icons.extension,
-                    label: 'Uzun Mola',
+                    label: 'Uzun Mola Kullan',
+                    description: 'Belirli oturumlardan sonra uzun mola al',
                     value: _useLongBreak,
                     onChanged: (v) => setState(() => _useLongBreak = v),
                   ),
-                  if (_useLongBreak)
-                    _buildCompactSlider(
+                  if (_useLongBreak) ...[
+                    const Divider(height: 24),
+                    _buildProfessionalSlider(
                       icon: Icons.hourglass_empty,
-                      label: 'Uzun Mola',
+                      label: 'Uzun Mola Süresi',
+                      description: 'Uzun mola süresi',
                       value: _longBreakDuration,
                       min: 10,
                       max: 30,
-                      unit: 'dk',
+                      unit: 'dakika',
                       onChanged: (v) => setState(() => _longBreakDuration = v),
                     ),
+                  ],
                 ],
-                isDark: isDark,
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Görünüm Ayarları
-              _buildCompactSection(
-                title: 'Görünüm',
-                icon: Icons.palette,
-                children: [
-                  _buildCompactSwitch(
-                    icon: _isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                    label: 'Karanlık Mod',
-                    value: _isDarkMode,
-                    onChanged: (v) => setState(() => _isDarkMode = v),
-                  ),
-                ],
-                isDark: isDark,
               ),
             ],
           ),
@@ -165,18 +187,22 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     );
   }
 
-  Widget _buildCompactSection({
+  Widget _buildProfessionalSection({
     required String title,
     required IconData icon,
+    required List<Color> gradientColors,
     required List<Widget> children,
-    required bool isDark,
   }) {
+    final isDark = widget.isDarkMode;
+    
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.withOpacity(0.2),
+          color: isDark 
+              ? Colors.white.withOpacity(0.1) 
+              : Colors.black.withOpacity(0.08),
           width: 1,
         ),
       ),
@@ -184,30 +210,47 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: isDark 
+                        ? Colors.white.withOpacity(0.1) 
+                        : Colors.black.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: AppColors.primaryBlue, size: 20),
+                  child: Icon(
+                    icon, 
+                    color: isDark ? Colors.white : Colors.black87,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: isDark 
+                ? Colors.white.withOpacity(0.1) 
+                : Colors.black.withOpacity(0.08),
+          ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: children,
             ),
@@ -217,89 +260,164 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     );
   }
 
-  Widget _buildCompactSlider({
+  Widget _buildProfessionalSlider({
     required IconData icon,
     required String label,
+    required String description,
     required int value,
     required int min,
     required int max,
     required String unit,
     required ValueChanged<int> onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.primaryBlue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      label,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$value$unit',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.primaryBlue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Slider(
-                  value: value.toDouble(),
-                  min: min.toDouble(),
-                  max: max.toDouble(),
-                  divisions: max - min,
-                  onChanged: (v) => onChanged(v.toInt()),
-                ),
-              ],
+    final isDark = widget.isDarkMode;
+    final primaryColor = isDark ? Colors.white : Colors.black87;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark 
+                    ? Colors.white.withOpacity(0.1) 
+                    : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon, 
+                size: 20, 
+                color: primaryColor,
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: primaryColor,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark 
+                    ? Colors.white.withOpacity(0.1) 
+                    : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark 
+                      ? Colors.white.withOpacity(0.2) 
+                      : Colors.black.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                '$value $unit',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Slider(
+          value: value.toDouble(),
+          min: min.toDouble(),
+          max: max.toDouble(),
+          divisions: max - min,
+          activeColor: primaryColor,
+          inactiveColor: isDark 
+              ? Colors.white.withOpacity(0.1) 
+              : Colors.black.withOpacity(0.1),
+          onChanged: (v) => onChanged(v.toInt()),
+        ),
+      ],
     );
   }
 
-  Widget _buildCompactSwitch({
+  Widget _buildProfessionalSwitch({
     required IconData icon,
     required String label,
+    required String description,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.primaryBlue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+    final isDark = widget.isDarkMode;
+    final primaryColor = isDark ? Colors.white : Colors.black87;
+    
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isDark 
+                ? Colors.white.withOpacity(0.1) 
+                : Colors.black.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(8),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.primaryBlue,
+          child: Icon(
+            icon, 
+            size: 20, 
+            color: primaryColor,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: primaryColor,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: primaryColor,
+        ),
+      ],
     );
   }
 }

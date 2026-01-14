@@ -209,8 +209,15 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
               _useLongBreak = settings['useLongBreak'] as bool;
               _isDarkMode = settings['isDarkMode'] as bool;
               
-              if (!_isRunning) {
-                _remainingTime = Duration(minutes: _sessionDuration);
+              // Timer çalışmıyorsa veya mola sırasındaysa süreyi güncelle
+              if (!_isRunning || _isBreakTime) {
+                if (_isBreakTime) {
+                  // Mola sırasındaysa mevcut mola süresini koru
+                  // (uzun mola butonu ile değiştirilebilir)
+                } else {
+                  // Çalışma sırasında değilse yeni süreyi ayarla
+                  _remainingTime = Duration(minutes: _sessionDuration);
+                }
               }
             });
             _saveSettings();
