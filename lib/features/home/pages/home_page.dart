@@ -439,16 +439,15 @@ class _HomePageState extends State<HomePage> {
     final titleFontSize = isSmallScreen ? 16.0 : 20.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusBarStyle = isDark 
-        ? SystemUiOverlayStyle.light 
-        : SystemUiOverlayStyle.light;
     final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
     final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: statusBarStyle.copyWith(
-        statusBarColor: headerColor,
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(

@@ -6,7 +6,9 @@ import '../../../core/services/run_pdf_update.dart';
 import '../../../core/services/storage_cleanup_service.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../../main.dart';
+import 'subscription_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -21,7 +23,9 @@ class _ProfilePageState extends State<ProfilePage> {
   final StorageCleanupService _cleanupService = StorageCleanupService();
   final ProgressService _progressService = ProgressService();
   final AuthService _authService = AuthService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
   bool _autoCleanupEnabled = true;
+  SubscriptionStatus _subscriptionStatus = SubscriptionStatus.free();
   int _cleanupDays = 7;
   double _maxStorageGB = 5.0;
   double _currentStorageGB = 0.0;
@@ -42,6 +46,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _loadSettings();
       _loadUserData();
       _loadStatistics();
+      _loadSubscriptionStatus();
     });
   }
 
@@ -105,6 +110,19 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     }
   }
+
+  Future<void> _loadSubscriptionStatus() async {
+    try {
+      final status = await _subscriptionService.getSubscriptionStatus();
+      if (mounted) {
+        setState(() {
+          _subscriptionStatus = status;
+        });
+      }
+    } catch (e) {
+      // Silent error handling
+    }
+  }
   
   Future<void> _refreshStorageInfo() async {
     if (!mounted) return;
@@ -149,16 +167,15 @@ class _ProfilePageState extends State<ProfilePage> {
     final fontSize = isSmallScreen ? 13.0 : 14.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusBarStyle = isDark 
-        ? SystemUiOverlayStyle.light 
-        : SystemUiOverlayStyle.light;
     final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
     final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: statusBarStyle.copyWith(
-        statusBarColor: headerColor,
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(
@@ -238,6 +255,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     // Statistics Card
                     _buildStatisticsCard(isSmallScreen, compactSpacing),
+                    SizedBox(height: compactSpacing),
+                    
+                    // Abonelik Durumu
+                    _buildSubscriptionCard(isSmallScreen, compactSpacing, iconSize, fontSize),
                     SizedBox(height: compactSpacing),
                     
                     // Tema Ayarları
@@ -1048,6 +1069,102 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    final textColor = isDark ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: _subscriptionStatus.isPremium
+            ? Border.all(
+                color: AppColors.primaryBlue.withValues(alpha: 0.5),
+                width: 2,
+              )
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.all(16),
+        leading: Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _subscriptionStatus.isPremium
+                ? AppColors.primaryBlue.withValues(alpha: 0.2)
+                : Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            _subscriptionStatus.isPremium ? Icons.star_rounded : Icons.star_outline,
+            size: iconSize,
+            color: _subscriptionStatus.isPremium ? AppColors.primaryBlue : Colors.grey,
+          ),
+        ),
+        title: Text(
+          _subscriptionStatus.isPremium ? 'Premium Aktif' : 'Premium\'a Geç',
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 4),
+            Text(
+              _subscriptionStatus.isPremium
+                  ? _subscriptionStatus.displayText
+                  : 'Tüm konulara erişim için Premium\'a geçin',
+              style: TextStyle(
+                fontSize: fontSize - 2,
+                color: secondaryTextColor,
+              ),
+            ),
+            if (_subscriptionStatus.isPremium && _subscriptionStatus.endDate != null) ...[
+              SizedBox(height: 4),
+              Text(
+                'Bitiş: ${_formatDate(_subscriptionStatus.endDate!)}',
+                style: TextStyle(
+                  fontSize: fontSize - 3,
+                  color: secondaryTextColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+        trailing: Icon(
+          Icons.chevron_right,
+          size: 20,
+          color: secondaryTextColor,
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+          ).then((_) {
+            // Sayfa döndüğünde abonelik durumunu yenile
+            _loadSubscriptionStatus();
+          });
+        },
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   void _showLogoutDialog() {

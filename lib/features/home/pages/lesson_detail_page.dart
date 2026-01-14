@@ -1,21 +1,95 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/lessons_service.dart';
+import '../../../core/services/subscription_service.dart';
 import 'topic_detail_page.dart';
+import 'subscription_page.dart';
 
-class LessonDetailPage extends StatelessWidget {
+class LessonDetailPage extends StatefulWidget {
   final Lesson lesson;
-  final LessonsService _lessonsService = LessonsService();
 
-  LessonDetailPage({
+  const LessonDetailPage({
     super.key,
     required this.lesson,
   });
 
+  @override
+  State<LessonDetailPage> createState() => _LessonDetailPageState();
+}
+
+class _LessonDetailPageState extends State<LessonDetailPage> {
+  final LessonsService _lessonsService = LessonsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
+  bool _isPremium = false;
+  List<Topic> _topics = [];
+  bool _isLoadingTopics = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cache'den hemen kontrol et (non-blocking)
+    _checkSubscriptionFromCache();
+    // Arka planda Firestore'dan güncelle
+    Future.microtask(() => _checkSubscription());
+    // Konuları hemen yükle
+    _loadTopics();
+  }
+
+  Future<void> _loadTopics() async {
+    try {
+      final topics = await _lessonsService.getTopicsByLessonId(widget.lesson.id);
+      if (mounted) {
+        setState(() {
+          _topics = topics;
+          _isLoadingTopics = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingTopics = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkSubscriptionFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedStatus = prefs.getString('subscription_status');
+      final cachedEndDate = prefs.getInt('subscription_end_date');
+      
+      if (cachedStatus == 'premium' && cachedEndDate != null) {
+        final endDate = DateTime.fromMillisecondsSinceEpoch(cachedEndDate);
+        if (endDate.isAfter(DateTime.now())) {
+          setState(() {
+            _isPremium = true;
+          });
+          return;
+        }
+      }
+      setState(() {
+        _isPremium = false;
+      });
+    } catch (e) {
+      // Silent error handling
+    }
+  }
+
+  Future<void> _checkSubscription() async {
+    final isPremium = await _subscriptionService.isPremium();
+    if (mounted) {
+      setState(() {
+        _isPremium = isPremium;
+      });
+    }
+  }
+
   IconData _getIcon() {
-    switch (lesson.icon) {
+    switch (widget.lesson.icon) {
       case 'menu_book':
         return Icons.menu_book_rounded;
       case 'calculate':
@@ -37,6 +111,76 @@ class LessonDetailPage extends StatelessWidget {
     }
   }
 
+
+  Future<void> _handleTopicTap(Topic topic) async {
+    // Hızlı kontrol: order == 1 ise free, değilse premium gerekli
+    final isFree = _subscriptionService.isTopicFree(topic);
+    
+    if (isFree) {
+      // Free konu, direkt aç
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TopicDetailPage(
+            topic: topic,
+            lessonName: widget.lesson.name,
+          ),
+        ),
+      );
+      return;
+    }
+    
+    // Premium konu - cache'den kontrol et (hızlı)
+    if (!_isPremium) {
+      // Premium gerekli - upgrade sayfasına yönlendir
+      _showPremiumRequiredDialog(context, topic);
+      return;
+    }
+    
+    // Premium var, sayfayı aç
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TopicDetailPage(
+          topic: topic,
+          lessonName: widget.lesson.name,
+        ),
+      ),
+    );
+  }
+
+  void _showPremiumRequiredDialog(BuildContext context, Topic topic) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium Gerekli'),
+        content: Text(
+          'Bu konuya erişmek için Premium aboneliğe ihtiyacınız var.\n\n'
+          'Her dersin ilk konusu ücretsizdir. Diğer konular için Premium\'a geçin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+            );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Premium\'a Geç'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +312,7 @@ class LessonDetailPage extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                lesson.name.toUpperCase(),
+                                widget.lesson.name.toUpperCase(),
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 22 : 26,
                                   fontWeight: FontWeight.w900,
@@ -190,7 +334,7 @@ class LessonDetailPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            lesson.description,
+                            widget.lesson.description,
                             style: TextStyle(
                               fontSize: isSmallScreen ? 13 : 14.5,
                               color: Colors.white.withValues(alpha: 0.95),
@@ -201,11 +345,7 @@ class LessonDetailPage extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           SizedBox(height: isSmallScreen ? 10 : 14),
-                          FutureBuilder<List<Topic>>(
-                            future: _lessonsService.getTopicsByLessonId(lesson.id),
-                            builder: (context, snapshot) {
-                              final topicCount = snapshot.hasData ? snapshot.data!.length : 0;
-                              return Container(
+                          Container(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: isSmallScreen ? 10 : 12,
                                   vertical: isSmallScreen ? 4 : 6,
@@ -219,7 +359,7 @@ class LessonDetailPage extends StatelessWidget {
                                   ),
                                 ),
                                 child: Text(
-                                  '$topicCount KONU',
+                                  '${_topics.length} KONU',
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 13 : 14,
                                     fontWeight: FontWeight.w700,
@@ -227,9 +367,7 @@ class LessonDetailPage extends StatelessWidget {
                                     letterSpacing: 0.8,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
                         ],
                       ),
                     ),
@@ -240,136 +378,111 @@ class LessonDetailPage extends StatelessWidget {
           ),
           // Topics List
           Expanded(
-            child: FutureBuilder<List<Topic>>(
-              future: _lessonsService.getTopicsByLessonId(lesson.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
+            child: _isLoadingTopics
+                ? const Center(
                     child: CircularProgressIndicator(),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Konular yüklenirken bir hata oluştu',
-                          style: TextStyle(
-                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.book_outlined,
-                          size: 64,
-                          color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Henüz konu eklenmemiş',
-                          style: TextStyle(
-                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final topics = snapshot.data!;
-
-                return ListView.builder(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isTablet ? 24 : 18,
-                    vertical: isSmallScreen ? 12 : 16,
-                  ),
-                  itemCount: topics.length,
-                  itemBuilder: (context, index) {
-                    final topic = topics[index];
-                    final topicNumber = (index + 1).toString().padLeft(2, '0');
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        // Sayfayı hemen aç (içerik sayıları TopicDetailPage içinde arka planda yüklenecek)
-                        // Loading dialog yok - sayfa anında açılacak
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TopicDetailPage(
-                              topic: topic, // Direkt topic'i aç, sayılar arka planda yüklenecek
-                              lessonName: lesson.name,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          vertical: isSmallScreen ? 14 : 18,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  )
+                : _topics.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Number
-                            Container(
-                              width: isSmallScreen ? 40 : 44,
-                              alignment: Alignment.topLeft,
-                              child: Text(
-                                topicNumber,
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 16 : 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryBlue,
-                                ),
-                              ),
+                            Icon(
+                              Icons.book_outlined,
+                              size: 64,
+                              color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                             ),
-                            SizedBox(width: isSmallScreen ? 12 : 16),
-                            // Title
-                            Expanded(
-                              child: Text(
-                                    topic.name,
-                                    style: TextStyle(
-                                      fontSize: isSmallScreen ? 16 : 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : AppColors.textPrimary,
-                                    ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Henüz konu eklenmemiş',
+                              style: TextStyle(
+                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 24 : 18,
+                          vertical: isSmallScreen ? 12 : 16,
+                        ),
+                        itemCount: _topics.length,
+                        itemBuilder: (context, index) {
+                          final topic = _topics[index];
+                          final topicNumber = (index + 1).toString().padLeft(2, '0');
+                          
+                          final isFree = _subscriptionService.isTopicFree(topic);
+                          final isLocked = !isFree && !_isPremium;
+                          
+                          return GestureDetector(
+                            onTap: () => _handleTopicTap(topic),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                vertical: isSmallScreen ? 14 : 18,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Number
+                                  Container(
+                                    width: isSmallScreen ? 40 : 44,
+                                    alignment: Alignment.topLeft,
+                                    child: Text(
+                                      topicNumber,
+                                      style: TextStyle(
+                                        fontSize: isSmallScreen ? 16 : 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: isLocked 
+                                            ? Colors.grey 
+                                            : AppColors.primaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: isSmallScreen ? 12 : 16),
+                                  // Title
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            topic.name,
+                                            style: TextStyle(
+                                              fontSize: isSmallScreen ? 16 : 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: isLocked
+                                                  ? Colors.grey
+                                                  : (isDark ? Colors.white : AppColors.textPrimary),
+                                            ),
+                                          ),
+                                        ),
+                                        if (isLocked) ...[
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            Icons.lock_outline,
+                                            size: 20,
+                                            color: Colors.grey,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                );
-              },
-            ),
           ),
         ],
       ),

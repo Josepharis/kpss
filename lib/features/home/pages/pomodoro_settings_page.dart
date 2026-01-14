@@ -58,16 +58,22 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusBarStyle = isDark 
-        ? SystemUiOverlayStyle.light 
-        : SystemUiOverlayStyle.dark;
-    final statusBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final appBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: statusBarStyle.copyWith(
-        statusBarColor: statusBarColor,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      ),
+      value: isDark 
+          ? SystemUiOverlayStyle.light.copyWith(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              systemNavigationBarColor: const Color(0xFF121212),
+              systemNavigationBarIconBrightness: Brightness.light,
+            )
+          : SystemUiOverlayStyle.dark.copyWith(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+              systemNavigationBarColor: Colors.white,
+              systemNavigationBarIconBrightness: Brightness.dark,
+            ),
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
@@ -78,9 +84,18 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
               fontSize: 18,
             ),
           ),
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          backgroundColor: appBarColor,
           foregroundColor: isDark ? Colors.white : Colors.black87,
           elevation: 0,
+          systemOverlayStyle: isDark 
+              ? SystemUiOverlayStyle.light.copyWith(
+                  statusBarColor: Colors.transparent,
+                  statusBarIconBrightness: Brightness.light,
+                )
+              : SystemUiOverlayStyle.dark.copyWith(
+                  statusBarColor: Colors.transparent,
+                  statusBarIconBrightness: Brightness.dark,
+                ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1),
             child: Container(

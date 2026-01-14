@@ -6,6 +6,7 @@ import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/lessons_service.dart';
+import '../../../core/services/subscription_service.dart';
 import 'tests_page.dart';
 import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
@@ -14,6 +15,7 @@ import 'past_questions_page.dart';
 import 'videos_page.dart';
 import 'tests_list_page.dart';
 import 'pdfs_page.dart';
+import 'subscription_page.dart';
 
 class TopicDetailPage extends StatefulWidget {
   final Topic topic;
@@ -32,27 +34,44 @@ class TopicDetailPage extends StatefulWidget {
 class _TopicDetailPageState extends State<TopicDetailPage> {
   late Topic _topic;
   final LessonsService _lessonsService = LessonsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
   bool _isLoadingContent = true;
+  bool _canAccess = true;
 
   @override
   void initState() {
     super.initState();
     _topic = widget.topic;
-    // Sayfa hemen açılsın, içerik sayıları arka planda yüklensin
+    // Sayfa hemen açılsın, kontroller arka planda yapılsın
     _isLoadingContent = false;
     
     // Cache'den sayıları hemen yükle (synchronous - çok hızlı)
     _loadCachedCounts();
     
-    // Arka planda güncel sayıları yükle (non-blocking - sayfa açılışını engelleme)
-    Future.microtask(() {
-      if (_topic.videoCount == 0 && _topic.podcastCount == 0 && _topic.averageQuestionCount == 0 && 
-          _topic.noteCount == 0 && _topic.flashCardCount == 0 && _topic.pdfCount == 0) {
-        // Arka planda yükle, sayfa hemen açılsın
-        _loadContentCounts();
-      } else {
-        // Sayılar var ama güncel olmayabilir, arka planda güncelle
-        _loadContentCounts();
+    // Abonelik kontrolünü arka planda yap (non-blocking)
+    Future.microtask(() async {
+      final canAccess = await _subscriptionService.canAccessTopic(_topic);
+      if (mounted) {
+        setState(() {
+          _canAccess = canAccess;
+        });
+        
+        if (!canAccess) {
+          // Erişim yok, içerik yükleme
+          return;
+        }
+      }
+      
+      // Erişim var, içerikleri yükle (arka planda)
+      if (mounted) {
+        if (_topic.videoCount == 0 && _topic.podcastCount == 0 && _topic.averageQuestionCount == 0 && 
+            _topic.noteCount == 0 && _topic.flashCardCount == 0 && _topic.pdfCount == 0) {
+          // Arka planda yükle, sayfa hemen açılsın
+          _loadContentCounts();
+        } else {
+          // Sayılar var ama güncel olmayabilir, arka planda güncelle
+          _loadContentCounts();
+        }
       }
     });
   }
@@ -272,11 +291,13 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
+      body: !_canAccess && !_subscriptionService.isTopicFree(_topic)
+          ? _buildPremiumRequiredScreen(context, isDark, isSmallScreen, isTablet)
+          : Column(
+                  children: [
+                    // Content
+                    Expanded(
+                      child: SingleChildScrollView(
               padding: EdgeInsets.all(isTablet ? 20 : 14),
               child: Column(
                 children: [
@@ -756,4 +777,159 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     );
   }
 
+  Widget _buildPremiumRequiredScreen(
+    BuildContext context,
+    bool isDark,
+    bool isSmallScreen,
+    bool isTablet,
+  ) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(isTablet ? 32 : 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(height: isSmallScreen ? 40 : 60),
+            // Lock Icon
+            Container(
+              width: isSmallScreen ? 100 : 120,
+              height: isSmallScreen ? 100 : 120,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                size: isSmallScreen ? 50 : 60,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            SizedBox(height: isSmallScreen ? 24 : 32),
+            // Title
+            Text(
+              'Premium Gerekli',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 24 : 28,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: isSmallScreen ? 12 : 16),
+            // Description
+            Text(
+              'Bu konuya erişmek için Premium aboneliğe ihtiyacınız var.\n\n'
+              'Her dersin ilk konusu ücretsizdir. Diğer konular için Premium\'a geçin.',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 14 : 16,
+                color: isDark ? Colors.white70 : AppColors.textSecondary,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: isSmallScreen ? 32 : 40),
+            // Upgrade Button
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 32 : 40,
+                  vertical: isSmallScreen ? 14 : 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+              child: Text(
+                'Premium\'a Geç',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(height: isSmallScreen ? 16 : 24),
+            // Features
+            Container(
+              padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Premium ile:',
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 16 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: isSmallScreen ? 12 : 16),
+                  _buildFeatureItem(
+                    'Tüm konulara sınırsız erişim',
+                    isDark,
+                    isSmallScreen,
+                  ),
+                  _buildFeatureItem(
+                    'Sınırsız video ve podcast',
+                    isDark,
+                    isSmallScreen,
+                  ),
+                  _buildFeatureItem(
+                    'Sınırsız PDF indirme',
+                    isDark,
+                    isSmallScreen,
+                  ),
+                  _buildFeatureItem(
+                    'Gelişmiş istatistikler',
+                    isDark,
+                    isSmallScreen,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(String text, bool isDark, bool isSmallScreen) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isSmallScreen ? 8 : 10),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle,
+            size: isSmallScreen ? 18 : 20,
+            color: AppColors.primaryBlue,
+          ),
+          SizedBox(width: isSmallScreen ? 10 : 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 14 : 15,
+                color: isDark ? Colors.white70 : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

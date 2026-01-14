@@ -94,17 +94,16 @@ class _LessonsPageState extends State<LessonsPage> {
     final isSmallScreen = screenHeight < 700;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusBarStyle = isDark 
-        ? SystemUiOverlayStyle.light 
-        : SystemUiOverlayStyle.light;
     final headerColor1 = isDark ? const Color(0xFF1E1E1E) : const Color(0xFF8B5CF6);
     final headerColor2 = isDark ? const Color(0xFF1A1A1A) : const Color(0xFF7C3AED);
     final headerColor3 = isDark ? const Color(0xFF121212) : const Color(0xFF6D28D9);
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: statusBarStyle.copyWith(
-        statusBarColor: headerColor1,
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(

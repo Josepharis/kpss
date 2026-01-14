@@ -355,20 +355,23 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
     final lessonsWithWeaknesses = _getLessonsWithWeaknesses();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusBarStyle = isDark 
-        ? SystemUiOverlayStyle.light 
-        : SystemUiOverlayStyle.light;
     final appBarColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: statusBarStyle.copyWith(
-        statusBarColor: appBarColor,
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: appBarColor,
           elevation: 0,
+          systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+          ),
           title: const Text(
             'Kaydedilenler',
             style: TextStyle(
