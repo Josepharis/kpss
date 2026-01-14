@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/ongoing_video.dart';
 import '../models/ongoing_podcast.dart';
 import '../models/ongoing_test.dart';
+import '../models/ongoing_flash_card.dart';
 import 'storage_service.dart';
 import 'lessons_service.dart';
 
@@ -33,7 +35,7 @@ class ProgressService {
     required Duration totalDuration,
   }) async {
     if (_userId == null) {
-      print('⚠️ User not logged in, cannot save progress');
+      debugPrint('⚠️ User not logged in, cannot save progress');
       return false;
     }
 
@@ -63,10 +65,10 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('✅ Video progress saved: $videoTitle - ${currentMinute}m/${totalMinutes}m');
+      debugPrint('✅ Video progress saved: $videoTitle - ${currentMinute}m/${totalMinutes}m');
       return true;
     } catch (e) {
-      print('❌ Error saving video progress: $e');
+      debugPrint('❌ Error saving video progress: $e');
       return false;
     }
   }
@@ -82,7 +84,7 @@ class ProgressService {
     required Duration totalDuration,
   }) async {
     if (_userId == null) {
-      print('⚠️ User not logged in, cannot save progress');
+      debugPrint('⚠️ User not logged in, cannot save progress');
       return false;
     }
 
@@ -112,10 +114,10 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('✅ Podcast progress saved: $podcastTitle - ${currentMinute}m/${totalMinutes}m');
+      debugPrint('✅ Podcast progress saved: $podcastTitle - ${currentMinute}m/${totalMinutes}m');
       return true;
     } catch (e) {
-      print('❌ Error saving podcast progress: $e');
+      debugPrint('❌ Error saving podcast progress: $e');
       return false;
     }
   }
@@ -127,9 +129,10 @@ class ProgressService {
     required String lessonId,
     required int currentQuestionIndex,
     required int totalQuestions,
+    int? score, // Puan (opsiyonel)
   }) async {
     if (_userId == null) {
-      print('⚠️ User not logged in, cannot save progress');
+      debugPrint('⚠️ User not logged in, cannot save progress');
       return false;
     }
 
@@ -143,7 +146,7 @@ class ProgressService {
         return true;
       }
 
-      await _userProgressDoc.collection('tests').doc(topicId).set({
+      final data = {
         'topicId': topicId,
         'topicName': topicName,
         'lessonId': lessonId,
@@ -151,12 +154,22 @@ class ProgressService {
         'totalQuestions': totalQuestions,
         'progress': progress,
         'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      
+      // Puan varsa ekle
+      if (score != null) {
+        data['score'] = score;
+      }
 
-      print('✅ Test progress saved: $topicName - ${currentQuestionIndex + 1}/$totalQuestions');
+      await _userProgressDoc.collection('tests').doc(topicId).set(
+        data,
+        SetOptions(merge: true),
+      );
+
+      debugPrint('✅ Test progress saved: $topicName - ${currentQuestionIndex + 1}/$totalQuestions${score != null ? ' (score: $score)' : ''}');
       return true;
     } catch (e) {
-      print('❌ Error saving test progress: $e');
+      debugPrint('❌ Error saving test progress: $e');
       return false;
     }
   }
@@ -170,7 +183,7 @@ class ProgressService {
     required int totalCards,
   }) async {
     if (_userId == null) {
-      print('⚠️ User not logged in, cannot save progress');
+      debugPrint('⚠️ User not logged in, cannot save progress');
       return false;
     }
 
@@ -194,10 +207,10 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('✅ Flash card progress saved: $topicName - ${currentCardIndex + 1}/$totalCards');
+      debugPrint('✅ Flash card progress saved: $topicName - ${currentCardIndex + 1}/$totalCards');
       return true;
     } catch (e) {
-      print('❌ Error saving flash card progress: $e');
+      debugPrint('❌ Error saving flash card progress: $e');
       return false;
     }
   }
@@ -216,7 +229,7 @@ class ProgressService {
       }
       return null;
     } catch (e) {
-      print('❌ Error getting video progress: $e');
+      debugPrint('❌ Error getting video progress: $e');
       return null;
     }
   }
@@ -235,7 +248,7 @@ class ProgressService {
       }
       return null;
     } catch (e) {
-      print('❌ Error getting podcast progress: $e');
+      debugPrint('❌ Error getting podcast progress: $e');
       return null;
     }
   }
@@ -247,14 +260,33 @@ class ProgressService {
     try {
       final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
       if (doc.exists) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>?;
         if (data != null && data['currentQuestionIndex'] != null) {
           return data['currentQuestionIndex'] as int;
         }
       }
       return null;
     } catch (e) {
-      print('❌ Error getting test progress: $e');
+      debugPrint('❌ Error getting test progress: $e');
+      return null;
+    }
+  }
+
+  /// Get test score for a topic
+  Future<int?> getTestScore(String topicId) async {
+    if (_userId == null) return null;
+
+    try {
+      final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data['score'] != null) {
+          return data['score'] as int;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting test score: $e');
       return null;
     }
   }
@@ -273,7 +305,7 @@ class ProgressService {
       }
       return null;
     } catch (e) {
-      print('❌ Error getting flash card progress: $e');
+      debugPrint('❌ Error getting flash card progress: $e');
       return null;
     }
   }
@@ -345,7 +377,7 @@ class ProgressService {
               }
             }
           } catch (e) {
-            print('⚠️ Error loading video URL for $videoId: $e');
+            debugPrint('⚠️ Error loading video URL for $videoId: $e');
           }
         }
         
@@ -365,7 +397,7 @@ class ProgressService {
       
       return videos;
     } catch (e) {
-      print('❌ Error getting ongoing videos: $e');
+      debugPrint('❌ Error getting ongoing videos: $e');
       return [];
     }
   }
@@ -396,7 +428,7 @@ class ProgressService {
         );
       }).toList();
     } catch (e) {
-      print('❌ Error getting ongoing podcasts: $e');
+      debugPrint('❌ Error getting ongoing podcasts: $e');
       return [];
     }
   }
@@ -423,10 +455,11 @@ class ProgressService {
           icon: 'atom',
           topicId: data['topicId'] ?? doc.id,
           lessonId: data['lessonId'] ?? '',
+          score: data['score'] ?? 0, // Puanı oku
         );
       }).toList();
     } catch (e) {
-      print('❌ Error getting ongoing tests: $e');
+      debugPrint('❌ Error getting ongoing tests: $e');
       return [];
     }
   }
@@ -437,7 +470,7 @@ class ProgressService {
     try {
       await _userProgressDoc.collection('videos').doc(videoId).delete();
     } catch (e) {
-      print('❌ Error deleting video progress: $e');
+      debugPrint('❌ Error deleting video progress: $e');
     }
   }
 
@@ -447,7 +480,7 @@ class ProgressService {
     try {
       await _userProgressDoc.collection('podcasts').doc(podcastId).delete();
     } catch (e) {
-      print('❌ Error deleting podcast progress: $e');
+      debugPrint('❌ Error deleting podcast progress: $e');
     }
   }
 
@@ -457,7 +490,80 @@ class ProgressService {
     try {
       await _userProgressDoc.collection('tests').doc(topicId).delete();
     } catch (e) {
-      print('❌ Error deleting test progress: $e');
+      debugPrint('❌ Error deleting test progress: $e');
+    }
+  }
+
+  /// Get all ongoing flash cards
+  Future<List<OngoingFlashCard>> getOngoingFlashCards() async {
+    if (_userId == null) return [];
+
+    try {
+      final snapshot = await _userProgressDoc.collection('flashCards')
+          .orderBy('lastUpdated', descending: true)
+          .limit(10)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return OngoingFlashCard(
+          id: data['topicId'] ?? doc.id,
+          title: '${data['topicName'] ?? 'Bilgi Kartları'}',
+          topic: data['topicName'] ?? '',
+          currentCard: (data['currentCardIndex'] ?? 0) + 1,
+          totalCards: data['totalCards'] ?? 1,
+          progressColor: 'green',
+          icon: 'book',
+          topicId: data['topicId'] ?? doc.id,
+          lessonId: data['lessonId'] ?? '',
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting ongoing flash cards: $e');
+      return [];
+    }
+  }
+
+  /// Get user total score
+  Future<int> getUserTotalScore() async {
+    if (_userId == null) return 0;
+    
+    try {
+      final doc = await _userProgressDoc.get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data['totalScore'] != null) {
+          return data['totalScore'] as int;
+        }
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('❌ Error getting user total score: $e');
+      return 0;
+    }
+  }
+
+  /// Add score to user total score
+  Future<bool> addScore(int scoreToAdd) async {
+    if (_userId == null) {
+      debugPrint('⚠️ User not logged in, cannot add score');
+      return false;
+    }
+
+    try {
+      final currentScore = await getUserTotalScore();
+      final newScore = currentScore + scoreToAdd;
+      
+      await _userProgressDoc.set({
+        'totalScore': newScore,
+        'lastScoreUpdate': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      debugPrint('✅ Score added: +$scoreToAdd (Total: $newScore)');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error adding score: $e');
+      return false;
     }
   }
 
@@ -467,7 +573,7 @@ class ProgressService {
     try {
       await _userProgressDoc.collection('flashCards').doc(topicId).delete();
     } catch (e) {
-      print('❌ Error deleting flash card progress: $e');
+      debugPrint('❌ Error deleting flash card progress: $e');
     }
   }
 }

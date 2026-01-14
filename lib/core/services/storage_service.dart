@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
 /// Service for uploading files to Firebase Storage
@@ -17,7 +19,6 @@ class StorageService {
       final fileNameToUse = fileName ?? path.basename(audioFile.path);
       final storageRef = _storage.ref().child('$folderPath/$fileNameToUse');
       
-      print('📤 Uploading audio file: $fileNameToUse');
       
       final uploadTask = storageRef.putFile(
         audioFile,
@@ -29,20 +30,15 @@ class StorageService {
         ),
       );
 
-      // Upload progress
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        final progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        print('📊 Upload progress: ${progress.toStringAsFixed(1)}%');
-      });
+      // Upload progress (silent)
 
       await uploadTask;
       
       final downloadUrl = await storageRef.getDownloadURL();
-      print('✅ Audio uploaded successfully: $downloadUrl');
       
       return downloadUrl;
     } catch (e) {
-      print('❌ Error uploading audio file: $e');
+      debugPrint('❌ Error uploading audio file: $e');
       return null;
     }
   }
@@ -58,7 +54,6 @@ class StorageService {
       final fileNameToUse = fileName ?? path.basename(imageFile.path);
       final storageRef = _storage.ref().child('$folderPath/$fileNameToUse');
       
-      print('📤 Uploading image file: $fileNameToUse');
       
       final uploadTask = storageRef.putFile(
         imageFile,
@@ -73,11 +68,10 @@ class StorageService {
       await uploadTask;
       
       final downloadUrl = await storageRef.getDownloadURL();
-      print('✅ Image uploaded successfully: $downloadUrl');
       
       return downloadUrl;
     } catch (e) {
-      print('❌ Error uploading image file: $e');
+      debugPrint('❌ Error uploading image file: $e');
       return null;
     }
   }
@@ -87,11 +81,21 @@ class StorageService {
     try {
       final ref = _storage.refFromURL(fileUrl);
       await ref.delete();
-      print('✅ File deleted successfully');
       return true;
     } catch (e) {
-      print('❌ Error deleting file: $e');
+      debugPrint('❌ Error deleting file: $e');
       return false;
+    }
+  }
+
+  /// Get storage path from URL
+  /// Returns the full path if URL is a Firebase Storage URL, null otherwise
+  String? getPathFromUrl(String url) {
+    try {
+      final ref = _storage.refFromURL(url);
+      return ref.fullPath;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -99,21 +103,17 @@ class StorageService {
   /// Returns list of download URLs
   Future<List<String>> listVideoFiles(String folderPath) async {
     try {
-      print('📂 Listing video files in: $folderPath');
       final folderRef = _storage.ref().child(folderPath);
       
       try {
         final result = await folderRef.listAll();
-        print('📊 Found ${result.items.length} items in folder');
         
         // Alt klasörleri de listele
         for (var prefix in result.prefixes) {
-          print('📁 Subfolder: ${prefix.name}');
           try {
-            final subResult = await prefix.listAll();
-            print('   📊 Found ${subResult.items.length} items in subfolder');
+            await prefix.listAll();
           } catch (e) {
-            print('   ⚠️ Error listing subfolder: $e');
+            // Silent error handling
           }
         }
         
@@ -129,21 +129,18 @@ class StorageService {
             try {
               final url = await item.getDownloadURL();
               urls.add(url);
-              print('✅ Found video: ${item.name} (${item.fullPath})');
             } catch (e) {
-              print('⚠️ Error getting URL for ${item.name}: $e');
+              // Silent error handling
             }
           }
         }
-        
-        print('✅ Found ${urls.length} video files');
         return urls;
       } catch (e) {
-        print('⚠️ Error listing folder: $e');
+        debugPrint('⚠️ Error listing folder: $e');
         return [];
       }
     } catch (e) {
-      print('❌ Error listing video files: $e');
+      debugPrint('❌ Error listing video files: $e');
       return [];
     }
   }
@@ -152,27 +149,37 @@ class StorageService {
   /// Returns list of folder names
   Future<List<String>> listFolders(String folderPath) async {
     try {
-      print('📂 Listing folders in: $folderPath');
       final folderRef = _storage.ref().child(folderPath);
       
       try {
         final result = await folderRef.listAll();
-        print('📊 Found ${result.prefixes.length} subfolders');
         
         final List<String> folderNames = [];
         for (var prefix in result.prefixes) {
           folderNames.add(prefix.name);
-          print('📁 Found folder: ${prefix.name}');
         }
         
-        print('✅ Found ${folderNames.length} folders');
+        // Klasörleri sırala (sayısal prefix varsa ona göre)
+        folderNames.sort((a, b) {
+          // Sayısal prefix'i çıkar ve karşılaştır
+          final aMatch = RegExp(r'^(\d+)[-.]?\s*(.*)').firstMatch(a);
+          final bMatch = RegExp(r'^(\d+)[-.]?\s*(.*)').firstMatch(b);
+          
+          if (aMatch != null && bMatch != null) {
+            final aNum = int.tryParse(aMatch.group(1) ?? '') ?? 0;
+            final bNum = int.tryParse(bMatch.group(1) ?? '') ?? 0;
+            if (aNum != bNum) return aNum.compareTo(bNum);
+          }
+          
+          return a.compareTo(b);
+        });
         return folderNames;
       } catch (e) {
-        print('⚠️ Error listing folders: $e');
+        debugPrint('⚠️ Error listing folders: $e');
         return [];
       }
     } catch (e) {
-      print('❌ Error listing folders: $e');
+      debugPrint('❌ Error listing folders: $e');
       return [];
     }
   }
@@ -185,20 +192,36 @@ class StorageService {
       final result = await folderRef.listAll();
       return result.items.length;
     } catch (e) {
-      print('⚠️ Error counting files in $folderPath: $e');
+      debugPrint('⚠️ Error counting files in $folderPath: $e');
       return 0;
     }
   }
 
   /// List file names in a folder (fast - no download URLs, just names)
-  /// Returns list of file names
+  /// Returns list of file names (sorted alphabetically)
   Future<List<String>> listFileNames(String folderPath) async {
     try {
       final folderRef = _storage.ref().child(folderPath);
       final result = await folderRef.listAll();
-      return result.items.map((item) => item.name).toList();
+      final fileNames = result.items.map((item) => item.name).toList();
+      
+      // Alt klasörlerdeki dosyaları da kontrol et
+      for (var prefix in result.prefixes) {
+        try {
+          final subResult = await prefix.listAll();
+          for (var item in subResult.items) {
+            fileNames.add(item.name);
+          }
+        } catch (e) {
+          debugPrint('   ⚠️ Error listing subfolder ${prefix.name}: $e');
+        }
+      }
+      
+      // Alfabetik olarak sırala (aynı içerik sorununu çözmek için)
+      fileNames.sort();
+      return fileNames;
     } catch (e) {
-      print('⚠️ Error listing file names in $folderPath: $e');
+      debugPrint('⚠️ Error listing file names in $folderPath: $e');
       return [];
     }
   }
@@ -207,12 +230,10 @@ class StorageService {
   /// Returns list of maps with 'url' and 'fullPath' keys for cache support
   Future<List<Map<String, String>>> listFilesWithPaths(String folderPath) async {
     try {
-      print('📂 Listing files in: $folderPath');
       final folderRef = _storage.ref().child(folderPath);
       
       try {
         final result = await folderRef.listAll();
-        print('📊 Found ${result.items.length} items in folder');
         
         final List<Map<String, String>> files = [];
         for (var item in result.items) {
@@ -223,20 +244,17 @@ class StorageService {
               'fullPath': item.fullPath,
               'name': item.name,
             });
-            print('✅ Found: ${item.name} (${item.fullPath})');
           } catch (e) {
-            print('⚠️ Error getting URL for ${item.name}: $e');
+            // Silent error handling
           }
         }
-        
-        print('✅ Found ${files.length} files');
         return files;
       } catch (e) {
-        print('⚠️ Error listing folder: $e');
+        debugPrint('⚠️ Error listing folder: $e');
         return [];
       }
     } catch (e) {
-      print('❌ Error listing files: $e');
+      debugPrint('❌ Error listing files: $e');
       return [];
     }
   }
@@ -249,73 +267,273 @@ class StorageService {
     return filesWithPaths.map((f) => f['url']!).toList();
   }
 
+  /// List JSON files in a folder and get their download URLs
+  /// Returns list of download URLs for JSON files
+  Future<List<String>> listJsonFiles(String folderPath) async {
+    try {
+      final folderRef = _storage.ref().child(folderPath);
+      
+      try {
+        final result = await folderRef.listAll();
+        
+        // Filter only JSON files
+        final jsonItems = result.items.where((item) {
+          final fileName = item.name.toLowerCase();
+          return fileName.endsWith('.json');
+        }).toList();
+        
+        // Sort alphabetically
+        jsonItems.sort((a, b) => a.name.compareTo(b.name));
+        
+        final List<String> urls = [];
+        for (var item in jsonItems) {
+          try {
+            final url = await item.getDownloadURL();
+            urls.add(url);
+          } catch (e) {
+            // Silent error handling
+          }
+        }
+        return urls;
+      } catch (e) {
+        debugPrint('⚠️ Error listing folder: $e');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('❌ Error listing JSON files: $e');
+      return [];
+    }
+  }
+
+  /// Download and parse JSON file from Storage path
+  /// Returns parsed JSON as Map
+  /// Handles common JSON formatting issues (trailing commas, missing commas)
+  Future<Map<String, dynamic>?> downloadAndParseJson(String storagePath) async {
+    try {
+      final storageRef = _storage.ref().child(storagePath);
+      
+      // Download as bytes and convert to string
+      final bytes = await storageRef.getData();
+      if (bytes == null) {
+        debugPrint('❌ Failed to download JSON: bytes is null');
+        return null;
+      }
+      
+      String jsonString = utf8.decode(bytes);
+      
+      
+      // Try to fix common JSON issues before parsing (always use aggressive mode for Storage files)
+      jsonString = _fixJsonString(jsonString, aggressive: true);
+      
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+      return jsonData;
+    } catch (e) {
+      debugPrint('❌ Error downloading/parsing JSON: $e');
+      
+      // Try one more time with line-by-line fixes
+      try {
+        final storageRef = _storage.ref().child(storagePath);
+        final bytes = await storageRef.getData();
+        if (bytes != null) {
+          String jsonString = utf8.decode(bytes);
+          
+          // Line-by-line fix for trailing commas
+          final lines = jsonString.split('\n');
+          final fixedLines = <String>[];
+          
+          for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            
+            // Check if next line starts with } or ]
+            if (i < lines.length - 1) {
+              final nextLine = lines[i + 1].trim();
+              if (nextLine.startsWith('}') || nextLine.startsWith(']')) {
+                // Remove trailing comma from current line
+                line = line.replaceAll(RegExp(r',\s*$'), '');
+              }
+            }
+            
+            // Also check if current line ends with , and next non-empty line is } or ]
+            if (line.trim().endsWith(',')) {
+              bool shouldRemoveComma = false;
+              for (int j = i + 1; j < lines.length; j++) {
+                final futureLine = lines[j].trim();
+                if (futureLine.isEmpty) continue;
+                if (futureLine.startsWith('}') || futureLine.startsWith(']')) {
+                  shouldRemoveComma = true;
+                }
+                break;
+              }
+              if (shouldRemoveComma) {
+                line = line.replaceAll(RegExp(r',\s*$'), '');
+              }
+            }
+            
+            fixedLines.add(line);
+          }
+          
+          jsonString = fixedLines.join('\n');
+          jsonString = _fixJsonString(jsonString, aggressive: true);
+          
+          final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+          return jsonData;
+        }
+      } catch (e2) {
+        debugPrint('❌ Still failed after fixes: $e2');
+        debugPrint('Error details: ${e2.toString()}');
+      }
+      
+      return null;
+    }
+  }
+
+  /// Fix common JSON formatting issues
+  String _fixJsonString(String jsonString, {bool aggressive = false}) {
+    
+    // Step 1: Remove trailing commas before closing braces/brackets
+    // Pattern: ,\s*} or ,\s*] (with any whitespace, including newlines)
+    // This is the most common issue - trailing comma before closing brace
+    jsonString = jsonString.replaceAll(RegExp(r',\s*\}'), '}');
+    jsonString = jsonString.replaceAll(RegExp(r',\s*\]'), ']');
+    // Also handle cases where comma is on previous line
+    jsonString = jsonString.replaceAll(RegExp(r',\s*\n\s*\}'), '\n  }');
+    jsonString = jsonString.replaceAll(RegExp(r',\s*\n\s*\]'), '\n  ]');
+    
+    // Step 2: Fix missing commas between objects in arrays
+    // Pattern: }\s*\n\s*{ should become },\n    {
+    // This handles the case where objects are on separate lines
+    final beforeFix = jsonString;
+    jsonString = jsonString.replaceAll(RegExp(r'\}\s*\n\s*\{'), '},\n    {');
+    if (jsonString != beforeFix) {
+    }
+    
+    if (aggressive) {
+      // Step 3: More aggressive fixes
+      
+      // Fix any } followed by { (even without newline)
+      // But be careful: only if there's whitespace and no comma before
+      jsonString = jsonString.replaceAllMapped(
+        RegExp(r'\}\s+\{'),
+        (match) {
+          final startPos = match.start;
+          if (startPos > 0) {
+            final beforeChar = jsonString[startPos - 1];
+            // If there's already a comma or it's an array start, don't add another
+            if (beforeChar == ',' || beforeChar == '[') {
+              return match.group(0)!;
+            }
+          }
+          return '}, {';
+        },
+      );
+      
+      // Fix missing commas between array elements
+      // Pattern: ]\s*[ should become ],\s*[
+      jsonString = jsonString.replaceAll(RegExp(r'\]\s*\['), '], [');
+    }
+    
+    return jsonString;
+  }
+
+  /// Download and parse JSON file from URL (for external URLs)
+  /// Returns parsed JSON as Map
+  Future<Map<String, dynamic>?> downloadAndParseJsonFromUrl(String jsonUrl) async {
+    try {
+      debugPrint('📥 Downloading JSON from URL: $jsonUrl');
+      
+      // If it's a Firebase Storage URL, extract the path
+      if (jsonUrl.contains('firebasestorage.googleapis.com')) {
+        try {
+          final ref = _storage.refFromURL(jsonUrl);
+          final bytes = await ref.getData();
+          if (bytes == null) {
+            debugPrint('❌ Failed to download JSON: bytes is null');
+            return null;
+          }
+          final jsonString = utf8.decode(bytes);
+          final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+          return jsonData;
+        } catch (e) {
+          // Silent error handling
+        }
+      }
+      
+      // Fallback to HTTP (requires http package)
+      // For now, return null if not a Storage URL
+      // Silent error handling
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error downloading/parsing JSON from URL: $e');
+      return null;
+    }
+  }
+
   /// List audio files in a folder and get their download URLs
   /// Returns list of download URLs
   Future<List<String>> listAudioFiles(String folderPath) async {
     try {
-      print('📂 Listing files in: $folderPath');
       final folderRef = _storage.ref().child(folderPath);
       
       // Önce klasörün var olup olmadığını kontrol et
       try {
         final result = await folderRef.listAll();
-        print('📊 Found ${result.items.length} items in folder');
-        print('📊 Found ${result.prefixes.length} subfolders');
         
-        // Alt klasörleri de listele
+        // Önce sadece audio dosyalarını filtrele ve sırala
+        final audioItems = result.items.where((item) {
+          final fileName = item.name.toLowerCase();
+          return fileName.endsWith('.mp3') || 
+                 fileName.endsWith('.m4a') || 
+                 fileName.endsWith('.wav') ||
+                 fileName.endsWith('.aac');
+        }).toList();
+        
+        // Alt klasörlerdeki dosyaları da kontrol et
         for (var prefix in result.prefixes) {
-          print('📁 Subfolder: ${prefix.name}');
           try {
             final subResult = await prefix.listAll();
-            print('   📊 Found ${subResult.items.length} items in subfolder');
             for (var item in subResult.items) {
-              print('   📄 File: ${item.name}');
+              final fileName = item.name.toLowerCase();
+              if (fileName.endsWith('.mp3') || 
+                  fileName.endsWith('.m4a') || 
+                  fileName.endsWith('.wav') ||
+                  fileName.endsWith('.aac')) {
+                audioItems.add(item);
+              }
             }
           } catch (e) {
-            print('   ⚠️ Error listing subfolder: $e');
+            // Silent error handling
           }
         }
         
+        // Dosyaları alfabetik olarak sırala (aynı içerik sorununu çözmek için)
+        audioItems.sort((a, b) => a.name.compareTo(b.name));
+        
         final List<String> urls = [];
-        for (var item in result.items) {
+        for (var item in audioItems) {
           try {
             final url = await item.getDownloadURL();
             urls.add(url);
-            print('✅ Found: ${item.name} (${item.fullPath})');
           } catch (e) {
-            print('⚠️ Error getting URL for ${item.name}: $e');
+            // Silent error handling
           }
         }
-        
-        print('✅ Found ${urls.length} audio files');
         return urls;
       } catch (e) {
-        print('❌ Error listing folder: $e');
-        print('💡 Trying to list root podcasts folder...');
+        debugPrint('❌ Error listing folder: $e');
         
         // Eğer klasör yoksa, root'tan podcasts klasörünü kontrol et
         try {
           final rootRef = _storage.ref().child('podcasts');
-          final rootResult = await rootRef.listAll();
-          print('📊 Found ${rootResult.items.length} items in root podcasts folder');
-          print('📊 Found ${rootResult.prefixes.length} subfolders in root');
-          
-          for (var prefix in rootResult.prefixes) {
-            print('📁 Root subfolder: ${prefix.name}');
-          }
-          
-          for (var item in rootResult.items) {
-            print('📄 Root file: ${item.name} (${item.fullPath})');
-          }
+          await rootRef.listAll();
         } catch (rootError) {
-          print('❌ Error listing root: $rootError');
+          debugPrint('❌ Error listing root: $rootError');
         }
         
         return [];
       }
     } catch (e) {
-      print('❌ Error listing files: $e');
-      print('Error type: ${e.runtimeType}');
+      debugPrint('❌ Error listing files: $e');
+      debugPrint('Error type: ${e.runtimeType}');
       return [];
     }
   }

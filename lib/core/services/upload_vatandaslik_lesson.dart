@@ -1,6 +1,4 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'firebase_data_uploader.dart';
-import '../../firebase_options.dart';
 
 /// Script to upload Vatandaşlık lesson to Firestore
 /// 

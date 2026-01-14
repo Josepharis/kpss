@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
@@ -165,7 +166,7 @@ class StorageCleanupService {
         prefs,
       );
       
-      print('✅ Cleanup completed: $deletedCount files deleted');
+      debugPrint('✅ Cleanup completed: $deletedCount files deleted');
       return deletedCount;
     } catch (e) {
       print('❌ Error during cleanup: $e');

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/topic.dart';
@@ -35,23 +38,118 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   void initState() {
     super.initState();
     _topic = widget.topic;
-    // İçerik sayıları zaten yüklenmiş olarak geliyor (lesson_detail_page'den)
-    // Eğer yüklenmemişse yükle (hızlı yükleme - sadece sayılar)
-    if (_topic.videoCount == 0 && _topic.podcastCount == 0 && _topic.testCount == 0 && 
-        _topic.noteCount == 0 && _topic.flashCardCount == 0 && _topic.pdfCount == 0) {
-      _loadContentCounts();
-    } else {
-      _isLoadingContent = false;
+    // Sayfa hemen açılsın, içerik sayıları arka planda yüklensin
+    _isLoadingContent = false;
+    
+    // Cache'den sayıları hemen yükle (synchronous - çok hızlı)
+    _loadCachedCounts();
+    
+    // Arka planda güncel sayıları yükle (non-blocking - sayfa açılışını engelleme)
+    Future.microtask(() {
+      if (_topic.videoCount == 0 && _topic.podcastCount == 0 && _topic.averageQuestionCount == 0 && 
+          _topic.noteCount == 0 && _topic.flashCardCount == 0 && _topic.pdfCount == 0) {
+        // Arka planda yükle, sayfa hemen açılsın
+        _loadContentCounts();
+      } else {
+        // Sayılar var ama güncel olmayabilir, arka planda güncelle
+        _loadContentCounts();
+      }
+    });
+  }
+
+  /// Cache'den sayıları hemen yükle (synchronous - çok hızlı)
+  Future<void> _loadCachedCounts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Önce content_counts cache'inden tüm sayıları yükle (en hızlı)
+      final contentCountsKey = 'content_counts_${_topic.id}';
+      final contentCountsJson = prefs.getString(contentCountsKey);
+      
+      if (contentCountsJson != null && contentCountsJson.isNotEmpty) {
+        try {
+          final Map<String, dynamic> counts = jsonDecode(contentCountsJson);
+          final videoCount = counts['videoCount'] as int? ?? _topic.videoCount;
+          final podcastCount = counts['podcastCount'] as int? ?? _topic.podcastCount;
+          final flashCardCount = counts['flashCardCount'] as int? ?? _topic.flashCardCount;
+          final noteCount = counts['noteCount'] as int? ?? _topic.noteCount;
+          final pdfCount = counts['pdfCount'] as int? ?? _topic.pdfCount;
+          final testQuestionCount = counts['testQuestionCount'] as int? ?? _topic.averageQuestionCount;
+          
+          // Cache'deki sayıları hemen göster
+          setState(() {
+            _topic = Topic(
+              id: _topic.id,
+              lessonId: _topic.lessonId,
+              name: _topic.name,
+              subtitle: _topic.subtitle,
+              duration: _topic.duration,
+              averageQuestionCount: testQuestionCount,
+              testCount: testQuestionCount > 0 ? 1 : 0,
+              podcastCount: podcastCount,
+              videoCount: videoCount,
+              noteCount: noteCount,
+              flashCardCount: flashCardCount,
+              pdfCount: pdfCount,
+              progress: _topic.progress,
+              order: _topic.order,
+              pdfUrl: _topic.pdfUrl,
+            );
+          });
+          debugPrint('✅ Loaded all content counts from cache immediately (videos: $videoCount, podcasts: $podcastCount, questions: $testQuestionCount)');
+          return; // Cache'den yüklendi, soru sayısını tekrar kontrol etmeye gerek yok
+        } catch (e) {
+          debugPrint('⚠️ Error parsing content counts cache: $e');
+        }
+      }
+      
+      // Eğer content_counts cache'i yoksa, sadece soru sayısını cache'den çek (geriye dönük uyumluluk)
+      final cacheKey = 'questions_${_topic.id}';
+      final cachedJson = prefs.getString(cacheKey);
+      
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        // Çok hızlı: Sadece '{' karakterlerini say (parse etmeden)
+        int braceCount = 0;
+        for (int i = 0; i < cachedJson.length; i++) {
+          if (cachedJson[i] == '{') braceCount++;
+        }
+        
+        if (braceCount > 0 && braceCount != _topic.averageQuestionCount) {
+          // Cache'deki sayıyı hemen göster
+          setState(() {
+            _topic = Topic(
+              id: _topic.id,
+              lessonId: _topic.lessonId,
+              name: _topic.name,
+              subtitle: _topic.subtitle,
+              duration: _topic.duration,
+              averageQuestionCount: braceCount,
+              testCount: braceCount > 0 ? 1 : 0,
+              podcastCount: _topic.podcastCount,
+              videoCount: _topic.videoCount,
+              noteCount: _topic.noteCount,
+              flashCardCount: _topic.flashCardCount,
+              pdfCount: _topic.pdfCount,
+              progress: _topic.progress,
+              order: _topic.order,
+              pdfUrl: _topic.pdfUrl,
+            );
+          });
+          debugPrint('✅ Loaded question count from cache immediately: $braceCount');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error loading cached counts: $e');
     }
   }
 
   Future<void> _loadContentCounts() async {
-    // Konu detay sayfasına girince içerik sayılarını çek
+    // Arka planda içerik sayılarını çek (non-blocking)
     final updatedTopic = await _lessonsService.getTopicContentCounts(_topic);
     if (mounted) {
       setState(() {
         _topic = updatedTopic;
-        _isLoadingContent = false;
+        // _isLoadingContent zaten false, sayfa açık
       });
     }
   }
@@ -192,23 +290,24 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                         mainAxisSpacing: isSmallScreen ? 10 : 12,
                         childAspectRatio: 1.15,
                         children: [
-                      // Konu Anlatımı
-                      _buildPremiumCard(
-                        context: context,
-                        title: 'Konu Anlatımı',
-                        count: _isLoadingContent ? 0 : _topic.pdfCount,
-                        icon: Icons.picture_as_pdf_rounded,
-                        color: const Color(0xFFFF9800),
-                        isSmallScreen: isSmallScreen,
-                        onTap: () async {
-                          print('📄 Konu Anlatımı kartına tıklandı');
-                          print('   PDF Count: ${_topic.pdfCount}');
-                          print('   Topic ID: ${_topic.id}');
-                          print('   Lesson ID: ${_topic.lessonId}');
+                      // Konu Anlatımı - Türkçe için gizle
+                      if (widget.lessonName.toLowerCase() != 'türkçe')
+                        _buildPremiumCard(
+                          context: context,
+                          title: 'Konu Anlatımı',
+                          count: _isLoadingContent ? 0 : _topic.pdfCount,
+                          icon: Icons.picture_as_pdf_rounded,
+                          color: const Color(0xFFFF9800),
+                          isSmallScreen: isSmallScreen,
+                          onTap: () async {
+                          debugPrint('📄 Konu Anlatımı kartına tıklandı');
+                          debugPrint('   PDF Count: ${_topic.pdfCount}');
+                          debugPrint('   Topic ID: ${_topic.id}');
+                          debugPrint('   Lesson ID: ${_topic.lessonId}');
                           
                           // Her zaman PDF sayfasına git (PDF'ler Storage'dan yüklenecek)
                           // PDF sayısı 0 olsa bile, Storage'da PDF olabilir
-                          print('✅ Navigating to PDFsPage (PDFs will be loaded from Storage)...');
+                          debugPrint('✅ Navigating to PDFsPage (PDFs will be loaded from Storage)...');
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -229,9 +328,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           }
                         },
                       ),
-                      // Çıkmış Sorular / Soru Dağılımı
-                      _buildPremiumCard(
-                        context: context,
+                      // Çıkmış Sorular / Soru Dağılımı - Matematik için gizle
+                      if (widget.lessonName.toLowerCase() != 'matematik')
+                        _buildPremiumCard(
+                          context: context,
                         title: 'Çıkmış Sorular',
                         subtitle: 'Soru Dağılımı',
                         count: _topic.averageQuestionCount,
@@ -254,7 +354,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                       _buildPremiumCard(
                         context: context,
                         title: 'Testler',
-                        count: _topic.testCount,
+                        count: _isLoadingContent ? 0 : _topic.averageQuestionCount, // Soru sayısını göster
                         icon: Icons.quiz_rounded,
                         color: AppColors.primaryBlue,
                         isSmallScreen: isSmallScreen,
@@ -312,9 +412,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           }
                         },
                       ),
-                      // Podcastler
-                      _buildPremiumCard(
-                        context: context,
+                      // Podcastler - Matematik için gizle
+                      if (widget.lessonName.toLowerCase() != 'matematik')
+                        _buildPremiumCard(
+                          context: context,
                         title: 'Podcastler',
                         count: _isLoadingContent ? 0 : _topic.podcastCount,
                         icon: Icons.podcasts_rounded,
@@ -341,9 +442,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           }
                         },
                       ),
-                      // Videolar
-                      _buildPremiumCard(
-                        context: context,
+                      // Videolar - Türkçe ve Matematik için gizle
+                      if (widget.lessonName.toLowerCase() != 'türkçe' && widget.lessonName.toLowerCase() != 'matematik')
+                        _buildPremiumCard(
+                          context: context,
                         title: 'Videolar',
                         count: _isLoadingContent ? 0 : _topic.videoCount,
                         icon: Icons.video_library_rounded,
@@ -370,9 +472,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           }
                         },
                       ),
-                      // Bilgi Kartları
-                      _buildPremiumCard(
-                        context: context,
+                      // Bilgi Kartları - Matematik için gizle
+                      if (widget.lessonName.toLowerCase() != 'matematik')
+                        _buildPremiumCard(
+                          context: context,
                         title: 'Bilgi Kartları',
                         count: _isLoadingContent ? 0 : _topic.flashCardCount,
                         icon: Icons.style_rounded,
@@ -616,10 +719,12 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           ),
                         ],
                         SizedBox(height: isSmallScreen ? 4 : 6),
-                        Text(
-                          subtitle != null && subtitle.contains('Soru') 
-                              ? '$count soru'
-                              : '$count içerik',
+                          Text(
+                            subtitle != null && subtitle.contains('Soru') 
+                               ? '$count soru'
+                               : title == 'Testler'
+                                   ? '$count soru'
+                                   : '$count içerik',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 12 : 13,
                             fontWeight: FontWeight.w600,

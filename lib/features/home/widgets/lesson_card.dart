@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/services/lessons_service.dart';
+import '../../../core/services/questions_service.dart';
 
 class LessonCard extends StatefulWidget {
   final Lesson lesson;
@@ -98,7 +100,6 @@ class _LessonCardState extends State<LessonCard>
   @override
   Widget build(BuildContext context) {
     final color = _getColor();
-    final solvedQuestions = (widget.lesson.questionCount * widget.progress).round();
     final progressPercentage = (widget.progress * 100).toInt();
 
     return GestureDetector(
@@ -301,13 +302,69 @@ class _LessonCardState extends State<LessonCard>
                                         ),
                                     ),
                                     const SizedBox(width: 6),
-                                    Text(
-                                      '$solvedQuestions/${widget.lesson.questionCount}',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white.withOpacity(0.8),
-                                      ),
+                                    FutureBuilder<int>(
+                                      future: _lessonsService.getTopicsByLessonId(widget.lesson.id).then((topics) async {
+                                        // Cache'den soru sayılarını çek (çok hızlı)
+                                        final prefs = await SharedPreferences.getInstance();
+                                        int totalQuestions = 0;
+                                        
+                                        // Önce cache'den tüm topic'lerin soru sayılarını kontrol et
+                                        for (var topic in topics) {
+                                          final cacheKey = 'questions_count_${topic.id}';
+                                          final cachedCount = prefs.getInt(cacheKey);
+                                          
+                                          if (cachedCount != null && cachedCount > 0) {
+                                            totalQuestions += cachedCount;
+                                          } else if (topic.averageQuestionCount > 0) {
+                                            // Cache'de yoksa topic'teki değeri kullan
+                                            totalQuestions += topic.averageQuestionCount;
+                                          }
+                                        }
+                                        
+                                        // Eğer hala 0 ise, QuestionsService'den paralel olarak çek
+                                        if (totalQuestions == 0 && topics.isNotEmpty) {
+                                          try {
+                                            final questionsService = QuestionsService();
+                                            // Tüm topic'lerin soru sayılarını paralel olarak çek
+                                            final questionCounts = await Future.wait(
+                                              topics.map((topic) async {
+                                                try {
+                                                  final questions = await questionsService.getQuestionsByTopicId(
+                                                    topic.id,
+                                                    lessonId: widget.lesson.id,
+                                                  );
+                                                  // Cache'e kaydet
+                                                  if (questions.isNotEmpty) {
+                                                    await prefs.setInt('questions_count_${topic.id}', questions.length);
+                                                  }
+                                                  return questions.length;
+                                                } catch (e) {
+                                                  return 0;
+                                                }
+                                              }),
+                                            );
+                                            totalQuestions = questionCounts.fold(0, (sum, count) => sum + count);
+                                          } catch (e) {
+                                            // Silent error handling
+                                          }
+                                        }
+                                        
+                                        return totalQuestions;
+                                      }),
+                                      builder: (context, snapshot) {
+                                        final questionCount = snapshot.hasData && snapshot.data! > 0
+                                            ? snapshot.data!
+                                            : widget.lesson.questionCount;
+                                        final solved = (questionCount * widget.progress).round();
+                                        return Text(
+                                          '$solved/$questionCount',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white.withOpacity(0.8),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),

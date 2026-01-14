@@ -1,57 +1,53 @@
-class OngoingTest {
+class OngoingFlashCard {
   final String id;
   final String title;
   final String topic;
-  final int currentQuestion;
-  final int totalQuestions;
+  final int currentCard;
+  final int totalCards;
   final String progressColor;
   final String icon;
   final String topicId;
   final String lessonId;
-  final int score; // Puan
 
-  OngoingTest({
+  OngoingFlashCard({
     required this.id,
     required this.title,
     required this.topic,
-    required this.currentQuestion,
-    required this.totalQuestions,
+    required this.currentCard,
+    required this.totalCards,
     required this.progressColor,
     required this.icon,
     required this.topicId,
     required this.lessonId,
-    this.score = 0, // Varsayılan 0
   });
 
-  double get progress => currentQuestion / totalQuestions;
+  double get progress => currentCard / totalCards;
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'title': title,
       'topic': topic,
-      'currentQuestion': currentQuestion,
-      'totalQuestions': totalQuestions,
+      'currentCard': currentCard,
+      'totalCards': totalCards,
       'progressColor': progressColor,
       'icon': icon,
       'topicId': topicId,
       'lessonId': lessonId,
-      'score': score,
     };
   }
 
-  factory OngoingTest.fromMap(Map<String, dynamic> map) {
-    return OngoingTest(
+  factory OngoingFlashCard.fromMap(Map<String, dynamic> map) {
+    return OngoingFlashCard(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
       topic: map['topic'] ?? '',
-      currentQuestion: map['currentQuestion'] ?? 0,
-      totalQuestions: map['totalQuestions'] ?? 1,
-      progressColor: map['progressColor'] ?? 'blue',
-      icon: map['icon'] ?? 'atom',
+      currentCard: map['currentCard'] ?? 0,
+      totalCards: map['totalCards'] ?? 1,
+      progressColor: map['progressColor'] ?? 'green',
+      icon: map['icon'] ?? 'book',
       topicId: map['topicId'] ?? '',
       lessonId: map['lessonId'] ?? '',
-      score: map['score'] ?? 0,
     );
   }
 }

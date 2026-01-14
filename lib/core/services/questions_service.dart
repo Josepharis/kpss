@@ -1,16 +1,48 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/test_question.dart';
+import 'storage_service.dart';
+import 'lessons_service.dart';
 
-/// Service for managing questions from Firestore
+/// Service for managing questions from Firestore and Storage
 class QuestionsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final StorageService _storageService = StorageService();
+  final LessonsService _lessonsService = LessonsService();
 
   // Collection reference
   CollectionReference get _questionsCollection => _firestore.collection('questions');
 
   /// Get all questions for a topic
-  Future<List<TestQuestion>> getQuestionsByTopicId(String topicId) async {
+  /// First tries cache, then Storage, then Firestore
+  Future<List<TestQuestion>> getQuestionsByTopicId(String topicId, {String? lessonId}) async {
     try {
+      // Önce cache'den kontrol et (hızlı açılış için)
+      final cachedQuestions = await _loadQuestionsFromCache(topicId);
+      if (cachedQuestions.isNotEmpty) {
+        debugPrint('✅ Loaded ${cachedQuestions.length} questions from cache');
+        // Arka planda güncelle (non-blocking)
+        if (lessonId != null) {
+          _updateQuestionsInBackground(topicId, lessonId);
+        }
+        return cachedQuestions;
+      }
+      
+      // Cache'de yoksa, Storage'dan veya Firestore'dan çek
+      if (lessonId != null) {
+        final storageQuestions = await _loadQuestionsFromStorage(topicId, lessonId);
+        if (storageQuestions.isNotEmpty) {
+          debugPrint('✅ Loaded ${storageQuestions.length} questions from Storage');
+          // Cache'e kaydet
+          await _saveQuestionsToCache(topicId, storageQuestions);
+          return storageQuestions;
+        }
+      }
+      
+      // Fallback to Firestore
+      debugPrint('📂 Loading questions from Firestore (Storage had no questions)');
       final snapshot = await _questionsCollection
           .where('topicId', isEqualTo: topicId)
           .get();
@@ -19,9 +51,258 @@ class QuestionsService {
           .toList();
       // Sort by order on client side
       questions.sort((a, b) => a.order.compareTo(b.order));
+      
+      // Cache'e kaydet
+      if (questions.isNotEmpty) {
+        await _saveQuestionsToCache(topicId, questions);
+      }
+      
       return questions;
     } catch (e) {
-      print('Error fetching questions: $e');
+      debugPrint('Error fetching questions: $e');
+      return [];
+    }
+  }
+
+  /// Load questions from local cache
+  Future<List<TestQuestion>> _loadQuestionsFromCache(String topicId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'questions_$topicId';
+      final cachedJson = prefs.getString(cacheKey);
+      
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final List<dynamic> cachedList = jsonDecode(cachedJson);
+        final questions = cachedList
+            .map((json) => TestQuestion.fromMap(json as Map<String, dynamic>, json['id'] ?? ''))
+            .toList();
+        debugPrint('✅ Loaded ${questions.length} questions from cache');
+        return questions;
+      }
+      return [];
+    } catch (e) {
+      debugPrint('⚠️ Error loading questions from cache: $e');
+      return [];
+    }
+  }
+
+  /// Save questions to local cache
+  Future<void> _saveQuestionsToCache(String topicId, List<TestQuestion> questions) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'questions_$topicId';
+      final jsonList = questions.map((q) => q.toMap()..['id'] = q.id).toList();
+      final jsonString = jsonEncode(jsonList);
+      await prefs.setString(cacheKey, jsonString);
+      
+      // Soru sayısını da ayrı bir key ile kaydet (hızlı erişim için)
+      final countKey = 'questions_count_$topicId';
+      await prefs.setInt(countKey, questions.length);
+      
+      debugPrint('✅ Saved ${questions.length} questions to cache');
+    } catch (e) {
+      debugPrint('⚠️ Error saving questions to cache: $e');
+    }
+  }
+
+  /// Update questions in background (non-blocking)
+  void _updateQuestionsInBackground(String topicId, String lessonId) {
+    // Arka planda güncelle, sayfa açılışını engelleme
+    Future.microtask(() async {
+      try {
+        final storageQuestions = await _loadQuestionsFromStorage(topicId, lessonId);
+        if (storageQuestions.isNotEmpty) {
+          await _saveQuestionsToCache(topicId, storageQuestions);
+          debugPrint('✅ Background update: ${storageQuestions.length} questions cached');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error in background question update: $e');
+      }
+    });
+  }
+
+  /// Load questions from Storage (soru folder)
+  Future<List<TestQuestion>> _loadQuestionsFromStorage(String topicId, String lessonId) async {
+    try {
+      debugPrint('🔍 Loading questions from Storage for topicId: $topicId, lessonId: $lessonId');
+      
+      // Get lesson to construct path
+      final lesson = await _lessonsService.getLessonById(lessonId);
+      if (lesson == null) {
+        debugPrint('⚠️ Lesson not found: $lessonId');
+        return [];
+      }
+      
+      // Convert lesson name to path format
+      final lessonNameForPath = lesson.name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c');
+      
+      // Get topic base path
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: lessonId,
+        topicId: topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
+      
+      // Check for soru folder
+      final soruPath = '$basePath/soru';
+      
+      // List JSON files in soru folder
+      final jsonUrls = await _storageService.listJsonFiles(soruPath);
+      
+      if (jsonUrls.isEmpty) {
+        debugPrint('⚠️ No JSON files found in soru folder: $soruPath');
+        return [];
+      }
+      
+      debugPrint('✅ Found ${jsonUrls.length} JSON file(s) in soru folder');
+      
+      // Parse all JSON files and combine questions
+      final List<TestQuestion> allQuestions = [];
+      
+      for (final jsonUrl in jsonUrls) {
+        try {
+          // Extract storage path from URL or use URL directly
+          String? storagePath;
+          try {
+            // Try to extract path from Storage URL
+            final uri = Uri.parse(jsonUrl);
+            if (uri.path.contains('/o/')) {
+              // Firebase Storage URL format: .../o/path%2Fto%2Ffile.json?alt=media&token=...
+              final pathPart = uri.path.split('/o/').last.split('?').first;
+              storagePath = Uri.decodeComponent(pathPart);
+            } else {
+              // Try to get path from URL using StorageService helper
+              storagePath = _storageService.getPathFromUrl(jsonUrl);
+            }
+          } catch (e) {
+            debugPrint('⚠️ Could not extract path from URL, trying direct download: $e');
+            // Try to download directly from URL
+            final jsonData = await _storageService.downloadAndParseJsonFromUrl(jsonUrl);
+            if (jsonData != null) {
+              final questions = _parseJsonQuestions(jsonData, topicId, lessonId);
+              allQuestions.addAll(questions);
+              continue;
+            }
+          }
+          
+          if (storagePath != null) {
+            final jsonData = await _storageService.downloadAndParseJson(storagePath);
+            if (jsonData != null) {
+              final questions = _parseJsonQuestions(jsonData, topicId, lessonId);
+              allQuestions.addAll(questions);
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error parsing JSON file $jsonUrl: $e');
+        }
+      }
+      
+      // Sort by order (id)
+      allQuestions.sort((a, b) {
+        // Extract numeric id from question id
+        final aId = int.tryParse(a.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        final bId = int.tryParse(b.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        return aId.compareTo(bId);
+      });
+      
+      debugPrint('✅ Parsed ${allQuestions.length} questions from Storage JSON files');
+      return allQuestions;
+    } catch (e) {
+      debugPrint('❌ Error loading questions from Storage: $e');
+      return [];
+    }
+  }
+
+  /// Parse JSON questions into TestQuestion objects
+  List<TestQuestion> _parseJsonQuestions(
+    Map<String, dynamic> jsonData,
+    String topicId,
+    String lessonId,
+  ) {
+    try {
+      final List<TestQuestion> questions = [];
+      
+      // Get questions array
+      final questionsList = jsonData['questions'] as List<dynamic>?;
+      if (questionsList == null) {
+        debugPrint('⚠️ No questions array found in JSON');
+        return [];
+      }
+      
+      for (final questionData in questionsList) {
+        try {
+          final questionMap = questionData as Map<String, dynamic>;
+          
+          // Extract question fields
+          final id = questionMap['id']?.toString() ?? '';
+          final questionText = questionMap['question']?.toString() ?? '';
+          final correctAnswer = questionMap['correctAnswer']?.toString() ?? 'A';
+          final explanation = questionMap['explanation']?.toString() ?? '';
+          final difficulty = questionMap['difficulty']?.toString() ?? 'easy';
+          
+          // Extract options
+          final optionsList = questionMap['options'] as List<dynamic>? ?? [];
+          final List<String> options = [];
+          int correctAnswerIndex = 0;
+          
+          for (int i = 0; i < optionsList.length; i++) {
+            final optionMap = optionsList[i] as Map<String, dynamic>;
+            final optionText = optionMap['text']?.toString() ?? '';
+            final optionKey = optionMap['key']?.toString() ?? '';
+            
+            options.add(optionText);
+            
+            // Find correct answer index
+            if (optionKey.toUpperCase() == correctAnswer.toUpperCase()) {
+              correctAnswerIndex = i;
+            }
+          }
+          
+          // Calculate time limit based on difficulty
+          int timeLimitSeconds = 60; // default
+          switch (difficulty.toLowerCase()) {
+            case 'easy':
+              timeLimitSeconds = 45;
+              break;
+            case 'medium':
+              timeLimitSeconds = 60;
+              break;
+            case 'hard':
+              timeLimitSeconds = 90;
+              break;
+          }
+          
+          // Create TestQuestion
+          final question = TestQuestion(
+            id: '${topicId}_q_$id',
+            question: questionText,
+            options: options,
+            correctAnswerIndex: correctAnswerIndex,
+            explanation: explanation,
+            timeLimitSeconds: timeLimitSeconds,
+            topicId: topicId,
+            lessonId: lessonId,
+            source: 'Storage JSON',
+            order: int.tryParse(id) ?? 0,
+          );
+          
+          questions.add(question);
+        } catch (e) {
+          debugPrint('⚠️ Error parsing question: $e');
+        }
+      }
+      
+      return questions;
+    } catch (e) {
+      debugPrint('❌ Error parsing JSON questions: $e');
       return [];
     }
   }
@@ -37,7 +318,7 @@ class QuestionsService {
           .map((doc) => TestQuestion.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
     } catch (e) {
-      print('Error fetching questions: $e');
+      debugPrint('Error fetching questions: $e');
       return [];
     }
   }
@@ -63,7 +344,7 @@ class QuestionsService {
       await _questionsCollection.doc(question.id).set(question.toMap());
       return true;
     } catch (e) {
-      print('Error adding question: $e');
+      debugPrint('Error adding question: $e');
       return false;
     }
   }
@@ -88,23 +369,23 @@ class QuestionsService {
         try {
           await batch.commit();
           successCount += batchQuestions.length;
-          print('✅ Uploaded ${successCount}/${questions.length} questions...');
+          debugPrint('✅ Uploaded ${successCount}/${questions.length} questions...');
         } catch (e) {
-          print('❌ Error in batch ${i ~/ batchSize + 1}: $e');
+          debugPrint('❌ Error in batch ${i ~/ batchSize + 1}: $e');
           // Continue with next batch even if one fails
         }
       }
       
       if (successCount == questions.length) {
-        print('✅ All ${questions.length} questions uploaded successfully!');
+        debugPrint('✅ All ${questions.length} questions uploaded successfully!');
         return true;
       } else {
-        print('⚠️ Uploaded $successCount/${questions.length} questions (some may have failed)');
+        debugPrint('⚠️ Uploaded $successCount/${questions.length} questions (some may have failed)');
         return successCount > 0; // Return true if at least some were uploaded
       }
     } catch (e) {
-      print('❌ Error adding questions: $e');
-      print('Error details: ${e.toString()}');
+      debugPrint('❌ Error adding questions: $e');
+      debugPrint('Error details: ${e.toString()}');
       return false;
     }
   }
@@ -115,7 +396,7 @@ class QuestionsService {
       await _questionsCollection.doc(questionId).delete();
       return true;
     } catch (e) {
-      print('Error deleting question: $e');
+      debugPrint('Error deleting question: $e');
       return false;
     }
   }

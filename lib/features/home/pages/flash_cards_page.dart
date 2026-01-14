@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/flash_card_cache_service.dart';
+import '../../../core/services/saved_cards_service.dart';
+import '../../../../main.dart';
 
 class FlashCardsPage extends StatefulWidget {
   final String topicName;
@@ -36,6 +39,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
   bool _cacheLoaded = false; // Cache'den yüklendi mi?
+  Set<String> _savedCardIds = {}; // Kaydedilmiş kart ID'leri
 
   @override
   void initState() {
@@ -63,7 +67,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   /// Check cache immediately (synchronous check for instant loading - PDF gibi)
   /// Cache dizinindeki dosyaları direkt okuyarak Firebase Storage çağrısını atla
   Future<void> _checkCacheImmediately() async {
-    print('🔍 Checking flash cards cache immediately for instant loading...');
+    debugPrint('🔍 Checking flash cards cache immediately for instant loading...');
     
     try {
       setState(() {
@@ -73,7 +77,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: ${widget.lessonId}');
+        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
         return;
       }
       
@@ -88,59 +92,73 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName;
+      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: widget.lessonId,
+        topicId: widget.topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
       
-      // Storage yolunu oluştur (cache kontrolü için)
-      final storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/bilgikarti';
-      final altStoragePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
+      // Storage yolunu oluştur
+      final storagePath = '$basePath/bilgikarti';
       
-      // Cache dizinindeki tüm dosyaları oku (Firebase Storage çağrısı yok - çok hızlı)
-      // Cache'deki dosyaları path'e göre filtrele
-      final cachedFiles = <String>[];
-      
-      // Önce birinci path'i dene
-      for (int i = 1; i <= 20; i++) { // Maksimum 20 dosya kontrol et
-        final filePath = '$storagePath/$i.csv';
-        if (await FlashCardCacheService.isCachedByPath(filePath)) {
-          cachedFiles.add(filePath);
-        }
-      }
-      
-      // Eğer birinci path'te dosya bulunamadıysa, alternatif path'i dene
-      if (cachedFiles.isEmpty) {
+      // Storage'dan gerçek dosya isimlerini al (cache kontrolü için doğru isimleri kullanmak için)
+      List<Map<String, String>> files = [];
+      try {
+        files = await _storageService.listFilesWithPaths(storagePath);
+        debugPrint('📊 Found ${files.length} files in Storage');
+      } catch (e) {
+        debugPrint('⚠️ Error getting files from Storage: $e');
+        // Hata durumunda eski yöntemi kullan (fallback)
         for (int i = 1; i <= 20; i++) {
-          final filePath = '$altStoragePath/$i.csv';
+          final filePath = '$storagePath/$i.csv';
           if (await FlashCardCacheService.isCachedByPath(filePath)) {
-            cachedFiles.add(filePath);
+            files.add({
+              'name': '$i.csv',
+              'fullPath': filePath,
+              'url': '',
+            });
           }
         }
       }
       
-      print('📊 Found ${cachedFiles.length} cached flash card files');
+      // Cache'deki dosyaları kontrol et (gerçek dosya isimleriyle)
+      final cachedFiles = <String>[];
+      for (final file in files) {
+        final fullPath = file['fullPath']!;
+        if (await FlashCardCacheService.isCachedByPath(fullPath)) {
+          cachedFiles.add(fullPath);
+          debugPrint('✅ Cache hit for: $fullPath');
+        } else {
+          debugPrint('❌ Cache miss for: $fullPath');
+        }
+      }
+      
+      debugPrint('📊 Found ${cachedFiles.length} cached flash card files out of ${files.length} total');
       
       // Cache'den olanları paralel yükle ve HEMEN GÖSTER (anında açılış için)
       if (cachedFiles.isNotEmpty) {
-        print('📂 Loading ${cachedFiles.length} files from cache (parallel - instant)...');
+        debugPrint('📂 Loading ${cachedFiles.length} files from cache (parallel - instant)...');
         final cachedResults = await Future.wait(
           cachedFiles.map((fullPath) async {
             try {
               final cards = await FlashCardCacheService.getCachedCardsByPath(fullPath);
+              debugPrint('  📊 Loaded ${cards.length} cards from cache file: $fullPath');
               return cards;
             } catch (e) {
-              print('⚠️ Error loading from cache: $e');
+              debugPrint('⚠️ Error loading from cache: $e');
               return <FlashCard>[];
             }
           }),
         );
         
         _cards = [];
-        for (final cards in cachedResults) {
+        for (int i = 0; i < cachedResults.length; i++) {
+          final cards = cachedResults[i];
           _cards.addAll(cards);
+          debugPrint('  ✅ Added ${cards.length} cards from file ${i + 1}/${cachedFiles.length}');
         }
-        print('✅ Loaded ${_cards.length} cards from cache total - INSTANT DISPLAY');
+        debugPrint('✅ Loaded ${_cards.length} cards from cache total - INSTANT DISPLAY');
         
         // Cache'den yüklenenleri HEMEN göster (anında açılış - PDF gibi)
         if (mounted) {
@@ -150,29 +168,30 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           });
           // İlerlemeyi arka planda yükle (await etme - anında açılış için)
           _loadSavedProgress();
+          _checkSavedCards();
         }
-        print('✅ Flash cards displayed instantly from cache');
+        debugPrint('✅ Flash cards displayed instantly from cache');
       } else {
-        print('❌ No cached flash cards found');
+        debugPrint('❌ No cached flash cards found');
       }
     } catch (e) {
-      print('⚠️ Error checking flash cards cache in initState: $e');
+      debugPrint('⚠️ Error checking flash cards cache in initState: $e');
     }
   }
 
   Future<void> _loadFlashCards() async {
     // Eğer cache'den tüm dosyalar yüklendiyse, Firebase Storage'a hiç gitme (anında açılış için)
     if (_cacheLoaded && _cards.isNotEmpty) {
-      print('📂 All files loaded from cache, skipping Firebase Storage operations for instant display');
+      debugPrint('📂 All files loaded from cache, skipping Firebase Storage operations for instant display');
       return; // Cache'den yüklendiyse, Storage'a hiç gitme
     }
     
     // Cache'de hiçbir şey yoksa, o zaman Storage'dan çek
     if (_cards.isEmpty) {
-      print('📂 No cache found, loading from Firebase Storage...');
+      debugPrint('📂 No cache found, loading from Firebase Storage...');
     } else {
       // Cache'de kısmen dosyalar varsa, eksikleri arka planda yükle (opsiyonel)
-      print('📂 Cache partially loaded, skipping Firebase Storage to minimize network calls');
+      debugPrint('📂 Cache partially loaded, skipping Firebase Storage to minimize network calls');
       return; // Cache'den kısmen yüklendiyse de Storage'a gitme, kullanıcı zaten cache'den yüklenenleri görebilir
     }
     
@@ -180,7 +199,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: ${widget.lessonId}');
+        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
         if (_cards.isEmpty && mounted) {
           setState(() {
             _isLoading = false;
@@ -200,21 +219,15 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName;
+      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: widget.lessonId,
+        topicId: widget.topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
       
       // Storage yolunu oluştur
-      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/bilgikarti';
-      try {
-        final testResult = await _storageService.listFiles(storagePath);
-        if (testResult.isEmpty) {
-          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
-        }
-      } catch (e) {
-        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/bilgikarti';
-      }
+      final storagePath = '$basePath/bilgikarti';
       
       // Storage'dan dosyaları listele
       final files = await _storageService.listFilesWithPaths(storagePath);
@@ -241,7 +254,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       
       // İndirilecekleri arka planda yükle (cache'le) - non-blocking
       if (downloadFiles.isNotEmpty) {
-        print('🌐 Downloading ${downloadFiles.length} files in background (will cache)...');
+        debugPrint('🌐 Downloading ${downloadFiles.length} files in background (will cache)...');
         // Arka planda indir (kullanıcıyı bekletme)
         Future(() async {
           for (final entry in downloadFiles.entries) {
@@ -250,64 +263,70 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             final fullPath = file['fullPath']!;
             
             try {
-              print('🌐 Downloading file ($fullPath)');
+              debugPrint('🌐 Downloading file ($fullPath)');
               final cards = await FlashCardCacheService.cacheFlashCardsByPath(url, fullPath);
               if (mounted && cards.isNotEmpty) {
                 setState(() {
                   _cards.addAll(cards);
+                  _isLoading = false; // Loading'i kapat
                 });
-                print('✅ Loaded ${cards.length} cards from download - added to list');
+                debugPrint('✅ Loaded ${cards.length} cards from download - added to list');
               }
             } catch (e) {
-              print('⚠️ Error downloading flash card from $fullPath: $e');
+              debugPrint('⚠️ Error downloading flash card from $fullPath: $e');
             }
           }
-          print('✅ Background download complete - total cards: ${_cards.length}');
+          
+          // Tüm indirmeler tamamlandığında loading'i kapat
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+          debugPrint('✅ Background download complete - total cards: ${_cards.length}');
         });
-      }
-      
-      // Eğer hiç kart yüklenmediyse (ne cache'den ne de download'dan), mock data kullan
-      if (_cards.isEmpty && downloadFiles.isEmpty) {
-        print('⚠️ No flash cards found, using mock data');
+      } else {
+        // Eğer indirilecek dosya yoksa, loading'i kapat
         if (mounted) {
           setState(() {
-            _cards = List.generate(
-              widget.cardCount,
-              (index) => FlashCard(
-                id: '${index + 1}',
-                frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
-                backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
-              ),
-            );
             _isLoading = false;
           });
         }
       }
       
-      print('✅ Flash cards initialization complete: ${_cards.length} cards');
+      // Eğer hiç kart yüklenmediyse (ne cache'den ne de download'dan), hata mesajı göster
+      if (_cards.isEmpty && downloadFiles.isEmpty) {
+        debugPrint('⚠️ No flash cards found in cache or Storage');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        // Mock data kullanma - boş liste bırak, kullanıcıya hata mesajı gösterilecek
+      }
+      
+      debugPrint('✅ Flash cards initialization complete: ${_cards.length} cards');
       
       // İlerlemeyi yükle (eğer daha önce yüklenmediyse)
       if (_cards.isNotEmpty) {
         _loadSavedProgress();
+        _checkSavedCards();
       }
     } catch (e) {
-      print('❌ Error loading flash cards: $e');
+      debugPrint('❌ Error loading flash cards: $e');
       
-      // Hata durumunda mock data kullan
-      _cards = List.generate(
-        widget.cardCount,
-        (index) => FlashCard(
-          id: '${index + 1}',
-          frontText: 'Soru ${index + 1}: ${widget.topicName} konusunda önemli bir kavram nedir?',
-          backText: 'Cevap ${index + 1}: Bu konuda önemli kavramlar şunlardır: Açıklama detayları burada yer alacak.',
-        ),
-      );
+      // Hata durumunda mock data kullanma - boş liste bırak
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       
-      setState(() {
-        _isLoading = false;
-      });
-      
-      _loadSavedProgress();
+      // Eğer cache'den yüklenen kartlar varsa, onları kullan
+      if (_cards.isNotEmpty) {
+        _loadSavedProgress();
+        _checkSavedCards();
+      }
     }
   }
 
@@ -317,7 +336,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       setState(() {
         _currentCardIndex = savedCardIndex;
       });
-      print('✅ Resuming flash cards from card ${savedCardIndex + 1}');
+      debugPrint('✅ Resuming flash cards from card ${savedCardIndex + 1}');
     }
     _saveProgress(); // Save initial progress
   }
@@ -351,6 +370,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         _flipController.reset();
       });
       _saveProgress();
+      _checkCurrentCardSaved();
     } else {
       // All cards completed
       _progressService.deleteFlashCardProgress(widget.topicId);
@@ -365,6 +385,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         _flipController.reset();
       });
       _saveProgress();
+      _checkCurrentCardSaved();
     }
   }
 
@@ -376,6 +397,89 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       currentCardIndex: _currentCardIndex,
       totalCards: _cards.length,
     );
+  }
+
+  // Kaydedilmiş kartları kontrol et
+  Future<void> _checkSavedCards() async {
+    if (_cards.isEmpty) return;
+    
+    final savedIds = <String>{};
+    for (var card in _cards) {
+      final isSaved = await SavedCardsService.isCardSaved(card.id, widget.topicId);
+      if (isSaved) {
+        savedIds.add(card.id);
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _savedCardIds = savedIds;
+      });
+    }
+  }
+
+  // Mevcut kartın kaydedilip kaydedilmediğini kontrol et
+  Future<void> _checkCurrentCardSaved() async {
+    if (_cards.isEmpty || _currentCardIndex >= _cards.length) return;
+    
+    final currentCard = _cards[_currentCardIndex];
+    final isSaved = await SavedCardsService.isCardSaved(currentCard.id, widget.topicId);
+    
+    if (mounted) {
+      setState(() {
+        if (isSaved) {
+          _savedCardIds.add(currentCard.id);
+        } else {
+          _savedCardIds.remove(currentCard.id);
+        }
+      });
+    }
+  }
+
+  // Kartı kaydet/kaldır
+  Future<void> _toggleSaveCard() async {
+    if (_cards.isEmpty || _currentCardIndex >= _cards.length) return;
+    
+    final currentCard = _cards[_currentCardIndex];
+    final isSaved = await SavedCardsService.isCardSaved(currentCard.id, widget.topicId);
+
+    if (isSaved) {
+      // Kaldır
+      final success = await SavedCardsService.removeSavedCard(currentCard.id, widget.topicId);
+      if (mounted && success) {
+        setState(() {
+          _savedCardIds.remove(currentCard.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kart kaydedilenlerden kaldırıldı.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } else {
+      // Kaydet
+      final savedCard = SavedCard.fromFlashCard(
+        currentCard,
+        widget.topicId,
+        widget.topicName,
+        widget.lessonId,
+      );
+      final success = await SavedCardsService.addSavedCard(savedCard);
+      if (mounted && success) {
+        setState(() {
+          _savedCardIds.add(currentCard.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kart kaydedilenlere eklendi.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -396,7 +500,14 @@ class _FlashCardsPageState extends State<FlashCardsPage>
               color: Colors.white,
               size: isSmallScreen ? 18 : 20,
             ),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () {
+              Navigator.of(context).pop(true);
+              // MainScreen'e refresh sinyali gönder
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) {
+                mainScreen.refreshHomePage();
+              }
+            },
           ),
           title: Text(
             widget.topicName,
@@ -425,7 +536,14 @@ class _FlashCardsPageState extends State<FlashCardsPage>
               color: Colors.white,
               size: isSmallScreen ? 18 : 20,
             ),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () {
+              Navigator.of(context).pop(true);
+              // MainScreen'e refresh sinyali gönder
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) {
+                mainScreen.refreshHomePage();
+              }
+            },
           ),
           title: Text(
             widget.topicName,
@@ -486,7 +604,12 @@ class _FlashCardsPageState extends State<FlashCardsPage>
               // Wait for message to be visible
               await Future.delayed(const Duration(milliseconds: 2000));
               if (mounted) {
-                Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                Navigator.of(context).pop(true);
+                // MainScreen'e refresh sinyali gönder
+                final mainScreen = MainScreen.of(context);
+                if (mainScreen != null) {
+                  mainScreen.refreshHomePage();
+                }
               }
             }
           },
@@ -524,16 +647,15 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isVerySmallScreen = constraints.maxWidth < 360;
+          final screenHeight = constraints.maxHeight;
           return Column(
             children: [
-              SizedBox(height: isSmallScreen ? 2 : 4),
-              // Flash Card
-              Flexible(
-                flex: 1,
+              // Flash Card - maksimum alan kullan
+              Expanded(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 16 : 20,
-                    vertical: isSmallScreen ? 2 : 4,
+                    horizontal: isSmallScreen ? 12 : 16,
+                    vertical: isSmallScreen ? 8 : 12,
                   ),
                   child: GestureDetector(
                     onTap: _flipCard,
@@ -549,11 +671,11 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                             ..setEntry(3, 2, 0.001)
                             ..rotateY(angle),
                           child: isFrontVisible
-                              ? _buildCardFront(currentCard, isSmallScreen, isVerySmallScreen)
+                              ? _buildCardFront(currentCard, isSmallScreen, isVerySmallScreen, screenHeight)
                               : Transform(
                                   alignment: Alignment.center,
                                   transform: Matrix4.identity()..rotateY(3.14159),
-                                  child: _buildCardBack(currentCard, isSmallScreen, isVerySmallScreen),
+                                  child: _buildCardBack(currentCard, isSmallScreen, isVerySmallScreen, screenHeight),
                                 ),
                         );
                       },
@@ -561,74 +683,56 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                   ),
                 ),
               ),
-              SizedBox(height: isSmallScreen ? 2 : 4),
-              // Navigation buttons
-              Padding(
+              // Navigation buttons - ekran altında ama tam görünsün
+              Container(
                 padding: EdgeInsets.only(
                   left: isTablet ? 20 : 12,
                   right: isTablet ? 20 : 12,
-                  top: 0,
-                  bottom: isSmallScreen ? 4 : 8,
+                  top: isSmallScreen ? 16 : 20,
+                  bottom: isSmallScreen ? 16 : 20,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: ElevatedButton.icon(
-                        onPressed: _previousCard,
-                        icon: Icon(
-                          Icons.arrow_back_rounded,
-                          size: isSmallScreen ? 16 : 18,
-                        ),
-                        label: Text(
-                          'Önceki',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 13 : 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.textPrimary,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 14,
-                            vertical: isSmallScreen ? 8 : 10,
-                          ),
-                          minimumSize: Size(0, isSmallScreen ? 40 : 44),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: Colors.grey.withValues(alpha: 0.3),
-                            ),
-                          ),
-                        ),
-                      ),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundLight,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
                     ),
-                    SizedBox(width: isVerySmallScreen ? 6 : isSmallScreen ? 8 : 10),
-                    Flexible(
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Kaydet butonu
+                    SizedBox(
+                      width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _flipCard,
+                        onPressed: _toggleSaveCard,
                         icon: Icon(
-                          _isFlipped ? Icons.refresh_rounded : Icons.autorenew_rounded,
-                          size: isSmallScreen ? 16 : 18,
+                          _savedCardIds.contains(currentCard.id)
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                          size: isSmallScreen ? 18 : 20,
                         ),
                         label: Text(
-                          _isFlipped ? 'Çevir' : 'Göster',
+                          _savedCardIds.contains(currentCard.id)
+                              ? 'Kaydedildi'
+                              : 'Kaydet',
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 13 : 15,
+                            fontSize: isSmallScreen ? 14 : 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gradientRedStart,
+                          backgroundColor: _savedCardIds.contains(currentCard.id)
+                              ? Colors.green
+                              : AppColors.gradientRedStart,
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.symmetric(
-                            horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 14 : 18,
-                            vertical: isSmallScreen ? 8 : 10,
+                            vertical: isSmallScreen ? 12 : 14,
                           ),
-                          minimumSize: Size(0, isSmallScreen ? 40 : 44),
+                          minimumSize: Size(0, isSmallScreen ? 48 : 52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -636,38 +740,115 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                         ),
                       ),
                     ),
-                    SizedBox(width: isVerySmallScreen ? 6 : isSmallScreen ? 8 : 10),
-                    Flexible(
-                      child: ElevatedButton.icon(
-                        onPressed: _nextCard,
-                        icon: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: isSmallScreen ? 16 : 18,
-                        ),
-                        label: Text(
-                          'Sonraki',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 13 : 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.textPrimary,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 14,
-                            vertical: isSmallScreen ? 8 : 10,
-                          ),
-                          minimumSize: Size(0, isSmallScreen ? 40 : 44),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: Colors.grey.withValues(alpha: 0.3),
+                    SizedBox(height: isSmallScreen ? 8 : 10),
+                    // Navigation buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: ElevatedButton.icon(
+                            onPressed: _previousCard,
+                            icon: Icon(
+                              Icons.arrow_back_rounded,
+                              size: isSmallScreen ? 18 : 20,
+                            ),
+                            label: Text(
+                              'Önceki',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 14 : 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.textPrimary,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
+                                vertical: isSmallScreen ? 10 : 12,
+                              ),
+                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: Colors.grey.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              elevation: 2,
                             ),
                           ),
                         ),
-                      ),
+                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
+                        Flexible(
+                          child: ElevatedButton.icon(
+                            onPressed: _flipCard,
+                            icon: Icon(
+                              _isFlipped ? Icons.refresh_rounded : Icons.autorenew_rounded,
+                              size: isSmallScreen ? 18 : 20,
+                            ),
+                            label: Text(
+                              _isFlipped ? 'Çevir' : 'Göster',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 14 : 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gradientRedStart,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isVerySmallScreen ? 12 : isSmallScreen ? 16 : 20,
+                                vertical: isSmallScreen ? 10 : 12,
+                              ),
+                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 4,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
+                        Flexible(
+                          child: ElevatedButton.icon(
+                            onPressed: _nextCard,
+                            icon: Icon(
+                              Icons.arrow_forward_rounded,
+                              size: isSmallScreen ? 18 : 20,
+                            ),
+                            label: Text(
+                              'Sonraki',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 14 : 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.textPrimary,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
+                                vertical: isSmallScreen ? 10 : 12,
+                              ),
+                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: Colors.grey.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              elevation: 2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -679,13 +860,35 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     );
   }
 
-  Widget _buildCardFront(FlashCard card, bool isSmallScreen, bool isVerySmallScreen) {
+  Widget _buildCardFront(FlashCard card, bool isSmallScreen, bool isVerySmallScreen, double screenHeight) {
+    // Dinamik font boyutu hesapla - metin uzunluğuna göre
+    // Kısa sorular için çok daha büyük font kullan
+    final textLength = card.frontText.length;
+    double baseFontSize;
+    
+    // Metin uzunluğuna göre font boyutunu dinamik olarak ayarla - makul seviye
+    if (textLength <= 30) {
+      // Çok kısa sorular için en büyük font
+      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
+    } else if (textLength <= 50) {
+      // Kısa sorular için büyük font
+      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
+    } else if (textLength <= 100) {
+      // Orta sorular için orta font
+      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
+    } else if (textLength <= 200) {
+      // Uzun sorular için küçük font
+      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
+    } else {
+      // Çok uzun sorular için en küçük font
+      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
+    }
+    
     return Container(
       margin: EdgeInsets.zero,
-      constraints: BoxConstraints(
-        maxHeight: isSmallScreen ? 480 : 520,
-      ),
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 26),
+      width: double.infinity,
+      height: double.infinity,
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -712,27 +915,26 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             children: [
               Icon(
                 Icons.help_outline_rounded,
-                size: isSmallScreen ? 40 : 48,
+                size: isSmallScreen ? 44 : 52,
                 color: Colors.white,
               ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
+              SizedBox(height: isSmallScreen ? 16 : 20),
+              // Metin tamamen görünsün - üç nokta yok, FittedBox kaldırıldı
               Text(
                 card.frontText,
                 style: TextStyle(
-                  fontSize: isVerySmallScreen ? 16 : isSmallScreen ? 18 : 22,
+                  fontSize: baseFontSize,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
-                  height: 1.5,
+                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
               ),
-              SizedBox(height: isSmallScreen ? 10 : 12),
+              SizedBox(height: isSmallScreen ? 12 : 16),
               Text(
                 'Cevabı görmek için dokun',
                 style: TextStyle(
-                  fontSize: isSmallScreen ? 11 : 12,
+                  fontSize: isSmallScreen ? 14 : 16,
                   color: Colors.white70,
                   fontStyle: FontStyle.italic,
                 ),
@@ -746,13 +948,35 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     );
   }
 
-  Widget _buildCardBack(FlashCard card, bool isSmallScreen, bool isVerySmallScreen) {
+  Widget _buildCardBack(FlashCard card, bool isSmallScreen, bool isVerySmallScreen, double screenHeight) {
+    // Dinamik font boyutu hesapla - metin uzunluğuna göre
+    // Kısa cevaplar için çok daha büyük font kullan
+    final textLength = card.backText.length;
+    double baseFontSize;
+    
+    // Metin uzunluğuna göre font boyutunu dinamik olarak ayarla - makul seviye
+    if (textLength <= 30) {
+      // Çok kısa cevaplar için en büyük font
+      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
+    } else if (textLength <= 50) {
+      // Kısa cevaplar için büyük font
+      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
+    } else if (textLength <= 100) {
+      // Orta cevaplar için orta font
+      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
+    } else if (textLength <= 200) {
+      // Uzun cevaplar için küçük font
+      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
+    } else {
+      // Çok uzun cevaplar için en küçük font
+      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
+    }
+    
     return Container(
       margin: EdgeInsets.zero,
-      constraints: BoxConstraints(
-        maxHeight: isSmallScreen ? 480 : 520,
-      ),
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 26),
+      width: double.infinity,
+      height: double.infinity,
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -779,27 +1003,26 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             children: [
               Icon(
                 Icons.check_circle_outline_rounded,
-                size: isSmallScreen ? 40 : 48,
+                size: isSmallScreen ? 44 : 52,
                 color: Colors.white,
               ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
+              SizedBox(height: isSmallScreen ? 16 : 20),
+              // Metin tamamen görünsün - üç nokta yok, FittedBox kaldırıldı
               Text(
                 card.backText,
                 style: TextStyle(
-                  fontSize: isVerySmallScreen ? 16 : isSmallScreen ? 18 : 22,
+                  fontSize: baseFontSize,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
-                  height: 1.5,
+                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
               ),
-              SizedBox(height: isSmallScreen ? 10 : 12),
+              SizedBox(height: isSmallScreen ? 12 : 16),
               Text(
                 'Soruya dönmek için dokun',
                 style: TextStyle(
-                  fontSize: isSmallScreen ? 11 : 12,
+                  fontSize: isSmallScreen ? 14 : 16,
                   color: Colors.white70,
                   fontStyle: FontStyle.italic,
                 ),

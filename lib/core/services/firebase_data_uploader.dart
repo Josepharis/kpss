@@ -301,6 +301,198 @@ class FirebaseDataUploader {
     }
   }
 
+  /// Upload Coğrafya lesson to Firestore
+  /// Note: Topics will be automatically loaded from Storage (dersler/cografya/konular/)
+  Future<bool> uploadCografyaLessonData() async {
+    try {
+      print('📚 Creating Coğrafya lesson...');
+      final cografyaLesson = Lesson(
+        id: 'cografya_lesson',
+        name: 'Coğrafya',
+        category: 'genel_kultur',
+        icon: 'map',
+        color: 'green',
+        topicCount: 0, // Will be automatically updated from Storage
+        questionCount: 0, // Will be updated when questions are added
+        description: 'Türkiye ve dünya coğrafyası',
+        order: 3,
+      );
+
+      final lessonResult = await _lessonsService.addLesson(cografyaLesson);
+      if (!lessonResult) {
+        print('⚠️ Lesson may already exist, continuing...');
+      } else {
+        print('✅ Coğrafya lesson created');
+        print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/cografya/konular/');
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ Error uploading Coğrafya lesson data: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Upload Güncel Bilgiler lesson to Firestore
+  /// Note: Topics will be automatically loaded from Storage (dersler/guncel_bilgiler/konular/)
+  Future<bool> uploadGuncelBilgilerLessonData() async {
+    try {
+      print('📚 Creating Güncel Bilgiler lesson...');
+      final guncelBilgilerLesson = Lesson(
+        id: 'guncel_bilgiler_lesson',
+        name: 'Güncel Bilgiler',
+        category: 'genel_kultur',
+        icon: 'school',
+        color: 'orange',
+        topicCount: 0, // Will be automatically updated from Storage
+        questionCount: 0, // Will be updated when questions are added
+        description: 'Güncel olaylar ve gelişmeler',
+        order: 4,
+      );
+
+      final lessonResult = await _lessonsService.addLesson(guncelBilgilerLesson);
+      if (!lessonResult) {
+        print('⚠️ Lesson may already exist, continuing...');
+      } else {
+        print('✅ Güncel Bilgiler lesson created');
+        print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/guncel_bilgiler/konular/');
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ Error uploading Güncel Bilgiler lesson data: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Upload Türkçe lesson to Firestore
+  /// Note: Topics will be automatically loaded from Storage (dersler/turkce/konular/)
+  /// Note: Türkçe için konu anlatımı ve video kartları olmayacak
+  Future<bool> uploadTurkceLessonData() async {
+    try {
+      print('📚 Creating Türkçe lesson...');
+      final turkceLesson = Lesson(
+        id: 'turkce_lesson',
+        name: 'Türkçe',
+        category: 'genel_yetenek',
+        icon: 'menu_book',
+        color: 'purple',
+        topicCount: 0, // Will be automatically updated from Storage
+        questionCount: 0, // Will be updated when questions are added
+        description: 'Dil bilgisi, anlam bilgisi ve yazım kuralları',
+        order: 1,
+      );
+
+      final lessonResult = await _lessonsService.addLesson(turkceLesson);
+      if (!lessonResult) {
+        print('⚠️ Lesson may already exist, continuing...');
+      } else {
+        print('✅ Türkçe lesson created');
+        print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/turkce/konular/');
+        print('📝 NOT: Türkçe için konu anlatımı ve video kartları olmayacak');
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ Error uploading Türkçe lesson data: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Upload Matematik lesson to Firestore
+  /// Note: Topics will be automatically loaded from Storage (dersler/matematik/konular/)
+  /// Note: Matematik için sadece test ve not kartları olacak
+  Future<bool> uploadMatematikLessonData() async {
+    try {
+      print('📚 Creating Matematik lesson...');
+      final matematikLesson = Lesson(
+        id: 'matematik_lesson',
+        name: 'Matematik',
+        category: 'genel_yetenek',
+        icon: 'calculate',
+        color: 'red',
+        topicCount: 0, // Will be automatically updated from Storage
+        questionCount: 0, // Will be updated when questions are added
+        description: 'Temel matematik ve sayısal yetenek',
+        order: 2,
+      );
+
+      final lessonResult = await _lessonsService.addLesson(matematikLesson);
+      if (!lessonResult) {
+        print('⚠️ Lesson may already exist, continuing...');
+      } else {
+        print('✅ Matematik lesson created');
+        print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/matematik/konular/');
+        print('📝 NOT: Matematik için sadece test ve not kartları olacak');
+      }
+
+      return true;
+    } catch (e) {
+      print('❌ Error uploading Matematik lesson data: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Upload all new lessons (Coğrafya, Güncel Bilgiler, Türkçe, Matematik)
+  Future<bool> uploadAllNewLessons() async {
+    try {
+      print('🚀 Starting to upload all new lessons...');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // Upload Coğrafya
+      print('\n1️⃣ Uploading Coğrafya lesson...');
+      final cografyaResult = await uploadCografyaLessonData();
+      if (!cografyaResult) {
+        print('⚠️ Failed to upload Coğrafya lesson, but continuing...');
+      }
+
+      // Upload Güncel Bilgiler
+      print('\n2️⃣ Uploading Güncel Bilgiler lesson...');
+      final guncelBilgilerResult = await uploadGuncelBilgilerLessonData();
+      if (!guncelBilgilerResult) {
+        print('⚠️ Failed to upload Güncel Bilgiler lesson, but continuing...');
+      }
+
+      // Upload Türkçe
+      print('\n3️⃣ Uploading Türkçe lesson...');
+      final turkceResult = await uploadTurkceLessonData();
+      if (!turkceResult) {
+        print('⚠️ Failed to upload Türkçe lesson, but continuing...');
+      }
+
+      // Upload Matematik
+      print('\n4️⃣ Uploading Matematik lesson...');
+      final matematikResult = await uploadMatematikLessonData();
+      if (!matematikResult) {
+        print('⚠️ Failed to upload Matematik lesson, but continuing...');
+      }
+
+      print('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('✅ All new lessons uploaded successfully!');
+      print('\n📋 Summary:');
+      print('   • Coğrafya (Genel Kültür) - ${cografyaResult ? "✅" : "❌"}');
+      print('   • Güncel Bilgiler (Genel Kültür) - ${guncelBilgilerResult ? "✅" : "❌"}');
+      print('   • Türkçe (Genel Yetenek) - ${turkceResult ? "✅" : "❌"}');
+      print('   • Matematik (Genel Yetenek) - ${matematikResult ? "✅" : "❌"}');
+      print('\n💡 Tüm derslerin konuları Storage\'dan otomatik çekilecek');
+      
+      return true;
+    } catch (e) {
+      print('❌ Error uploading new lessons: $e');
+      print('Error type: ${e.runtimeType}');
+      print('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
   /// Upload all data (lesson, topic, and questions)
   Future<bool> uploadAllData() async {
     try {

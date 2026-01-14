@@ -18,5 +18,31 @@ class InfoCard {
     required this.lessonId,
     required this.cardCount,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'icon': icon,
+      'color': color,
+      'topicId': topicId,
+      'lessonId': lessonId,
+      'cardCount': cardCount,
+    };
+  }
+
+  factory InfoCard.fromMap(Map<String, dynamic> map) {
+    return InfoCard(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      icon: map['icon'] ?? 'book',
+      color: map['color'] ?? 'green',
+      topicId: map['topicId'] ?? '',
+      lessonId: map['lessonId'] ?? '',
+      cardCount: map['cardCount'] ?? 0,
+    );
+  }
 }
 

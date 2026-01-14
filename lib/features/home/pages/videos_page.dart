@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/video.dart';
 import '../../../core/services/storage_service.dart';
@@ -65,12 +66,12 @@ class _VideosPageState extends State<VideosPage> {
         _isLoading = true;
       });
       
-      print('🔍 Loading videos from Storage for topicId: ${widget.topicId}');
+      debugPrint('🔍 Loading videos from Storage for topicId: ${widget.topicId}');
       
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: ${widget.lessonId}');
+        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
         setState(() {
           _isLoading = false;
         });
@@ -88,30 +89,15 @@ class _VideosPageState extends State<VideosPage> {
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
-      // TopicId formatı: {lessonId}_{topicFolderName}
-      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
-      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName; // Fallback: topic name'i direkt kullan
+      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: widget.lessonId,
+        topicId: widget.topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
       
-      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
-      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
-      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/video';
-      try {
-        print('📂 Trying storage path: $storagePath');
-        final testResult = await _storageService.listVideoFiles(storagePath);
-        if (testResult.isEmpty) {
-          // Konular altında yoksa, direkt ders altından dene
-          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
-          print('📂 Trying alternative path: $storagePath');
-        }
-      } catch (e) {
-        // Hata varsa alternatif path'i dene
-        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/video';
-        print('📂 Using fallback path: $storagePath');
-      }
+      // Storage yolunu oluştur
+      String storagePath = '$basePath/video';
       
       // Storage'dan video dosyalarını listele
       final videoUrls = await _storageService.listVideoFiles(storagePath);
@@ -154,7 +140,7 @@ class _VideosPageState extends State<VideosPage> {
               fileName = Uri.decodeComponent(fileName);
             } catch (e) {
               // Decode edilemezse direkt kullan
-              print('⚠️ Could not decode filename, using as-is: $fileName');
+              debugPrint('⚠️ Could not decode filename, using as-is: $fileName');
             }
           } catch (e) {
             // URI parse edilemezse, URL'den son kısmı al
@@ -164,7 +150,7 @@ class _VideosPageState extends State<VideosPage> {
             if (fileName.contains('?')) {
               fileName = fileName.split('?').first;
             }
-            print('⚠️ Could not parse URI, extracted filename: $fileName');
+            debugPrint('⚠️ Could not parse URI, extracted filename: $fileName');
           }
           
           // Path karakterlerini temizle (sadece dosya adı kalmalı)
@@ -192,7 +178,7 @@ class _VideosPageState extends State<VideosPage> {
             order: index,
           ));
         } catch (e) {
-          print('⚠️ Error processing video $index: $e');
+          debugPrint('⚠️ Error processing video $index: $e');
           // Hata olsa bile video ekle (URL ile)
           _videos.add(Video(
             id: 'video_${widget.topicId}_$index',
@@ -207,7 +193,7 @@ class _VideosPageState extends State<VideosPage> {
         }
       }
       
-      print('✅ Found ${_videos.length} videos from Storage');
+      debugPrint('✅ Found ${_videos.length} videos from Storage');
       
       setState(() {
         _isLoading = false;
@@ -216,7 +202,7 @@ class _VideosPageState extends State<VideosPage> {
       // Check downloaded status for all videos
       _checkDownloadedVideos();
     } catch (e) {
-      print('❌ Error loading videos: $e');
+      debugPrint('❌ Error loading videos: $e');
       
       setState(() {
         _isLoading = false;

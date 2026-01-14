@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/services/lessons_service.dart';
+import '../../../core/services/progress_service.dart';
 import '../widgets/lesson_card.dart';
 import 'lesson_detail_page.dart';
 
@@ -15,13 +16,43 @@ class LessonsPage extends StatefulWidget {
 
 class _LessonsPageState extends State<LessonsPage> {
   final LessonsService _lessonsService = LessonsService();
+  final ProgressService _progressService = ProgressService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Mock progress data - will be replaced with real user progress data later
-  double _getProgress(String lessonId) {
-    // TODO: Replace with real user progress from Firestore
-    return 0.0;
+  // Calculate lesson progress from all topics' progress
+  Future<double> _getProgress(String lessonId) async {
+    try {
+      // Get all topics for this lesson
+      final topics = await _lessonsService.getTopicsByLessonId(lessonId);
+      if (topics.isEmpty) return 0.0;
+      
+      // Calculate total solved questions and total questions
+      int totalSolvedQuestions = 0;
+      int totalQuestions = 0;
+      
+      for (var topic in topics) {
+        final testProgress = await _progressService.getTestProgress(topic.id);
+        final topicQuestionCount = topic.averageQuestionCount;
+        
+        if (topicQuestionCount > 0) {
+          totalQuestions += topicQuestionCount;
+          if (testProgress != null) {
+            // testProgress is the currentQuestionIndex (0-based), so solved = testProgress + 1
+            totalSolvedQuestions += (testProgress + 1);
+          }
+        }
+      }
+      
+      // Return progress: solved / total
+      if (totalQuestions > 0) {
+        return (totalSolvedQuestions / totalQuestions).clamp(0.0, 1.0);
+      }
+      
+      return 0.0;
+    } catch (e) {
+      return 0.0;
+    }
   }
 
   String _getCategoryTitle(String category) {
@@ -263,26 +294,14 @@ class _LessonsPageState extends State<LessonsPage> {
                   }
 
                   final allLessons = _filterLessons(snapshot.data!);
-                  final genelYetenek = _filterLessons(
-                      allLessons.where((l) => l.category == 'genel_yetenek').toList());
                   final genelKultur = _filterLessons(
                       allLessons.where((l) => l.category == 'genel_kultur').toList());
-                  final alanDersleri = _filterLessons(
-                      allLessons.where((l) => l.category == 'alan_dersleri').toList());
+                  final genelYetenek = _filterLessons(
+                      allLessons.where((l) => l.category == 'genel_yetenek').toList());
 
                   return ListView(
                     padding: const EdgeInsets.all(12),
                     children: [
-                      if (genelYetenek.isNotEmpty)
-                        _buildCategorySection(
-                          context: context,
-                          title: _getCategoryTitle('genel_yetenek'),
-                          lessons: genelYetenek,
-                          isSmallScreen: isSmallScreen,
-                          isTablet: isTablet,
-                        ),
-                      if (genelYetenek.isNotEmpty && genelKultur.isNotEmpty)
-                        const SizedBox(height: 16),
                       if (genelKultur.isNotEmpty)
                         _buildCategorySection(
                           context: context,
@@ -291,13 +310,13 @@ class _LessonsPageState extends State<LessonsPage> {
                           isSmallScreen: isSmallScreen,
                           isTablet: isTablet,
                         ),
-                      if (genelKultur.isNotEmpty && alanDersleri.isNotEmpty)
+                      if (genelKultur.isNotEmpty && genelYetenek.isNotEmpty)
                         const SizedBox(height: 16),
-                      if (alanDersleri.isNotEmpty)
+                      if (genelYetenek.isNotEmpty)
                         _buildCategorySection(
                           context: context,
-                          title: _getCategoryTitle('alan_dersleri'),
-                          lessons: alanDersleri,
+                          title: _getCategoryTitle('genel_yetenek'),
+                          lessons: genelYetenek,
                           isSmallScreen: isSmallScreen,
                           isTablet: isTablet,
                         ),
@@ -393,19 +412,24 @@ class _LessonsPageState extends State<LessonsPage> {
           itemCount: lessons.length,
           itemBuilder: (context, index) {
             final lesson = lessons[index];
-            final progress = _getProgress(lesson.id);
-            return LessonCard(
-              lesson: lesson,
-              progress: progress,
-              isSmallScreen: isSmallScreen,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => LessonDetailPage(
-                      lesson: lesson,
-                    ),
-                  ),
+            return FutureBuilder<double>(
+              future: _getProgress(lesson.id),
+              builder: (context, snapshot) {
+                final progress = snapshot.hasData ? snapshot.data! : 0.0;
+                return LessonCard(
+                  lesson: lesson,
+                  progress: progress,
+                  isSmallScreen: isSmallScreen,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LessonDetailPage(
+                          lesson: lesson,
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );

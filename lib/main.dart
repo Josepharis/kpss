@@ -165,6 +165,11 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
   
+  // Public method to navigate to a tab
+  void navigateToTab(int index) {
+    _onTabTapped(index);
+  }
+  
   // Public method to refresh home page
   void refreshHomePage() {
     // Try to call refreshContent on HomePage state if available

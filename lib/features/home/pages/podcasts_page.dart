@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'dart:async';
-import 'dart:io';
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/podcast.dart';
 import '../../../core/services/audio_service.dart';
@@ -14,6 +14,8 @@ import '../../../core/services/podcast_cache_service.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/podcast_download_service.dart';
 import '../../../core/services/storage_cleanup_service.dart';
+import '../../../core/services/podcasts_service.dart';
+import '../../../../main.dart';
 
 class PodcastsPage extends StatefulWidget {
   final String topicName;
@@ -43,6 +45,7 @@ class _PodcastsPageState extends State<PodcastsPage>
   final ProgressService _progressService = ProgressService();
   final PodcastDownloadService _downloadService = PodcastDownloadService();
   final StorageCleanupService _cleanupService = StorageCleanupService();
+  final PodcastsService _podcastsService = PodcastsService();
   List<Podcast> _podcasts = [];
   bool _isLoading = true;
   bool _isPlaying = false;
@@ -82,228 +85,178 @@ class _PodcastsPageState extends State<PodcastsPage>
   
   /// Initialize podcasts - optimize edilmiş yükleme
   Future<void> _initializePodcasts() async {
-    // Önce cache'den kontrol et (anında açılış için)
-    await _checkCacheImmediately();
+    // Önce local cache'den kontrol et (Firestore'dan çekilmiş podcast listesi)
+    await _loadPodcastsFromLocalCache();
     
-    // Eğer cache'den yüklenmediyse, Firebase Storage'dan yükle
+    // Eğer cache'den yüklenmediyse, Firestore'dan çek ve cache'e kaydet
     if (_podcasts.isEmpty) {
-      await _loadPodcasts();
+      await _loadPodcastsFromFirestore();
     } else {
-      // Cache'den yüklendiyse, Firebase Storage çağrısını arka planda yap (güncelleme için)
-      _loadPodcasts(); // await etme - arka planda çalışsın
+      // Cache'den yüklendi, cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
+      await _updateCachedFileUrls();
     }
+    
+    // İndirilen podcast durumlarını yükle (kalıcı olması için)
+    await _loadDownloadedPodcastsStatus();
     
     // Audio'yu initialize et
     _initializeAudio();
   }
   
-  /// Check cache immediately (synchronous check for instant loading - PDF gibi)
-  Future<void> _checkCacheImmediately() async {
-    print('🔍 Checking podcasts cache immediately for instant loading...');
-    
-    // Eğer initialAudioUrl varsa, bu podcast zaten cache'de var demektir
-    if (widget.initialAudioUrl != null && widget.initialAudioUrl!.isNotEmpty) {
-      print('📁 Initial audio URL provided, checking cache...');
-      final localPath = await _downloadService.getLocalFilePath(widget.initialAudioUrl!);
-      if (localPath != null) {
-        print('✅ Initial podcast is cached: $localPath');
-        // Cache'den tüm podcast'leri yükle
-        await _loadPodcastsFromCache();
-        return;
-      }
-    }
-    
-    // Cache'den tüm podcast'leri kontrol et
-    await _loadPodcastsFromCache();
-  }
-  
-  /// Load podcasts from cache (hızlı - Firebase Storage'dan sadece dosya adları çekilir)
-  Future<void> _loadPodcastsFromCache() async {
+  /// Load podcasts from local cache (Firestore'dan çekilmiş podcast listesi)
+  Future<void> _loadPodcastsFromLocalCache() async {
     try {
-      // Önce Firebase Storage'dan dosya adlarını çek (hızlı - URL çekmeden)
-      final lesson = await _lessonsService.getLessonById(widget.lessonId);
-      if (lesson == null) {
-        print('⚠️ Lesson not found: ${widget.lessonId}');
-        return;
-      }
+      debugPrint('🔍 Loading podcasts from local cache for topicId: ${widget.topicId}');
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'podcasts_${widget.topicId}';
+      final cachedJson = prefs.getString(cacheKey);
       
-      // Lesson name'i storage path'ine çevir
-      final lessonNameForPath = lesson.name
-          .toLowerCase()
-          .replaceAll(' ', '_')
-          .replaceAll('ı', 'i')
-          .replaceAll('ğ', 'g')
-          .replaceAll('ü', 'u')
-          .replaceAll('ş', 's')
-          .replaceAll('ö', 'o')
-          .replaceAll('ç', 'c');
-      
-      // Topic name'i storage path'ine çevir
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName;
-      
-      // Storage yolunu oluştur
-      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/podcast';
-      
-      // Firebase Storage'dan sadece dosya adlarını çek (hızlı - URL çekmeden)
-      List<String> fileNames = [];
-      try {
-        fileNames = await _storageService.listFileNames(storagePath);
-        if (fileNames.isEmpty) {
-          // Alternatif path'i dene
-          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/podcast';
-          fileNames = await _storageService.listFileNames(storagePath);
-        }
-      } catch (e) {
-        print('⚠️ Error getting file names from Storage: $e');
-      }
-      
-      if (fileNames.isEmpty) {
-        print('❌ No podcast files found in Storage');
-        return;
-      }
-      
-      // Cache dizinindeki tüm dosyaları listele
-      final podcastDir = await _downloadService.getPodcastDirectory();
-      if (!await podcastDir.exists()) {
-        print('❌ Podcast cache directory does not exist');
-        return;
-      }
-      
-      final files = podcastDir.listSync();
-      final cachedFiles = files.whereType<File>().toList();
-      
-      // Her Storage dosyası için cache'deki dosyayı bul
-      final cachedPodcasts = <Podcast>[];
-      
-      for (int i = 0; i < fileNames.length; i++) {
-        final fileName = fileNames[i];
-        
-        // Sadece audio dosyalarını al
-        if (!fileName.toLowerCase().endsWith('.mp3') && !fileName.toLowerCase().endsWith('.m4a')) {
-          continue;
-        }
-        
-        // Storage path'inden URL oluştur (tam URL değil, sadece path)
-        final filePath = '$storagePath/$fileName';
-        
-        // Dosya adından başlık oluştur (gerçek ad)
-        final title = fileName
-            .replaceAll('.mp3', '')
-            .replaceAll('.m4a', '')
-            .replaceAll('_', ' ')
-            .trim();
-        
-        // Cache'deki dosyayı bul (URL'den hash oluşturup kontrol et)
-        File? cachedFile;
-        try {
-          // Her Storage dosyası için, olası URL'leri oluşturup hash'ini hesaplayalım
-          // Firebase Storage URL formatı: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media
-          // Path'i encode et
-          final encodedPath = filePath.replaceAll('/', '%2F');
-          
-          // Olası URL formatlarını dene
-          final possibleUrls = [
-            'https://firebasestorage.googleapis.com/v0/b/kpss-ags-2026.appspot.com/o/$encodedPath?alt=media',
-            'https://firebasestorage.googleapis.com/v0/b/kpss-ags-2026/o/$encodedPath?alt=media',
-            filePath, // Direkt path olarak da dene
-          ];
-          
-          // Her URL için hash oluşturup cache'deki dosyayı bul
-          for (final url in possibleUrls) {
-            final hash = _getHashFromUrl(url);
-            final extension = fileName.contains('.') ? '.${fileName.split('.').last}' : '.mp3';
-            final expectedFileName = '$hash$extension';
-            
-            // Cache'deki dosyaları kontrol et
-            for (final file in cachedFiles) {
-              final cacheFileName = file.path.split('/').last;
-              if (cacheFileName == expectedFileName) {
-                cachedFile = file;
-                break;
-              }
-            }
-            
-            if (cachedFile != null) break;
-          }
-          
-          // Eğer hala bulunamadıysa, sırayla eşleştir (fallback)
-          if (cachedFile == null && i < cachedFiles.length) {
-            cachedFile = cachedFiles[i];
-          }
-        } catch (e) {
-          print('⚠️ Error finding cached file for $fileName: $e');
-          // Fallback: sırayla eşleştir
-          if (i < cachedFiles.length) {
-            cachedFile = cachedFiles[i];
-          }
-        }
-        
-        if (cachedFile != null) {
-          cachedPodcasts.add(Podcast(
-            id: 'podcast_${widget.topicId}_$i',
-            title: title.isNotEmpty ? title : 'Podcast ${i + 1}',
-            description: '${widget.topicName} podcast',
-            audioUrl: 'file://${cachedFile.path}', // Local path'i URL formatında sakla
-            durationMinutes: 0,
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: i,
-          ));
-        }
-      }
-      
-      print('📊 Found ${cachedPodcasts.length} cached podcast files with real names');
-      
-      // Cache'den yüklenenleri HEMEN göster (anında açılış - PDF gibi)
-      if (cachedPodcasts.isNotEmpty) {
-        print('📂 Loading ${cachedPodcasts.length} podcasts from cache (instant)...');
-        _podcasts = cachedPodcasts;
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final List<dynamic> cachedList = jsonDecode(cachedJson);
+        _podcasts = cachedList.map((json) => Podcast.fromMap(json, json['id'] ?? '')).toList();
+        debugPrint('✅ Loaded ${_podcasts.length} podcasts from local cache');
         
         if (mounted) {
           setState(() {
-            _isLoading = false; // Hemen göster
+            _isLoading = false;
           });
         }
-        print('✅ Podcasts displayed instantly from cache with real names');
       } else {
-        print('❌ No cached podcasts found');
+        debugPrint('❌ No podcasts found in local cache');
       }
     } catch (e) {
-      print('⚠️ Error checking podcasts cache in initState: $e');
+      debugPrint('⚠️ Error loading podcasts from local cache: $e');
     }
   }
   
-  /// Get hash from URL (same as PodcastDownloadService)
-  String _getHashFromUrl(String url) {
-    final bytes = utf8.encode(url);
-    final hash = sha256.convert(bytes);
-    return hash.toString();
-  }
-
-  Future<void> _loadPodcasts() async {
-    // Eğer cache'den zaten yüklendiyse, Firebase Storage çağrısını atla (güncelleme için arka planda çalışabilir)
-    if (_podcasts.isNotEmpty && !_isLoading) {
-      print('📂 Podcasts already loaded from cache, skipping redundant Firebase Storage call');
-      // Arka planda güncelleme yap (opsiyonel)
-      return;
-    }
-    
+  /// Save podcasts to local cache
+  Future<void> _savePodcastsToLocalCache(List<Podcast> podcasts) async {
     try {
-      // Sadece cache'den yüklenmediyse loading göster
-      if (_podcasts.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'podcasts_${widget.topicId}';
+      final jsonList = podcasts.map((p) => {
+        'id': p.id,
+        'title': p.title,
+        'description': p.description,
+        'audioUrl': p.audioUrl,
+        'durationMinutes': p.durationMinutes,
+        'thumbnailUrl': p.thumbnailUrl,
+        'topicId': p.topicId,
+        'lessonId': p.lessonId,
+        'order': p.order,
+      }).toList();
+      final jsonString = jsonEncode(jsonList);
+      await prefs.setString(cacheKey, jsonString);
+      debugPrint('✅ Saved ${podcasts.length} podcasts to local cache');
+    } catch (e) {
+      debugPrint('⚠️ Error saving podcasts to local cache: $e');
+    }
+  }
+  
+  /// Load podcasts from Firestore and cache them
+  Future<void> _loadPodcastsFromFirestore() async {
+    try {
+      debugPrint('🔍 Loading podcasts from Firestore for topicId: ${widget.topicId}');
+      
+      if (mounted) {
         setState(() {
           _isLoading = true;
         });
       }
       
-      print('🔍 Loading podcasts from Storage for topicId: ${widget.topicId}');
+      // Firestore'dan podcast'leri çek
+      final podcasts = await _podcastsService.getPodcastsByTopicId(widget.topicId);
+      
+      if (podcasts.isEmpty) {
+        debugPrint('⚠️ No podcasts found in Firestore, trying Storage fallback...');
+        // Firestore'da yoksa, Storage'dan çek (eski yöntem)
+        await _loadPodcastsFromStorage();
+        return;
+      }
+      
+      debugPrint('✅ Found ${podcasts.length} podcasts from Firestore');
+      
+      // Cache'e kaydet
+      await _savePodcastsToLocalCache(podcasts);
+      
+      // Cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
+      _podcasts = podcasts;
+      await _updateCachedFileUrls();
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error loading podcasts from Firestore: $e');
+      // Hata durumunda Storage'dan çek (fallback)
+      await _loadPodcastsFromStorage();
+    }
+  }
+  
+  /// Update cached file URLs (check if files are cached and update URLs to file://)
+  Future<void> _updateCachedFileUrls() async {
+    try {
+      debugPrint('🔍 Updating cached file URLs...');
+      final updatedPodcasts = <Podcast>[];
+      
+      for (final podcast in _podcasts) {
+        // Eğer zaten file:// ile başlıyorsa, atla
+        if (podcast.audioUrl.startsWith('file://')) {
+          updatedPodcasts.add(podcast);
+          continue;
+        }
+        
+        // Cache'de dosya var mı kontrol et
+        final localPath = await _downloadService.getLocalFilePath(podcast.audioUrl);
+        if (localPath != null) {
+          // Cache'de var, file:// URL'ini kullan
+          updatedPodcasts.add(Podcast(
+            id: podcast.id,
+            title: podcast.title,
+            description: podcast.description,
+            audioUrl: 'file://$localPath',
+            durationMinutes: podcast.durationMinutes,
+            thumbnailUrl: podcast.thumbnailUrl,
+            topicId: podcast.topicId,
+            lessonId: podcast.lessonId,
+            order: podcast.order,
+          ));
+          debugPrint('  ✅ Updated URL to cached file: ${podcast.title}');
+        } else {
+          // Cache'de yok, orijinal URL'i kullan
+          updatedPodcasts.add(podcast);
+        }
+      }
+      
+      _podcasts = updatedPodcasts;
+      
+      if (mounted) {
+        setState(() {});
+      }
+      
+      debugPrint('✅ Updated ${updatedPodcasts.length} podcast URLs');
+    } catch (e) {
+      debugPrint('⚠️ Error updating cached file URLs: $e');
+    }
+  }
+  
+  /// Load podcasts from Storage (fallback method - eski yöntem, Firestore'da yoksa kullanılır)
+  Future<void> _loadPodcastsFromStorage() async {
+    try {
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+      
+      debugPrint('🔍 Loading podcasts from Storage (fallback) for topicId: ${widget.topicId}');
       
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: ${widget.lessonId}');
+        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -323,112 +276,249 @@ class _PodcastsPageState extends State<PodcastsPage>
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic name'i storage path'ine çevir (topicId'den topic folder name'i çıkar)
-      // TopicId formatı: {lessonId}_{topicFolderName}
-      // lessonId'yi tam olarak çıkar (çünkü lessonId'de de alt çizgi olabilir)
-      // topicFolderName zaten storage'daki gerçek klasör adı, direkt kullan (Firebase Storage path'leri direkt string)
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName; // Fallback: topic name'i direkt kullan
+      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: widget.lessonId,
+        topicId: widget.topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
       
-      // Storage yolunu oluştur: önce konular/ altından dene, yoksa direkt ders altından
-      // Firebase Storage path'leri direkt string olarak kullanılır, encode etmeye gerek yok
-      String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/podcast';
-      try {
-        print('📂 Trying storage path: $storagePath');
-        final testResult = await _storageService.listAudioFiles(storagePath);
-        if (testResult.isEmpty) {
-          // Konular altında yoksa, direkt ders altından dene
-          storagePath = 'dersler/$lessonNameForPath/$topicFolderName/podcast';
-          print('📂 Trying alternative path: $storagePath');
-        }
-      } catch (e) {
-        // Hata varsa alternatif path'i dene
-        storagePath = 'dersler/$lessonNameForPath/$topicFolderName/podcast';
-        print('📂 Using fallback path: $storagePath');
-      }
+      // Storage yolunu oluştur
+      String storagePath = '$basePath/podcast';
       
       // Storage'dan dosyaları listele (hızlı - sadece URL listesi)
       final audioUrls = await _storageService.listAudioFiles(storagePath);
       
-      print('✅ Found ${audioUrls.length} podcasts from Storage');
+      debugPrint('✅ Found ${audioUrls.length} podcasts from Storage');
+      debugPrint('📊 Current podcasts before adding: ${_podcasts.length}');
       
-      // Önce hızlıca podcast listesini oluştur (duration olmadan - anında göster)
-      _podcasts = [];
-      for (int index = 0; index < audioUrls.length; index++) {
-        final url = audioUrls[index];
-        
+      // Cache'den yüklenen podcast'lerin dosya adlarını çıkar (duplicate kontrolü için)
+      final cachedPodcasts = _podcasts.where((p) => p.audioUrl.startsWith('file://')).toList();
+      final networkPodcasts = _podcasts.where((p) => !p.audioUrl.startsWith('file://')).toList();
+      
+      debugPrint('📊 Before adding: Cached podcasts: ${cachedPodcasts.length}, Network podcasts: ${networkPodcasts.length}');
+      
+      // Cache'deki podcast'lerin dosya adlarını çıkar (normalize edilmiş)
+      final cachedFileNames = <String>{};
+      for (final cachedPodcast in cachedPodcasts) {
         try {
-          // URL'den sadece dosya adını çıkar (hızlı)
-          String fileName = '';
+          // file:// URL'den dosya adını çıkar
+          String fileName = cachedPodcast.audioUrl;
+          if (fileName.startsWith('file://')) {
+            fileName = fileName.substring(7); // "file://" kısmını kaldır
+          }
+          // Dosya yolundan sadece dosya adını al
+          fileName = fileName.replaceAll('\\', '/').split('/').last;
+          // Uzantıyı kaldır ve normalize et
+          fileName = fileName
+              .replaceAll('.m4a', '')
+              .replaceAll('.mp3', '')
+              .replaceAll('.mp4', '')
+              .toLowerCase()
+              .trim();
+          if (fileName.isNotEmpty) {
+            cachedFileNames.add(fileName);
+            debugPrint('  📁 Cached file name: $fileName');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error extracting cached file name: $e');
+        }
+      }
+      
+      // Firebase Storage'dan gelen podcast'lerin URL'lerini topla
+      final existingNetworkUrls = networkPodcasts.map((p) => p.audioUrl).toSet();
+      
+      // Yeni podcast'leri ekle (cache'de olmayanlar)
+      if (cachedPodcasts.isNotEmpty) {
+        // Cache'den yüklenen podcast'ler var, onları koru ve yeni olanları ekle
+        _podcasts = List<Podcast>.from(cachedPodcasts); // Cache'den yüklenenleri koru
+        int newIndex = cachedPodcasts.length;
+        
+        for (int index = 0; index < audioUrls.length; index++) {
+          final url = audioUrls[index];
+          
+          // Eğer bu URL zaten network podcast'lerinde varsa, atla
+          if (existingNetworkUrls.contains(url)) {
+            debugPrint('  ⏭️ Skipping already loaded network podcast: $url');
+            continue;
+          }
+          
+          // URL'den dosya adını çıkar ve cache'deki dosya adlarıyla karşılaştır
           try {
-            final uri = Uri.parse(url);
-            final pathWithoutQuery = uri.path;
-            if (pathWithoutQuery.isNotEmpty) {
-              final segments = pathWithoutQuery.split('/');
-              fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
-            }
-            if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
-              fileName = uri.pathSegments.last;
-            }
-            if (fileName.isEmpty) {
+            String fileName = '';
+            try {
+              final uri = Uri.parse(url);
+              final pathWithoutQuery = uri.path;
+              if (pathWithoutQuery.isNotEmpty) {
+                final segments = pathWithoutQuery.split('/');
+                fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+              }
+              if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
+                fileName = uri.pathSegments.last;
+              }
+              if (fileName.isEmpty) {
+                final parts = url.split('/');
+                fileName = parts.isNotEmpty ? parts.last : '';
+                if (fileName.contains('?')) {
+                  fileName = fileName.split('?').first;
+                }
+              }
+              try {
+                fileName = Uri.decodeComponent(fileName);
+              } catch (e) {
+                // Decode edilemezse direkt kullan
+              }
+            } catch (e) {
               final parts = url.split('/');
               fileName = parts.isNotEmpty ? parts.last : '';
               if (fileName.contains('?')) {
                 fileName = fileName.split('?').first;
               }
             }
-            try {
-              fileName = Uri.decodeComponent(fileName);
-            } catch (e) {
-              // Decode edilemezse direkt kullan
+            
+            fileName = fileName.replaceAll('\\', '/').split('/').last;
+            
+            // Normalize edilmiş dosya adını oluştur (cache ile karşılaştırma için)
+            final normalizedFileName = fileName
+                .replaceAll('.m4a', '')
+                .replaceAll('.mp3', '')
+                .replaceAll('.mp4', '')
+                .toLowerCase()
+                .trim();
+            
+            // Eğer bu dosya adı cache'de varsa, atla (duplicate)
+            if (cachedFileNames.contains(normalizedFileName)) {
+              debugPrint('  ⏭️ Skipping duplicate podcast (already in cache): $normalizedFileName');
+              continue;
             }
+            
+            // Title oluştur
+            final title = fileName
+                .replaceAll('.m4a', '')
+                .replaceAll('.mp3', '')
+                .replaceAll('.mp4', '')
+                .replaceAll('_', ' ')
+                .replaceAll('%20', ' ')
+                .trim();
+            
+            _podcasts.add(Podcast(
+              id: 'podcast_${widget.topicId}_$newIndex',
+              title: title.isNotEmpty ? title : 'Podcast ${newIndex + 1}',
+              description: '${widget.topicName} podcast',
+              audioUrl: url,
+              durationMinutes: 0,
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: newIndex,
+            ));
+            newIndex++;
+            debugPrint('  ✅ Added new podcast: $title');
           } catch (e) {
-            final parts = url.split('/');
-            fileName = parts.isNotEmpty ? parts.last : 'Podcast ${index + 1}';
-            if (fileName.contains('?')) {
-              fileName = fileName.split('?').first;
-            }
+            debugPrint('⚠️ Error processing podcast $index: $e');
+            _podcasts.add(Podcast(
+              id: 'podcast_${widget.topicId}_$newIndex',
+              title: 'Podcast ${newIndex + 1}',
+              description: '${widget.topicName} podcast',
+              audioUrl: url,
+              durationMinutes: 0,
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: newIndex,
+            ));
+            newIndex++;
           }
-          
-          fileName = fileName.replaceAll('\\', '/').split('/').last;
-          final title = fileName
-              .replaceAll('.m4a', '')
-              .replaceAll('.mp3', '')
-              .replaceAll('.mp4', '')
-              .replaceAll('_', ' ')
-              .replaceAll('%20', ' ')
-              .trim();
-          
-          _podcasts.add(Podcast(
-            id: 'podcast_${widget.topicId}_$index',
-            title: title.isNotEmpty ? title : 'Podcast ${index + 1}',
-            description: '${widget.topicName} podcast',
-            audioUrl: url,
-            durationMinutes: 0, // Arka planda yüklenecek
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
-        } catch (e) {
-          print('⚠️ Error processing podcast $index: $e');
-          _podcasts.add(Podcast(
-            id: 'podcast_${widget.topicId}_$index',
-            title: 'Podcast ${index + 1}',
-            description: '${widget.topicName} podcast',
-            audioUrl: url,
-            durationMinutes: 0,
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
+        }
+      } else {
+        // Cache'den yüklenen podcast yok, tüm podcast'leri ekle
+        _podcasts = [];
+        for (int index = 0; index < audioUrls.length; index++) {
+          final url = audioUrls[index];
+        
+          try {
+            // URL'den sadece dosya adını çıkar (hızlı)
+            String fileName = '';
+            try {
+              final uri = Uri.parse(url);
+              final pathWithoutQuery = uri.path;
+              if (pathWithoutQuery.isNotEmpty) {
+                final segments = pathWithoutQuery.split('/');
+                fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+              }
+              if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
+                fileName = uri.pathSegments.last;
+              }
+              if (fileName.isEmpty) {
+                final parts = url.split('/');
+                fileName = parts.isNotEmpty ? parts.last : '';
+                if (fileName.contains('?')) {
+                  fileName = fileName.split('?').first;
+                }
+              }
+              try {
+                fileName = Uri.decodeComponent(fileName);
+              } catch (e) {
+                // Decode edilemezse direkt kullan
+              }
+            } catch (e) {
+              final parts = url.split('/');
+              fileName = parts.isNotEmpty ? parts.last : 'Podcast ${index + 1}';
+              if (fileName.contains('?')) {
+                fileName = fileName.split('?').first;
+              }
+            }
+            
+            fileName = fileName.replaceAll('\\', '/').split('/').last;
+            final title = fileName
+                .replaceAll('.m4a', '')
+                .replaceAll('.mp3', '')
+                .replaceAll('.mp4', '')
+                .replaceAll('_', ' ')
+                .replaceAll('%20', ' ')
+                .trim();
+            
+            _podcasts.add(Podcast(
+              id: 'podcast_${widget.topicId}_$index',
+              title: title.isNotEmpty ? title : 'Podcast ${index + 1}',
+              description: '${widget.topicName} podcast',
+              audioUrl: url,
+              durationMinutes: 0, // Arka planda yüklenecek
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: index,
+            ));
+            debugPrint('  ✅ Added podcast ${index + 1}: $title');
+          } catch (e) {
+            debugPrint('⚠️ Error processing podcast $index: $e');
+            _podcasts.add(Podcast(
+              id: 'podcast_${widget.topicId}_$index',
+              title: 'Podcast ${index + 1}',
+              description: '${widget.topicName} podcast',
+              audioUrl: url,
+              durationMinutes: 0,
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: index,
+            ));
+          }
         }
       }
       
       // Listeyi HEMEN göster (anında açılış için)
+      debugPrint('📊 Total podcasts after loading: ${_podcasts.length}');
+      for (int i = 0; i < _podcasts.length; i++) {
+        debugPrint('  Podcast ${i + 1}: ${_podcasts[i].title} (${_podcasts[i].audioUrl})');
+      }
+      
+      // Cache'e kaydet (bir sonraki açılışta kullanılmak üzere)
+      await _savePodcastsToLocalCache(_podcasts);
+      
+      // Cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
+      await _updateCachedFileUrls();
+      
       if (mounted) {
         setState(() {
           _isLoading = false;
+          // _podcasts listesi zaten güncellendi, sadece UI'ı yenile
         });
       }
       
@@ -438,13 +528,49 @@ class _PodcastsPageState extends State<PodcastsPage>
       // Arka planda duration'ları yükle (non-blocking)
       _loadDurationsInBackground();
     } catch (e) {
-      print('❌ Error loading podcasts: $e');
-      print('Error stack: ${e.toString()}');
+      debugPrint('❌ Error loading podcasts: $e');
+      debugPrint('Error stack: ${e.toString()}');
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
+    }
+  }
+  
+  /// Load downloaded podcasts status from SharedPreferences
+  Future<void> _loadDownloadedPodcastsStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'downloaded_podcasts_${widget.topicId}';
+      final cachedJson = prefs.getString(cacheKey);
+      
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final Map<String, dynamic> cachedMap = jsonDecode(cachedJson);
+        _downloadedPodcasts = cachedMap.map((key, value) => MapEntry(key, value as bool));
+        debugPrint('✅ Loaded ${_downloadedPodcasts.length} downloaded podcast statuses from cache');
+        
+        if (mounted) {
+          setState(() {});
+        }
+      } else {
+        debugPrint('❌ No downloaded podcast statuses found in cache');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error loading downloaded podcast statuses: $e');
+    }
+  }
+  
+  /// Save downloaded podcasts status to SharedPreferences
+  Future<void> _saveDownloadedPodcastsStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'downloaded_podcasts_${widget.topicId}';
+      final jsonString = jsonEncode(_downloadedPodcasts);
+      await prefs.setString(cacheKey, jsonString);
+      debugPrint('✅ Saved ${_downloadedPodcasts.length} downloaded podcast statuses to cache');
+    } catch (e) {
+      debugPrint('⚠️ Error saving downloaded podcast statuses: $e');
     }
   }
   
@@ -457,6 +583,9 @@ class _PodcastsPageState extends State<PodcastsPage>
         });
       }
     }
+    
+    // Durumları kaydet (kalıcı olması için)
+    await _saveDownloadedPodcastsStatus();
   }
 
   // Arka planda duration'ları paralel yükle (çok daha hızlı)
@@ -520,7 +649,7 @@ class _PodcastsPageState extends State<PodcastsPage>
       }
       await audioPlayer.dispose();
     } catch (e) {
-      print('⚠️ Could not get duration for ${podcast.title}: $e');
+      debugPrint('⚠️ Could not get duration for ${podcast.title}: $e');
     }
   }
 
@@ -754,7 +883,7 @@ class _PodcastsPageState extends State<PodcastsPage>
       if (currentPodcast.audioUrl.startsWith('file://')) {
         // Cache'den yüklenen podcast - local path'i direkt kullan
         finalLocalPath = currentPodcast.audioUrl.substring(7); // 'file://' prefix'ini kaldır
-        print('📁 Using cached podcast (instant): $finalLocalPath');
+        debugPrint('📁 Using cached podcast (instant): $finalLocalPath');
       } else {
         // Normal podcast - cache kontrolü yap
         final localFilePath = await _downloadService.getLocalFilePath(currentPodcast.audioUrl);
@@ -762,7 +891,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         
         // Eğer indirilmemişse, streaming ile çal (hızlı, tam indirme yok)
         if (localFilePath == null) {
-          print('🌐 Podcast not downloaded, using streaming mode (fast, no full download)...');
+          debugPrint('🌐 Podcast not downloaded, using streaming mode (fast, no full download)...');
           // Streaming ile çal, arka planda cache'le
           finalLocalPath = null; // Network streaming kullan
           
@@ -771,18 +900,20 @@ class _PodcastsPageState extends State<PodcastsPage>
             audioUrl: currentPodcast.audioUrl,
             podcastId: currentPodcast.id,
             onProgress: (progress) {
-              print('📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%');
+              debugPrint('📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%');
             },
           ).then((downloadedPath) {
             if (downloadedPath != null && mounted) {
-              print('✅ Podcast cached in background: $downloadedPath');
+              debugPrint('✅ Podcast cached in background: $downloadedPath');
               setState(() {
                 _downloadedPodcasts[currentPodcast.id] = true;
               });
+              // Durumu kaydet (kalıcı olması için)
+              _saveDownloadedPodcastsStatus();
               // Next time will use cache
             }
           }).catchError((e) {
-            print('⚠️ Background download failed: $e');
+            debugPrint('⚠️ Background download failed: $e');
           });
         }
       }
@@ -805,7 +936,7 @@ class _PodcastsPageState extends State<PodcastsPage>
       if (savedProgress != null && savedProgress.inSeconds > 5) {
         // Only resume if saved position is more than 5 seconds
         await _audioService.seek(savedProgress);
-        print('✅ Resuming podcast from saved position: ${savedProgress.inMinutes}m');
+        debugPrint('✅ Resuming podcast from saved position: ${savedProgress.inMinutes}m');
       }
       
       // Start progress save timer
@@ -816,12 +947,12 @@ class _PodcastsPageState extends State<PodcastsPage>
         _loadDurationForPodcast(_selectedPodcastIndex, currentPodcast);
       }
     } catch (e, stackTrace) {
-      print('❌❌❌ ERROR IN _loadAndPlayCurrentPodcast ❌❌❌');
-      print('Error type: ${e.runtimeType}');
-      print('Error message: $e');
-      print('Full error: ${e.toString()}');
-      print('Stack trace:');
-      print(stackTrace);
+      debugPrint('❌❌❌ ERROR IN _loadAndPlayCurrentPodcast ❌❌❌');
+      debugPrint('Error type: ${e.runtimeType}');
+      debugPrint('Error message: $e');
+      debugPrint('Full error: ${e.toString()}');
+      debugPrint('Stack trace:');
+      debugPrint(stackTrace.toString());
       
       if (mounted) {
         setState(() {
@@ -902,7 +1033,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         
         if (localFilePath != null) {
           // İndirilmiş - hemen aç (PDF'lerdeki gibi anında açılış)
-          print('📁 Podcast is downloaded, opening immediately: $localFilePath');
+          debugPrint('📁 Podcast is downloaded, opening immediately: $localFilePath');
           await _loadAndPlayCurrentPodcast();
         } else {
           // İndirilmemiş - arka planda önceden yükle (preload)
@@ -922,7 +1053,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
       // Preload tamamlandı, dispose et
       await audioPlayer.dispose();
     } catch (e) {
-      print('⚠️ Error preloading podcast: $e');
+      debugPrint('⚠️ Error preloading podcast: $e');
     }
   }
 
@@ -982,7 +1113,12 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                     }
                   }
                   if (mounted) {
-                    Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                    Navigator.of(context).pop(true);
+                    // MainScreen'e refresh sinyali gönder
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
                   }
                 },
               ),
@@ -1025,7 +1161,12 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                     }
                   }
                   if (mounted) {
-                    Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                    Navigator.of(context).pop(true);
+                    // MainScreen'e refresh sinyali gönder
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
                   }
                 },
               ),
@@ -1140,7 +1281,12 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                                   }
                                 }
                                 if (mounted) {
-                                  Navigator.of(context).pop(true); // Return true to indicate refresh needed
+                                  Navigator.of(context).pop(true);
+                                  // MainScreen'e refresh sinyali gönder
+                                  final mainScreen = MainScreen.of(context);
+                                  if (mainScreen != null) {
+                                    mainScreen.refreshHomePage();
+                                  }
                                 }
                               },
                               borderRadius: BorderRadius.circular(20),
@@ -1987,6 +2133,8 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         setState(() {
           _downloadedPodcasts[podcast.id] = false;
         });
+        // Durumu kaydet (kalıcı olması için)
+        await _saveDownloadedPodcastsStatus();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Podcast silindi. Tekrar açıldığında otomatik indirilecek.'),

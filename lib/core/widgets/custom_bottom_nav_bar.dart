@@ -41,8 +41,8 @@ class CustomBottomNavBar extends StatelessWidget {
                 index: 1,
               ),
               _buildNavItem(
-                icon: Icons.trending_down_outlined,
-                label: 'Eksiklerim',
+                icon: Icons.bookmark_outlined,
+                label: 'Kaydedilenler',
                 index: 2,
               ),
               _buildNavItem(

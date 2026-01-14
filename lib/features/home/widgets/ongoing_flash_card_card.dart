@@ -1,72 +1,63 @@
 import 'package:flutter/material.dart';
 import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/ongoing_test.dart';
-import '../pages/tests_page.dart';
+import '../../../core/models/ongoing_flash_card.dart';
+import '../pages/flash_cards_page.dart';
 
-class OngoingTestCard extends StatelessWidget {
-  final OngoingTest test;
+class OngoingFlashCardCard extends StatelessWidget {
+  final OngoingFlashCard flashCard;
   final bool isSmallScreen;
 
-  const OngoingTestCard({
+  const OngoingFlashCardCard({
     super.key,
-    required this.test,
+    required this.flashCard,
     this.isSmallScreen = false,
   });
 
   Color _getGradientStartColor() {
-    switch (test.progressColor) {
-      case 'blue':
-        return const Color(0xFF4A90E2);
-      case 'yellow':
-        return const Color(0xFFFFB347);
-      case 'red':
-        return const Color(0xFFE74C3C);
+    switch (flashCard.progressColor) {
+      case 'green':
+        return AppColors.gradientGreenStart;
+      case 'orange':
+        return AppColors.gradientOrangeStart;
+      case 'teal':
+        return AppColors.gradientTealStart;
       case 'purple':
-        return const Color(0xFF9B59B6);
-      default:
+        return AppColors.gradientPurpleStart;
+      case 'blue':
         return AppColors.gradientBlueStart;
+      case 'yellow':
+        return AppColors.gradientYellowStart;
+      case 'red':
+        return AppColors.gradientRedStart;
+      default:
+        return AppColors.gradientGreenStart;
     }
   }
 
   Color _getGradientEndColor() {
-    switch (test.progressColor) {
-      case 'blue':
-        return const Color(0xFF357ABD);
-      case 'yellow':
-        return const Color(0xFFFF8C42);
-      case 'red':
-        return const Color(0xFFC0392B);
+    switch (flashCard.progressColor) {
+      case 'green':
+        return AppColors.gradientGreenEnd;
+      case 'orange':
+        return AppColors.gradientOrangeEnd;
+      case 'teal':
+        return AppColors.gradientTealEnd;
       case 'purple':
-        return const Color(0xFF8E44AD);
-      default:
+        return AppColors.gradientPurpleEnd;
+      case 'blue':
         return AppColors.gradientBlueEnd;
+      case 'yellow':
+        return AppColors.gradientYellowEnd;
+      case 'red':
+        return AppColors.gradientRedEnd;
+      default:
+        return AppColors.gradientGreenEnd;
     }
   }
 
   IconData _getIcon() {
-    if (test.title.toLowerCase().contains('matematik')) {
-      return Icons.calculate_rounded;
-    } else if (test.title.toLowerCase().contains('türkçe')) {
-      return Icons.menu_book_rounded;
-    } else if (test.title.toLowerCase().contains('tarih')) {
-      return Icons.history_rounded;
-    } else if (test.title.toLowerCase().contains('coğrafya')) {
-      return Icons.map_rounded;
-    }
-    
-    switch (test.icon) {
-      case 'atom':
-        return Icons.science_rounded;
-      case 'chart':
-        return Icons.bar_chart_rounded;
-      case 'globe':
-        return Icons.public_rounded;
-      case 'megaphone':
-        return Icons.campaign_rounded;
-      default:
-        return Icons.quiz_rounded;
-    }
+    return Icons.book_rounded;
   }
 
   @override
@@ -78,15 +69,15 @@ class OngoingTestCard extends StatelessWidget {
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TestsPage(
-              topicName: test.topic,
-              testCount: test.totalQuestions,
-              lessonId: test.lessonId,
-              topicId: test.topicId,
+            builder: (context) => FlashCardsPage(
+              topicName: flashCard.topic,
+              lessonId: flashCard.lessonId,
+              topicId: flashCard.topicId,
+              cardCount: flashCard.totalCards,
             ),
           ),
         );
-        // If test page returned true, refresh home page
+        // If flash cards page returned true, refresh home page
         if (result == true) {
           // Find MainScreen and refresh home page
           final mainScreen = MainScreen.of(context);
@@ -211,7 +202,7 @@ class OngoingTestCard extends StatelessWidget {
                       children: [
                         // Topic name
                         Text(
-                          test.topic,
+                          flashCard.topic,
                           style: TextStyle(
                             fontSize: isSmallScreen ? 9 : 10,
                             fontWeight: FontWeight.w700,
@@ -285,62 +276,48 @@ class OngoingTestCard extends StatelessWidget {
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Soru sayısı - Sol taraf
-                            Text(
-                              '${test.currentQuestion}/${test.totalQuestions}',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 8 : 9,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.2,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            // Puan - Sağ taraf
-                            if (test.score > 0)
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isSmallScreen ? 3 : 4,
-                                  vertical: isSmallScreen ? 1 : 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.yellow.withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(
-                                    color: Colors.yellow.withValues(alpha: 0.5),
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.star_rounded,
-                                      size: isSmallScreen ? 7 : 8,
-                                      color: Colors.white,
-                                    ),
-                                    SizedBox(width: 2),
-                                    Text(
-                                      '${test.score}',
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 7 : 8,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                            Flexible(
+                              child: Text(
+                                '${flashCard.currentCard}/${flashCard.totalCards}',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 8 : 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      blurRadius: 2,
                                     ),
                                   ],
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            ),
+                            SizedBox(width: isSmallScreen ? 3 : 4),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSmallScreen ? 4 : 5,
+                                vertical: isSmallScreen ? 1 : 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.28),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                '${(flashCard.progress * 100).toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 7 : 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                         SizedBox(height: isSmallScreen ? 4 : 5),
@@ -360,7 +337,7 @@ class OngoingTestCard extends StatelessWidget {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: LinearProgressIndicator(
-                              value: test.progress,
+                              value: flashCard.progress,
                               backgroundColor: Colors.white.withValues(alpha: 0.22),
                               valueColor: AlwaysStoppedAnimation<Color>(
                                 Colors.white,

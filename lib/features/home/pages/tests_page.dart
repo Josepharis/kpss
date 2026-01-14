@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/test_question.dart';
@@ -6,6 +7,7 @@ import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
 import '../../../core/services/questions_service.dart';
 import '../../../core/services/progress_service.dart';
+import '../../../../main.dart';
 
 class TestsPage extends StatefulWidget {
   final String topicName;
@@ -54,23 +56,30 @@ class _TestsPageState extends State<TestsPage> {
       
       // Load saved progress FIRST, before loading questions
       final savedQuestionIndex = await _progressService.getTestProgress(widget.topicId);
+      final savedScore = await _progressService.getTestScore(widget.topicId);
       
-      // Load questions
-      final questions = await _questionsService.getQuestionsByTopicId(widget.topicId);
+      // Load questions (will try Storage first, then Firestore)
+      final questions = await _questionsService.getQuestionsByTopicId(
+        widget.topicId,
+        lessonId: widget.lessonId,
+      );
       
       if (mounted) {
         // Set saved progress immediately if available
         int initialQuestionIndex = 0;
+        int initialScore = 0;
         if (savedQuestionIndex != null && 
             savedQuestionIndex < questions.length && 
             questions.isNotEmpty) {
           initialQuestionIndex = savedQuestionIndex;
-          print('✅ Resuming test from question ${savedQuestionIndex + 1}');
+          initialScore = savedScore ?? 0;
+          debugPrint('✅ Resuming test from question ${savedQuestionIndex + 1} with score: $initialScore');
         }
         
         setState(() {
           _questions = questions;
           _currentQuestionIndex = initialQuestionIndex;
+          _score = initialScore;
           _isLoading = false;
         });
         
@@ -91,7 +100,7 @@ class _TestsPageState extends State<TestsPage> {
         }
       }
     } catch (e) {
-      print('Error loading questions: $e');
+      debugPrint('Error loading questions: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -160,6 +169,8 @@ class _TestsPageState extends State<TestsPage> {
 
       if (isCorrect) {
         _score += 10;
+        // Puanı kullanıcının toplam puanına ekle (her doğru cevap için +10 puan)
+        _progressService.addScore(10);
       }
     });
 
@@ -169,7 +180,7 @@ class _TestsPageState extends State<TestsPage> {
     }
   }
 
-  void _nextQuestion() {
+  Future<void> _nextQuestion() async {
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
@@ -182,7 +193,9 @@ class _TestsPageState extends State<TestsPage> {
       _startTimer();
       _saveProgress(); // Save progress after moving to next question
     } else {
-      // Test completed
+      // Test completed - save final score before showing results
+      await _saveProgress();
+      // Puan zaten her soru için eklendi, burada eklemeye gerek yok
       _progressService.deleteTestProgress(widget.topicId);
       _showResults();
     }
@@ -219,6 +232,7 @@ class _TestsPageState extends State<TestsPage> {
       lessonId: widget.lessonId,
       currentQuestionIndex: _currentQuestionIndex,
       totalQuestions: _questions.length,
+      score: _score, // Puanı da kaydet
     );
   }
 
@@ -276,13 +290,7 @@ class _TestsPageState extends State<TestsPage> {
       setState(() {
         _savedQuestionIds.add(currentQuestion.id);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Soru eksiklerinize eklendi.'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Snackbar kaldırıldı - yukarıdaki kaydet ikonu zaten durumu gösteriyor
     }
   }
 
@@ -362,12 +370,12 @@ class _TestsPageState extends State<TestsPage> {
         actions: [
           TextButton(
             onPressed: () async {
-              print('✅ Test completed - Tamam button pressed');
+              debugPrint('✅ Test completed - Tamam button pressed');
               // Save final progress
               if (_questions.isNotEmpty) {
-                print('🗑️ Deleting test progress...');
+                debugPrint('🗑️ Deleting test progress...');
                 await _progressService.deleteTestProgress(widget.topicId);
-                print('✅ Progress deleted');
+                debugPrint('✅ Progress deleted');
               }
               if (mounted) {
                 // Close result dialog first
@@ -422,11 +430,16 @@ class _TestsPageState extends State<TestsPage> {
                   if (mounted) {
                     Navigator.of(context).pop(); // Close loading dialog
                     Navigator.of(context).pop(true); // Close page
-                    print('✅ Page closed');
+                    debugPrint('✅ Page closed');
+                    // Anasayfayı güncelle (puan için)
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
                   }
                 }
               } else {
-                print('⚠️ Widget not mounted');
+                debugPrint('⚠️ Widget not mounted');
               }
             },
             child: const Text('Tamam'),
@@ -455,14 +468,14 @@ class _TestsPageState extends State<TestsPage> {
               size: isSmallScreen ? 18 : 20,
             ),
             onPressed: () async {
-              print('🔙 Back button pressed - Loading state');
+              debugPrint('🔙 Back button pressed - Loading state');
               // Save progress before leaving (if questions are loaded)
               if (_questions.isNotEmpty) {
-                print('💾 Saving progress...');
+                debugPrint('💾 Saving progress...');
                 await _saveProgress();
-                print('✅ Progress saved');
+                debugPrint('✅ Progress saved');
               } else {
-                print('⚠️ No questions to save');
+                debugPrint('⚠️ No questions to save');
               }
               if (mounted) {
                 // Show loading dialog
@@ -512,10 +525,10 @@ class _TestsPageState extends State<TestsPage> {
                 if (mounted) {
                   Navigator.of(context).pop(); // Close dialog
                   Navigator.of(context).pop(true); // Close page
-                  print('✅ Page closed');
+                  debugPrint('✅ Page closed');
                 }
               } else {
-                print('⚠️ Widget not mounted');
+                debugPrint('⚠️ Widget not mounted');
               }
             },
           ),
@@ -547,14 +560,14 @@ class _TestsPageState extends State<TestsPage> {
               size: isSmallScreen ? 18 : 20,
             ),
             onPressed: () async {
-              print('🔙 Back button pressed - Empty state');
+              debugPrint('🔙 Back button pressed - Empty state');
               // Save progress before leaving
               if (_questions.isNotEmpty) {
-                print('💾 Saving progress...');
+                debugPrint('💾 Saving progress...');
                 await _saveProgress();
-                print('✅ Progress saved');
+                debugPrint('✅ Progress saved');
               } else {
-                print('⚠️ No questions to save');
+                debugPrint('⚠️ No questions to save');
               }
               if (mounted) {
                 // Show loading dialog
@@ -605,23 +618,28 @@ class _TestsPageState extends State<TestsPage> {
                   Navigator.of(context).pop(); // Close dialog
                   if (mounted) {
                     Navigator.of(context).pop(true); // Close page
-                    print('✅ Page closed');
+                    debugPrint('✅ Page closed');
+                    // Anasayfayı güncelle (puan için)
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
                   }
                 }
               } else {
-                print('⚠️ Widget not mounted');
+                debugPrint('⚠️ Widget not mounted');
               }
-            },
-          ),
-          title: Text(
-            widget.topicName,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          },
+        ),
+        title: Text(
+          widget.topicName,
+          style: TextStyle(
+            fontSize: isSmallScreen ? 16 : 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
+      ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -659,14 +677,14 @@ class _TestsPageState extends State<TestsPage> {
             size: isSmallScreen ? 18 : 20,
           ),
           onPressed: () async {
-            print('🔙 Back button pressed - Normal state');
+            debugPrint('🔙 Back button pressed - Normal state');
             // Save progress before leaving
             if (_questions.isNotEmpty) {
-              print('💾 Saving progress...');
+              debugPrint('💾 Saving progress...');
               await _saveProgress();
-              print('✅ Progress saved');
+              debugPrint('✅ Progress saved');
             } else {
-              print('⚠️ No questions to save');
+              debugPrint('⚠️ No questions to save');
             }
               if (mounted) {
                 // Show loading dialog
@@ -717,11 +735,16 @@ class _TestsPageState extends State<TestsPage> {
                   Navigator.of(context).pop(); // Close dialog
                   if (mounted) {
                     Navigator.of(context).pop(true); // Close page
-                    print('✅ Page closed');
+                    debugPrint('✅ Page closed');
+                    // Anasayfayı güncelle (puan için)
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
                   }
                 }
               } else {
-                print('⚠️ Widget not mounted');
+                debugPrint('⚠️ Widget not mounted');
               }
           },
         ),

@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import '../models/lesson.dart';
 import '../models/topic.dart';
 import 'storage_service.dart';
@@ -23,7 +26,7 @@ class LessonsService {
       lessons.sort((a, b) => a.order.compareTo(b.order));
       return lessons;
     } catch (e) {
-      print('Error fetching lessons: $e');
+      debugPrint('Error fetching lessons: $e');
       return [];
     }
   }
@@ -41,7 +44,7 @@ class LessonsService {
       lessons.sort((a, b) => a.order.compareTo(b.order));
       return lessons;
     } catch (e) {
-      print('Error fetching lessons by category: $e');
+      debugPrint('Error fetching lessons by category: $e');
       return [];
     }
   }
@@ -55,7 +58,7 @@ class LessonsService {
       }
       return null;
     } catch (e) {
-      print('Error fetching lesson: $e');
+      debugPrint('Error fetching lesson: $e');
       return null;
     }
   }
@@ -71,7 +74,7 @@ class LessonsService {
       topics.sort((a, b) => a.order.compareTo(b.order));
       return topics;
     } catch (e) {
-      print('Error fetching all topics: $e');
+      debugPrint('Error fetching all topics: $e');
       return [];
     }
   }
@@ -80,12 +83,9 @@ class LessonsService {
   /// Storage yapısı: dersler/{lessonName}/{topicName}/video/, dersler/{lessonName}/{topicName}/podcast/, dersler/{lessonName}/{topicName}/bilgikarti/
   Future<List<Topic>> getTopicsByLessonId(String lessonId) async {
     try {
-      print('🔍 Loading topic names from Storage for lesson: $lessonId');
-      
       // Önce lesson'ı al ki name'ini bulalım
       final lesson = await getLessonById(lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: $lessonId, trying Firestore fallback');
         return _getTopicsFromFirestore(lessonId);
       }
       
@@ -103,24 +103,28 @@ class LessonsService {
       // Storage'dan dersler/{lessonName}/konular/ klasöründeki konu klasörlerini listele
       // Önce konular klasörünü kontrol et
       final konularPath = 'dersler/$lessonNameForPath/konular';
-      print('📂 Looking for topics in: $konularPath');
       
       List<String> topicFolders = [];
       try {
         topicFolders = await _storageService.listFolders(konularPath);
-        print('📊 Found ${topicFolders.length} topic folders in konular/ for lesson: ${lesson.name}');
       } catch (e) {
-        print('⚠️ konular/ klasörü bulunamadı, alternatif yollar deneniyor: $e');
-        // Fallback: dersler/{lessonName}/ altındaki klasörleri listele (konular hariç)
-        final lessonPath = 'dersler/$lessonNameForPath';
-        final allFolders = await _storageService.listFolders(lessonPath);
-        // 'konular' klasörünü hariç tut
-        topicFolders = allFolders.where((folder) => folder != 'konular').toList();
-        print('📊 Found ${topicFolders.length} topic folders (excluding konular) for lesson: ${lesson.name}');
+        // Silent error handling
+      }
+      
+      // Eğer konular/ klasöründe klasör yoksa veya exception varsa, direkt ders altından dene
+      if (topicFolders.isEmpty) {
+        try {
+          final lessonPath = 'dersler/$lessonNameForPath';
+          final allFolders = await _storageService.listFolders(lessonPath);
+          
+          // 'konular' klasörünü hariç tut
+          topicFolders = allFolders.where((folder) => folder != 'konular').toList();
+        } catch (e) {
+          // Silent error handling
+        }
       }
       
       if (topicFolders.isEmpty) {
-        print('⚠️ No topics found in storage for lesson: ${lesson.name}, trying Firestore fallback');
         return _getTopicsFromFirestore(lessonId);
       }
       
@@ -140,22 +144,72 @@ class LessonsService {
       
       // Her konu klasörü için Topic oluştur (sadece isim, içerik sayıları 0)
       final List<Topic> topics = [];
-      for (int index = 0; index < topicFolders.length; index++) {
-        final topicFolderName = topicFolders[index];
+      
+      // Klasörleri sırala (sayısal prefix varsa ona göre)
+      final sortedFolders = List<String>.from(topicFolders);
+      sortedFolders.sort((a, b) {
+        // Sayısal prefix'i çıkar ve karşılaştır
+        final aMatch = RegExp(r'^(\d+)[-.]?\s*(.*)').firstMatch(a);
+        final bMatch = RegExp(r'^(\d+)[-.]?\s*(.*)').firstMatch(b);
         
-        // Klasör adından konu adını oluştur (alt çizgileri boşlukla değiştir, ilk harfleri büyük yap)
-        final topicName = topicFolderName
-            .split('_')
-            .map((word) => word.isNotEmpty 
-                ? word[0].toUpperCase() + word.substring(1).toLowerCase()
-                : word)
-            .join(' ');
+        if (aMatch != null && bMatch != null) {
+          final aNum = int.tryParse(aMatch.group(1) ?? '') ?? 0;
+          final bNum = int.tryParse(bMatch.group(1) ?? '') ?? 0;
+          if (aNum != bNum) return aNum.compareTo(bNum);
+        }
+        
+        return a.compareTo(b);
+      });
+      
+      for (int index = 0; index < sortedFolders.length; index++) {
+        final topicFolderName = sortedFolders[index];
+        
+        // Klasör adından konu adını oluştur
+        // Önce sayısal prefix'i ve tireyi temizle (örn: "1-Türkiye'nin..." -> "Türkiye'nin...")
+        String topicName = topicFolderName;
+        
+        // Sayısal prefix ve tireyi temizle
+        topicName = topicName.replaceFirst(RegExp(r'^\d+[-.]?\s*'), '');
+        
+        // Eğer alt çizgi varsa boşlukla değiştir, yoksa direkt kullan
+        if (topicName.contains('_')) {
+          topicName = topicName
+              .split('_')
+              .map((word) => word.isNotEmpty 
+                  ? word[0].toUpperCase() + word.substring(1).toLowerCase()
+                  : word)
+              .join(' ');
+        } else {
+          // Alt çizgi yoksa, sadece ilk harfi büyük yap (zaten boşluklu format olabilir)
+          if (topicName.isNotEmpty) {
+            topicName = topicName[0].toUpperCase() + topicName.substring(1);
+          }
+        }
         
         // Topic ID oluştur (lessonId_topicFolderName formatında)
-        final topicId = '${lessonId}_$topicFolderName';
+        // topicFolderName'i normalize et (Türkçe karakterleri dönüştür)
+        final normalizedFolderName = topicFolderName
+            .toLowerCase()
+            .replaceAll(' ', '_')
+            .replaceAll('ı', 'i')
+            .replaceAll('ğ', 'g')
+            .replaceAll('ü', 'u')
+            .replaceAll('ş', 's')
+            .replaceAll('ö', 'o')
+            .replaceAll('ç', 'c')
+            .replaceAll(RegExp(r'^\d+[-.]?\s*'), ''); // Sayısal prefix'i temizle
         
-        // Vatandaşlık dersi için özel sıralama
+        final topicId = '${lessonId}_$normalizedFolderName';
+        
+        // Klasör ismindeki sayısal prefix'i order olarak kullan
         int topicOrder = index + 1;
+        final orderMatch = RegExp(r'^(\d+)').firstMatch(topicFolderName);
+        if (orderMatch != null) {
+          final orderNum = int.tryParse(orderMatch.group(1) ?? '');
+          if (orderNum != null && orderNum > 0) {
+            topicOrder = orderNum;
+          }
+        }
         if (lessonId == 'vatandaslik_lesson' || lesson.name == 'Vatandaşlık') {
           // Konu adını normalize et (karşılaştırma için)
           final normalizedTopicName = topicName.trim();
@@ -193,20 +247,256 @@ class LessonsService {
         );
         
         topics.add(topic);
-        print('✅ Created topic: $topicName (order: $topicOrder)');
       }
       
       // Sıralama (order'a göre)
       topics.sort((a, b) => a.order.compareTo(b.order));
       
-      print('✅ Loaded ${topics.length} topic names from Storage for lesson: ${lesson.name}');
       return topics;
     } catch (e) {
-      print('❌ Error fetching topics from Storage: $e');
-      print('Error details: $e');
+      // Silent error handling
       
       // Fallback to Firestore
       return _getTopicsFromFirestore(lessonId);
+    }
+  }
+
+  /// Helper method: Get topic base path (with fallback)
+  /// Önce konular/ klasörü altına bakar, yoksa direkt ders altına bakar
+  Future<String> getTopicBasePath({
+    required String lessonId,
+    required String topicId,
+    required String lessonNameForPath,
+  }) async {
+    final actualTopicFolderName = await getActualTopicFolderName(
+      lessonId: lessonId,
+      topicId: topicId,
+      lessonNameForPath: lessonNameForPath,
+    );
+    
+    // Önce konular klasörünü kontrol et
+    try {
+      final konularPath = 'dersler/$lessonNameForPath/konular';
+      final folders = await _storageService.listFolders(konularPath);
+      if (folders.isNotEmpty) {
+        // Konular klasöründe topic var mı kontrol et
+        final normalizedTopicFolderName = actualTopicFolderName
+            .toLowerCase()
+            .replaceAll(' ', '_')
+            .replaceAll('ı', 'i')
+            .replaceAll('ğ', 'g')
+            .replaceAll('ü', 'u')
+            .replaceAll('ş', 's')
+            .replaceAll('ö', 'o')
+            .replaceAll('ç', 'c')
+            .replaceAll(RegExp(r'^\d+[-.]?\s*'), '');
+        
+        for (final folder in folders) {
+          final normalizedFolder = folder
+              .toLowerCase()
+              .replaceAll(' ', '_')
+              .replaceAll('ı', 'i')
+              .replaceAll('ğ', 'g')
+              .replaceAll('ü', 'u')
+              .replaceAll('ş', 's')
+              .replaceAll('ö', 'o')
+              .replaceAll('ç', 'c')
+              .replaceAll(RegExp(r'^\d+[-.]?\s*'), '');
+          
+          if (normalizedFolder == normalizedTopicFolderName) {
+            return 'dersler/$lessonNameForPath/konular/$folder';
+          }
+        }
+      }
+    } catch (e) {
+      // Silent error handling
+    }
+    
+    // Konular klasöründe bulunamadıysa, direkt ders altından kullan
+    return 'dersler/$lessonNameForPath/$actualTopicFolderName';
+  }
+
+  /// Helper method: Get actual topic folder name from storage
+  /// Topic ID'de normalize edilmiş folder name var, ama storage'da gerçek klasör ismi farklı olabilir
+  /// Bu yüzden storage'dan tüm klasörleri listele ve eşleştir
+  Future<String> getActualTopicFolderName({
+    required String lessonId,
+    required String topicId,
+    required String lessonNameForPath,
+  }) async {
+    try {
+      // Topic ID'den topicFolderName'i çıkar
+      String topicFolderName;
+      if (topicId.startsWith('${lessonId}_')) {
+        topicFolderName = topicId.substring(lessonId.length + 1);
+      } else {
+        final parts = topicId.split('_');
+        if (parts.length < 2) {
+          return topicId;
+        }
+        topicFolderName = parts.sublist(1).join('_');
+      }
+      
+      // Önce konular klasörünü kontrol et, yoksa veya içinde konu bulunamazsa direkt ders altından bak
+      List<String> folders = [];
+      bool useDirectLessonPath = false;
+      
+      try {
+        // Önce konular klasörünü kontrol et
+        final konularPath = 'dersler/$lessonNameForPath/konular';
+        folders = await _storageService.listFolders(konularPath);
+        
+        // Eğer konular/ klasörü boşsa, direkt ders altından bak
+        if (folders.isEmpty) {
+          useDirectLessonPath = true;
+        }
+      } catch (e) {
+        // Konular klasörü yoksa, direkt ders altından bak
+        // Silent error handling
+        useDirectLessonPath = true;
+      }
+      
+      // Eğer konular/ klasörü boşsa veya yoksa, direkt ders altından bak
+      if (useDirectLessonPath || folders.isEmpty) {
+        try {
+          final lessonPath = 'dersler/$lessonNameForPath';
+          folders = await _storageService.listFolders(lessonPath);
+          // 'konular' klasörünü hariç tut (eğer varsa)
+          folders = folders.where((folder) => folder != 'konular').toList();
+          } catch (e2) {
+          // Silent error handling
+        }
+      }
+      
+      if (folders.isEmpty) {
+        // Klasör bulunamadıysa, normalize edilmiş ismi kullan
+        return topicFolderName;
+      }
+      
+      // Normalize edilmiş folder name ile eşleşen gerçek klasör ismini bul
+      // Topic ID'den çıkarılan name zaten normalize edilmiş, ama yine de normalize et (tutarlılık için)
+      final normalizedTopicFolderName = topicFolderName
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('ı', 'i')
+          .replaceAll('ğ', 'g')
+          .replaceAll('ü', 'u')
+          .replaceAll('ş', 's')
+          .replaceAll('ö', 'o')
+          .replaceAll('ç', 'c')
+          .replaceAll(RegExp(r'^\d+[-.]?\s*'), ''); // Sayısal prefix'i temizle (eğer varsa)
+      
+      
+      for (final folder in folders) {
+        final normalizedFolder = folder
+            .toLowerCase()
+            .replaceAll(' ', '_')
+            .replaceAll('ı', 'i')
+            .replaceAll('ğ', 'g')
+            .replaceAll('ü', 'u')
+            .replaceAll('ş', 's')
+            .replaceAll('ö', 'o')
+            .replaceAll('ç', 'c')
+            .replaceAll(RegExp(r'^\d+[-.]?\s*'), ''); // Sayısal prefix'i temizle
+        
+        
+        if (normalizedFolder == normalizedTopicFolderName) {
+          return folder; // Gerçek klasör ismini döndür
+        }
+      }
+      
+      
+      // Eğer tam eşleşme yoksa, fuzzy matching dene (apostrof karakterlerini yok say)
+      final normalizedTopicFolderNameNoApostrophe = normalizedTopicFolderName
+          .replaceAll("'", '')
+          .replaceAll("'", '') // Farklı apostrof karakteri
+          .replaceAll("'", ''); // Başka bir apostrof karakteri
+      
+      for (final folder in folders) {
+        final normalizedFolder = folder
+            .toLowerCase()
+            .replaceAll(' ', '_')
+            .replaceAll('ı', 'i')
+            .replaceAll('ğ', 'g')
+            .replaceAll('ü', 'u')
+            .replaceAll('ş', 's')
+            .replaceAll('ö', 'o')
+            .replaceAll('ç', 'c')
+            .replaceAll(RegExp(r'^\d+[-.]?\s*'), '') // Sayısal prefix'i temizle
+            .replaceAll("'", '') // Apostrof'u temizle
+            .replaceAll("'", '') // Farklı apostrof karakteri
+            .replaceAll("'", ''); // Başka bir apostrof karakteri
+        
+        if (normalizedFolder == normalizedTopicFolderNameNoApostrophe) {
+          return folder; // Gerçek klasör ismini döndür
+        }
+        
+        // Son çare: içerik kontrolü (birbirini içeriyorsa)
+        if (normalizedFolder.length > 5 && normalizedTopicFolderNameNoApostrophe.length > 5) {
+          if (normalizedFolder.contains(normalizedTopicFolderNameNoApostrophe) || 
+              normalizedTopicFolderNameNoApostrophe.contains(normalizedFolder)) {
+            return folder;
+          }
+        }
+      }
+      
+      // Eğer konular/ klasöründe eşleşme bulunamadıysa ve direkt ders altından bakmadıysak, şimdi direkt ders altından bak
+      if (!useDirectLessonPath) {
+        try {
+          final lessonPath = 'dersler/$lessonNameForPath';
+          final directFolders = await _storageService.listFolders(lessonPath);
+          // 'konular' klasörünü hariç tut (eğer varsa)
+          final filteredDirectFolders = directFolders.where((folder) => folder != 'konular').toList();
+          
+          // Direkt ders altından eşleşme ara
+          for (final folder in filteredDirectFolders) {
+            final normalizedFolder = folder
+                .toLowerCase()
+                .replaceAll(' ', '_')
+                .replaceAll('ı', 'i')
+                .replaceAll('ğ', 'g')
+                .replaceAll('ü', 'u')
+                .replaceAll('ş', 's')
+                .replaceAll('ö', 'o')
+                .replaceAll('ç', 'c')
+                .replaceAll(RegExp(r'^\d+[-.]?\s*'), '');
+            
+            if (normalizedFolder == normalizedTopicFolderName) {
+              return folder;
+            }
+            
+            // Fuzzy matching
+            final normalizedFolderNoApostrophe = normalizedFolder
+                .replaceAll("'", '')
+                .replaceAll("'", '')
+                .replaceAll("'", '');
+            
+            if (normalizedFolderNoApostrophe == normalizedTopicFolderNameNoApostrophe) {
+              return folder;
+            }
+            
+            // Partial matching
+            if (normalizedFolder.length > 5 && normalizedTopicFolderNameNoApostrophe.length > 5) {
+              if (normalizedFolder.contains(normalizedTopicFolderNameNoApostrophe) || 
+                  normalizedTopicFolderNameNoApostrophe.contains(normalizedFolder)) {
+                return folder;
+              }
+            }
+          }
+        } catch (e) {
+          // Silent error handling
+        }
+      }
+      
+      // Eşleşme bulunamadıysa, normalize edilmiş ismi kullan
+      return topicFolderName;
+    } catch (e) {
+      // Silent error handling
+      // Topic ID'den direkt çıkar
+      if (topicId.startsWith('${lessonId}_')) {
+        return topicId.substring(lessonId.length + 1);
+      }
+      return topicId;
     }
   }
 
@@ -214,31 +504,14 @@ class LessonsService {
   /// Bu metod konu detay sayfasında kullanılır
   Future<Topic> getTopicContentCounts(Topic topic) async {
     try {
-      print('🔍 Loading content counts for topic: ${topic.name}');
       
       // Topic zaten lessonId'yi içeriyor, direkt kullan
       final lessonId = topic.lessonId;
       
-      // Topic ID'den topicFolderName'i çıkar
-      // Format: lessonId_topicFolderName
-      // Topic ID'den lessonId'yi çıkar (topic.lessonId uzunluğu kadar karakter + 1 alt çizgi)
-      String topicFolderName;
-      if (topic.id.startsWith('${lessonId}_')) {
-        topicFolderName = topic.id.substring(lessonId.length + 1); // lessonId_ sonrasını al
-      } else {
-        // Fallback: Eğer format beklenen gibi değilse, topic ID'den lessonId'yi çıkar
-        final parts = topic.id.split('_');
-        if (parts.length < 2) {
-          print('⚠️ Invalid topic ID format: ${topic.id}');
-          return topic;
-        }
-        topicFolderName = parts.sublist(1).join('_');
-      }
-      
       // Lesson'ı al
       final lesson = await getLessonById(lessonId);
       if (lesson == null) {
-        print('⚠️ Lesson not found: $lessonId (topic ID: ${topic.id})');
+        // Silent error handling
         return topic;
       }
       
@@ -253,17 +526,12 @@ class LessonsService {
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Konu klasörü path'ini oluştur
-      // Önce konular klasörünü kontrol et
-      String topicBasePath;
-      try {
-        final konularPath = 'dersler/$lessonNameForPath/konular';
-        await _storageService.listFolders(konularPath);
-        topicBasePath = 'dersler/$lessonNameForPath/konular/$topicFolderName';
-      } catch (e) {
-        // Fallback: direkt dersler/{lessonName}/{topicFolderName}
-        topicBasePath = 'dersler/$lessonNameForPath/$topicFolderName';
-      }
+      // Konu klasörü path'ini oluştur (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final topicBasePath = await getTopicBasePath(
+        lessonId: lessonId,
+        topicId: topic.id,
+        lessonNameForPath: lessonNameForPath,
+      );
       
       final videoPath = '$topicBasePath/video';
       final podcastPath = '$topicBasePath/podcast';
@@ -272,6 +540,7 @@ class LessonsService {
       final notlarPath = '$topicBasePath/notlar';
       
       // Dosya sayılarını paralel olarak say (hızlı - sadece dosya sayısı)
+      // Test soru sayısı ayrı hesaplanacak (cache'den hızlı)
       final counts = await Future.wait([
         _storageService.countFilesInFolder(videoPath).catchError((_) => 0),
         _storageService.countFilesInFolder(podcastPath).catchError((_) => 0),
@@ -280,6 +549,31 @@ class LessonsService {
         _storageService.countFilesInFolder(notlarPath).catchError((_) => 0),
         _countPdfsFast(topicBasePath), // PDF sayısını paralel hesapla
       ]);
+      
+      // Test soru sayısını ayrı hesapla (cache'den çok hızlı - non-blocking)
+      // Arka planda hesapla, sayfa açılışını engelleme
+      int testQuestionCount = 0;
+      try {
+        // Hızlı: Sadece cache'den sayıyı al (parse etmeden - çok hızlı)
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'questions_${topic.id}';
+        final cachedJson = prefs.getString(cacheKey);
+        
+        if (cachedJson != null && cachedJson.isNotEmpty) {
+          // Çok hızlı: Sadece '{' karakterlerini say (parse etmeden)
+          // Her soru bir object olduğu için '{' sayısı soru sayısını verir
+          int braceCount = 0;
+          for (int i = 0; i < cachedJson.length; i++) {
+            if (cachedJson[i] == '{') braceCount++;
+          }
+          testQuestionCount = braceCount;
+          if (testQuestionCount > 0) {
+          }
+        }
+      } catch (e) {
+        // Hata olursa 0 döndür, sayfa açılsın
+        // Silent error handling
+      }
       final videoCount = counts[0];
       final podcastCount = counts[1];
       final bilgikartiFileCount = counts[2]; // Dosya sayısı (hızlı)
@@ -294,6 +588,10 @@ class LessonsService {
       String? pdfUrl;
       // PDF URL'i lazy load edilecek (kullanıcı PDF sayfasına girdiğinde)
       
+      // Test sayısı: Eğer soru varsa 1 test olarak say (soru sayısını göster)
+      // testCount aslında test sayısı değil, soru sayısı olarak kullanılacak
+      final testCount = testQuestionCount > 0 ? 1 : 0;
+      
       // Topic'i güncelle
       final updatedTopic = Topic(
         id: topic.id,
@@ -301,8 +599,8 @@ class LessonsService {
         name: topic.name,
         subtitle: topic.subtitle,
         duration: topic.duration,
-        averageQuestionCount: topic.averageQuestionCount,
-        testCount: topic.testCount,
+        averageQuestionCount: testQuestionCount, // Soru sayısını buraya kaydet
+        testCount: testCount, // Test sayısı (soru varsa 1)
         podcastCount: podcastCount,
         videoCount: videoCount,
         noteCount: notCount, // Notlar ayrı
@@ -313,13 +611,34 @@ class LessonsService {
         pdfUrl: pdfUrl,
       );
       
-      print('✅ Updated topic: ${topic.name} (videos: $videoCount, podcasts: $podcastCount, bilgikarti: $bilgikartiCount, notlar: $notCount, pdfs: $pdfCount)');
+      // Sayıları cache'e kaydet (hızlı erişim için)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'content_counts_${topic.id}';
+        await prefs.setString(cacheKey, jsonEncode({
+          'videoCount': videoCount,
+          'podcastCount': podcastCount,
+          'flashCardCount': bilgikartiCount,
+          'noteCount': notCount,
+          'pdfCount': pdfCount,
+          'testQuestionCount': testQuestionCount,
+        }));
+        
+        // Soru sayısını ayrı bir key ile de kaydet (lesson_card için hızlı erişim)
+        if (testQuestionCount > 0) {
+          await prefs.setInt('questions_count_${topic.id}', testQuestionCount);
+        }
+      } catch (e) {
+        // Silent error handling
+      }
+      
       return updatedTopic;
     } catch (e) {
-      print('❌ Error fetching content counts for topic ${topic.name}: $e');
+      debugPrint('❌ Error fetching content counts for topic ${topic.name}: $e');
       return topic;
     }
   }
+
 
   /// Helper method to count PDFs quickly (sadece dosya isimlerine bak, URL almadan)
   Future<int> _countPdfsFast(String topicBasePath) async {
@@ -357,7 +676,7 @@ class LessonsService {
       
       return totalPdfCount;
     } catch (e) {
-      print('⚠️ Error counting PDFs: $e');
+      // Silent error handling
       return 0;
     }
   }
@@ -374,7 +693,7 @@ class LessonsService {
       topics.sort((a, b) => a.order.compareTo(b.order));
       return topics;
     } catch (e) {
-      print('❌ Error fetching topics from Firestore: $e');
+      debugPrint('❌ Error fetching topics from Firestore: $e');
       return [];
     }
   }
@@ -419,12 +738,12 @@ class LessonsService {
   Future<bool> addLesson(Lesson lesson) async {
     try {
       await _lessonsCollection.doc(lesson.id).set(lesson.toMap(), SetOptions(merge: true));
-      print('✅ Lesson "${lesson.name}" added/updated');
+      debugPrint('✅ Lesson "${lesson.name}" added/updated');
       return true;
     } catch (e) {
-      print('❌ Error adding lesson: $e');
-      print('Error type: ${e.runtimeType}');
-      print('Error details: ${e.toString()}');
+      debugPrint('❌ Error adding lesson: $e');
+      debugPrint('Error type: ${e.runtimeType}');
+      debugPrint('Error details: ${e.toString()}');
       return false;
     }
   }
@@ -433,12 +752,12 @@ class LessonsService {
   Future<bool> addTopic(Topic topic) async {
     try {
       await _topicsCollection.doc(topic.id).set(topic.toMap(), SetOptions(merge: true));
-      print('✅ Topic "${topic.name}" added/updated');
+      debugPrint('✅ Topic "${topic.name}" added/updated');
       return true;
     } catch (e) {
-      print('❌ Error adding topic: $e');
-      print('Error type: ${e.runtimeType}');
-      print('Error details: ${e.toString()}');
+      debugPrint('❌ Error adding topic: $e');
+      debugPrint('Error type: ${e.runtimeType}');
+      debugPrint('Error details: ${e.toString()}');
       return false;
     }
   }
@@ -449,7 +768,7 @@ class LessonsService {
       await _topicsCollection.doc(topicId).update({'progress': progress});
       return true;
     } catch (e) {
-      print('Error updating topic progress: $e');
+      debugPrint('Error updating topic progress: $e');
       return false;
     }
   }

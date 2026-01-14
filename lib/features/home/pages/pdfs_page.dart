@@ -93,43 +93,78 @@ class _PdfsPageState extends State<PdfsPage> {
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
       
-      // Topic ID'den topic folder name'i çıkar
-      // Format: lessonId_topicFolderName
-      final topicFolderName = widget.topicId.startsWith('${widget.lessonId}_')
-          ? widget.topicId.substring('${widget.lessonId}_'.length)
-          : widget.topicName.toLowerCase().replaceAll(' ', '_'); // Fallback
+      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: widget.lessonId,
+        topicId: widget.topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
       
       // Storage path'lerini oluştur (konu, konu_anlatimi, pdf klasörleri)
-      final konuAnlatimiPath = 'dersler/$lessonNameForPath/konular/$topicFolderName/konu';
-      final konuAnlatimiPathAlt = 'dersler/$lessonNameForPath/konular/$topicFolderName/konu_anlatimi';
-      final pdfPath = 'dersler/$lessonNameForPath/konular/$topicFolderName/pdf';
+      final konuAnlatimiPath = '$basePath/konu';
+      final konuAnlatimiPathAlt = '$basePath/konu_anlatimi';
+      final pdfPath = '$basePath/pdf';
       
       // Tüm PDF'leri topla
       final List<String> allPdfUrls = [];
       final List<String> pdfNames = [];
       
+      // Helper function: Extract file name from file info
+      String extractFileName(Map<String, String> fileInfo) {
+        // Önce 'name' field'ını kullan (en doğrusu)
+        var fileName = fileInfo['name'] ?? '';
+        if (fileName.isEmpty) {
+          // 'name' yoksa, fullPath'ten çıkar
+          final fullPath = fileInfo['fullPath'] ?? '';
+          if (fullPath.isNotEmpty) {
+            fileName = fullPath.split('/').last;
+          } else {
+            // fullPath de yoksa, URL'den çıkar
+            final url = fileInfo['url'] ?? '';
+            if (url.isNotEmpty) {
+              try {
+                final uri = Uri.parse(url);
+                fileName = uri.pathSegments.last;
+                fileName = fileName.split('?').first;
+              } catch (e) {
+                fileName = url.split('/').last.split('?').first;
+              }
+            }
+          }
+        }
+        
+        // Decode URL encoding
+        try {
+          fileName = Uri.decodeComponent(fileName);
+        } catch (e) {
+          // Decode edilemezse direkt kullan
+        }
+        
+        // Uzantıyı kaldır ve formatla
+        fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
+        
+        return fileName.isNotEmpty ? fileName : 'PDF';
+      }
+      
       // 1. konu/ klasöründen PDF'leri al (öncelikli)
       try {
-        final konuFiles = await _storageService.listFiles(konuAnlatimiPath);
+        final konuFiles = await _storageService.listFilesWithPaths(konuAnlatimiPath);
         print('📄 Found ${konuFiles.length} files in konu/ folder');
-        for (final pdfUrl in konuFiles) {
-          // PDF kontrolü yap - URL'de .pdf geçiyorsa veya dosya adı .pdf ile bitiyorsa
-          final urlLower = pdfUrl.toLowerCase();
-          // URL'de .pdf geçiyorsa veya dosya adı .pdf ile bitiyorsa ekle
-          if (urlLower.contains('.pdf')) {
-            allPdfUrls.add(pdfUrl);
-            // Dosya adını URL'den çıkar
-            final uri = Uri.parse(pdfUrl);
-            var fileName = uri.pathSegments.last;
-            // Query parametrelerini temizle
-            fileName = fileName.split('?').first;
-            // Uzantıyı kaldır ve formatla
-            fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
-            if (fileName.isEmpty) {
-              fileName = 'PDF ${allPdfUrls.length}';
+        for (final fileInfo in konuFiles) {
+          final url = fileInfo['url'] ?? '';
+          final name = fileInfo['name'] ?? '';
+          final urlLower = url.toLowerCase();
+          final nameLower = name.toLowerCase();
+          
+          // PDF kontrolü yap
+          if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
+            // Zaten eklenmişse atla (URL'ye göre)
+            if (!allPdfUrls.contains(url)) {
+              allPdfUrls.add(url);
+              final fileName = extractFileName(fileInfo);
+              pdfNames.add(fileName);
+              print('  ✅ Added PDF: $fileName (from: $name)');
             }
-            pdfNames.add(fileName);
-            print('  ✅ Added PDF: $fileName');
           }
         }
       } catch (e) {
@@ -138,23 +173,22 @@ class _PdfsPageState extends State<PdfsPage> {
       
       // 2. konu_anlatimi/ klasöründen PDF'leri al
       try {
-        final konuAnlatimiFiles = await _storageService.listFiles(konuAnlatimiPathAlt);
+        final konuAnlatimiFiles = await _storageService.listFilesWithPaths(konuAnlatimiPathAlt);
         print('📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder');
-        for (final pdfUrl in konuAnlatimiFiles) {
-          final urlLower = pdfUrl.toLowerCase();
-          // URL'de .pdf geçiyorsa ekle
-          if (urlLower.contains('.pdf')) {
-            // Zaten eklenmişse atla
-            if (!allPdfUrls.contains(pdfUrl)) {
-              allPdfUrls.add(pdfUrl);
-              final uri = Uri.parse(pdfUrl);
-              var fileName = uri.pathSegments.last.split('?').first;
-              fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
-              if (fileName.isEmpty) {
-                fileName = 'PDF ${allPdfUrls.length}';
-              }
+        for (final fileInfo in konuAnlatimiFiles) {
+          final url = fileInfo['url'] ?? '';
+          final name = fileInfo['name'] ?? '';
+          final urlLower = url.toLowerCase();
+          final nameLower = name.toLowerCase();
+          
+          // PDF kontrolü yap
+          if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
+            // Zaten eklenmişse atla (URL'ye göre)
+            if (!allPdfUrls.contains(url)) {
+              allPdfUrls.add(url);
+              final fileName = extractFileName(fileInfo);
               pdfNames.add(fileName);
-              print('  ✅ Added PDF: $fileName');
+              print('  ✅ Added PDF: $fileName (from: $name)');
             }
           }
         }
@@ -164,23 +198,22 @@ class _PdfsPageState extends State<PdfsPage> {
       
       // 3. pdf/ klasöründen PDF'leri al
       try {
-        final pdfFiles = await _storageService.listFiles(pdfPath);
+        final pdfFiles = await _storageService.listFilesWithPaths(pdfPath);
         print('📄 Found ${pdfFiles.length} files in pdf/ folder');
-        for (final pdfUrl in pdfFiles) {
-          final urlLower = pdfUrl.toLowerCase();
-          // URL'de .pdf geçiyorsa ekle
-          if (urlLower.contains('.pdf')) {
-            // Zaten eklenmişse atla
-            if (!allPdfUrls.contains(pdfUrl)) {
-              allPdfUrls.add(pdfUrl);
-              final uri = Uri.parse(pdfUrl);
-              var fileName = uri.pathSegments.last.split('?').first;
-              fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
-              if (fileName.isEmpty) {
-                fileName = 'PDF ${allPdfUrls.length}';
-              }
+        for (final fileInfo in pdfFiles) {
+          final url = fileInfo['url'] ?? '';
+          final name = fileInfo['name'] ?? '';
+          final urlLower = url.toLowerCase();
+          final nameLower = name.toLowerCase();
+          
+          // PDF kontrolü yap
+          if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
+            // Zaten eklenmişse atla (URL'ye göre)
+            if (!allPdfUrls.contains(url)) {
+              allPdfUrls.add(url);
+              final fileName = extractFileName(fileInfo);
               pdfNames.add(fileName);
-              print('  ✅ Added PDF: $fileName');
+              print('  ✅ Added PDF: $fileName (from: $name)');
             }
           }
         }
@@ -530,7 +563,7 @@ class _PdfsPageState extends State<PdfsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.topicName,
+                      pdfName,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 16,
                         fontWeight: FontWeight.bold,
