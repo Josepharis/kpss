@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.kpssAgs2026</string>
+	<string>com.kadrox.app</string>
 	<key>PROJECT_ID</key>
 	<string>kpss-ags-son</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:327696741252:ios:1fe26acaeb4d2b141fa3d1</string>
+	<string>1:327696741252:ios:3230c6712578d86a1fa3d1</string>
 </dict>
 </plist>

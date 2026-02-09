@@ -104,10 +104,32 @@ class QuestionsService {
   }
 
   /// Update questions in background (non-blocking)
-  void _updateQuestionsInBackground(String topicId, String lessonId) {
-    // Arka planda güncelle, sayfa açılışını engelleme
+  /// Sadece cache yoksa veya geçersizse Storage'dan çek
+  /// Uygulama arka plandayken çalışmaz (Storage kullanımını önlemek için)
+  void _updateQuestionsInBackground(String topicId, String lessonId) async {
+    // Önce cache kontrolü yap - cache geçerliyse Storage'dan çekme
+    try {
+      final cachedQuestions = await _loadQuestionsFromCache(topicId);
+      if (cachedQuestions.isNotEmpty) {
+        // Cache'de sorular var, Storage'dan çekme (gereksiz istek önleme)
+        debugPrint('✅ Questions already in cache, skipping background Storage request');
+        return;
+      }
+    } catch (e) {
+      // Cache kontrolü başarısız, devam et
+    }
+    
+    // Cache yoksa arka planda güncelle, sayfa açılışını engelleme
+    // NOT: Uygulama arka plandayken bu işlem çalışmaz (Storage kullanımını önlemek için)
     Future.microtask(() async {
       try {
+        // Uygulama durumunu kontrol et (arka plandaysa çalışma)
+        // Bu kontrol için WidgetsBinding.instance.lifecycleState kullanılabilir
+        // Ama bu servis katmanında olduğu için, sadece cache kontrolü yeterli
+        // Uygulama arka plandayken zaten bu metod çağrılmaz (sayfa açık değilse)
+        
+        debugPrint('🌐 Loading questions from Storage in background (cache miss)');
+        debugPrint('⚠️ WARNING: This will make Storage requests!');
         final storageQuestions = await _loadQuestionsFromStorage(topicId, lessonId);
         if (storageQuestions.isNotEmpty) {
           await _saveQuestionsToCache(topicId, storageQuestions);
@@ -238,17 +260,20 @@ class QuestionsService {
           final explanation = questionMap['explanation']?.toString() ?? '';
           final difficulty = questionMap['difficulty']?.toString() ?? 'easy';
           
-          // Extract options
+          // Extract options (ve varsa altı çizili kelime: underlinedWord)
           final optionsList = questionMap['options'] as List<dynamic>? ?? [];
           final List<String> options = [];
+          final List<String> underlinedWords = [];
           int correctAnswerIndex = 0;
           
           for (int i = 0; i < optionsList.length; i++) {
             final optionMap = optionsList[i] as Map<String, dynamic>;
             final optionText = optionMap['text']?.toString() ?? '';
             final optionKey = optionMap['key']?.toString() ?? '';
+            final underlined = optionMap['underlinedWord']?.toString().trim();
             
             options.add(optionText);
+            underlinedWords.add(underlined ?? '');
             
             // Find correct answer index
             if (optionKey.toUpperCase() == correctAnswer.toUpperCase()) {
@@ -270,11 +295,16 @@ class QuestionsService {
               break;
           }
           
+          // underlinedWords en az bir seçenekte doluysa kullan
+          final hasAnyUnderlined = underlinedWords.any((w) => w.isNotEmpty);
+          final List<String>? questionUnderlined = hasAnyUnderlined ? underlinedWords : null;
+
           // Create TestQuestion
           final question = TestQuestion(
             id: '${topicId}_q_$id',
             question: questionText,
             options: options,
+            underlinedWords: questionUnderlined,
             correctAnswerIndex: correctAnswerIndex,
             explanation: explanation,
             timeLimitSeconds: timeLimitSeconds,

@@ -1,0 +1,16 @@
+## Android release signing (Google Play upload key)
+## Copy this file to `android/key.properties` and fill in your real values.
+##
+## IMPORTANT:
+## - `android/key.properties` is ignored by git (see `android/.gitignore`)
+## - Do NOT commit your keystore or passwords.
+##
+## Recommended keystore location (relative to `android/`):
+## - app/upload-keystore.jks
+##
+## Example:
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=app/upload-keystore.jks
+

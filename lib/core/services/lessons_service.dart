@@ -15,6 +15,18 @@ class LessonsService {
   CollectionReference get _lessonsCollection => _firestore.collection('lessons');
   CollectionReference get _topicsCollection => _firestore.collection('topics');
 
+  String _normalizeForStoragePath(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll(' ', '_')
+        .replaceAll('ı', 'i')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
+  }
+
   /// Get all lessons
   Future<List<Lesson>> getAllLessons() async {
     try {
@@ -89,38 +101,41 @@ class LessonsService {
         return _getTopicsFromFirestore(lessonId);
       }
       
-      // Lesson name'i storage path'ine çevir (küçük harf, boşlukları alt çizgi ile değiştir)
-      final lessonNameForPath = lesson.name
-          .toLowerCase()
-          .replaceAll(' ', '_')
-          .replaceAll('ı', 'i')
-          .replaceAll('ğ', 'g')
-          .replaceAll('ü', 'u')
-          .replaceAll('ş', 's')
-          .replaceAll('ö', 'o')
-          .replaceAll('ç', 'c');
-      
-      // Storage'dan dersler/{lessonName}/konular/ klasöründeki konu klasörlerini listele
-      // Önce konular klasörünü kontrol et
-      final konularPath = 'dersler/$lessonNameForPath/konular';
-      
+      // Storage path'i için birden fazla aday dene:
+      // - lesson.name -> guncel_bilgiler
+      // - lessonId     -> guncel_bilgiler_lesson (bazı projelerde storage bu şekilde tutuluyor)
+      // - lessonId (_lesson suffix stripped) -> guncel_bilgiler
+      final lessonNameForPath = _normalizeForStoragePath(lesson.name);
+      final lessonIdForPath = _normalizeForStoragePath(lessonId);
+      final strippedLessonIdForPath = lessonIdForPath.endsWith('_lesson')
+          ? lessonIdForPath.replaceFirst(RegExp(r'_lesson$'), '')
+          : lessonIdForPath;
+
+      final candidates = <String>{
+        lessonNameForPath,
+        lessonIdForPath,
+        strippedLessonIdForPath,
+      }.where((e) => e.trim().isNotEmpty).toList();
+
       List<String> topicFolders = [];
-      try {
-        topicFolders = await _storageService.listFolders(konularPath);
-      } catch (e) {
-        // Silent error handling
-      }
-      
-      // Eğer konular/ klasöründe klasör yoksa veya exception varsa, direkt ders altından dene
-      if (topicFolders.isEmpty) {
+      for (final candidate in candidates) {
+        // 1) dersler/{candidate}/konular
         try {
-          final lessonPath = 'dersler/$lessonNameForPath';
-          final allFolders = await _storageService.listFolders(lessonPath);
-          
-          // 'konular' klasörünü hariç tut
-          topicFolders = allFolders.where((folder) => folder != 'konular').toList();
-        } catch (e) {
-          // Silent error handling
+          final konularPath = 'dersler/$candidate/konular';
+          topicFolders = await _storageService.listFolders(konularPath);
+        } catch (_) {}
+
+        // 2) dersler/{candidate} (konular klasörü yoksa / farklı yapı varsa)
+        if (topicFolders.isEmpty) {
+          try {
+            final lessonPath = 'dersler/$candidate';
+            final allFolders = await _storageService.listFolders(lessonPath);
+            topicFolders = allFolders.where((folder) => folder != 'konular').toList();
+          } catch (_) {}
+        }
+
+        if (topicFolders.isNotEmpty) {
+          break;
         }
       }
       
@@ -611,10 +626,11 @@ class LessonsService {
         pdfUrl: pdfUrl,
       );
       
-      // Sayıları cache'e kaydet (hızlı erişim için)
+      // Sayıları cache'e kaydet (hızlı erişim için - 7 gün geçerli)
       try {
         final prefs = await SharedPreferences.getInstance();
         final cacheKey = 'content_counts_${topic.id}';
+        final cacheTimeKey = 'content_counts_time_${topic.id}';
         await prefs.setString(cacheKey, jsonEncode({
           'videoCount': videoCount,
           'podcastCount': podcastCount,
@@ -623,6 +639,7 @@ class LessonsService {
           'pdfCount': pdfCount,
           'testQuestionCount': testQuestionCount,
         }));
+        await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
         
         // Soru sayısını ayrı bir key ile de kaydet (lesson_card için hızlı erişim)
         if (testQuestionCount > 0) {

@@ -7,6 +7,7 @@ import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
 import '../../../core/services/questions_service.dart';
 import '../../../core/services/progress_service.dart';
+import '../../../core/widgets/option_text_with_underline.dart';
 import '../../../../main.dart';
 
 class TestsPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class _TestsPageState extends State<TestsPage> {
   final QuestionsService _questionsService = QuestionsService();
   final ProgressService _progressService = ProgressService();
   List<TestQuestion> _questions = [];
+  List<int?> _selectedAnswers = []; // Her soru için seçilen şık
   bool _isLoading = true;
   int _currentQuestionIndex = 0;
   int _score = 0;
@@ -80,6 +82,7 @@ class _TestsPageState extends State<TestsPage> {
           _questions = questions;
           _currentQuestionIndex = initialQuestionIndex;
           _score = initialScore;
+          _selectedAnswers = List<int?>.filled(questions.length, null);
           _isLoading = false;
         });
         
@@ -155,13 +158,24 @@ class _TestsPageState extends State<TestsPage> {
   }
 
   void _selectAnswer(int index) {
-    if (_isAnswered || _questions.isEmpty) return;
+    if (_questions.isEmpty) return;
+
+    // Bu soru daha önce cevaplandıysa tekrar puanlamayı ve değişikliği engelle
+    if (_selectedAnswers.isNotEmpty &&
+        _currentQuestionIndex < _selectedAnswers.length &&
+        _selectedAnswers[_currentQuestionIndex] != null) {
+      return;
+    }
 
     final currentQuestion = _questions[_currentQuestionIndex];
     final isCorrect = index == currentQuestion.correctAnswerIndex;
 
     setState(() {
       _selectedAnswerIndex = index;
+      if (_selectedAnswers.isNotEmpty &&
+          _currentQuestionIndex < _selectedAnswers.length) {
+        _selectedAnswers[_currentQuestionIndex] = index;
+      }
       _isAnswered = true;
       _showExplanation = true;
       _showExplanationManually = false; // Cevap verildiğinde açıklamayı gizle
@@ -187,10 +201,19 @@ class _TestsPageState extends State<TestsPage> {
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
-        _selectedAnswerIndex = null;
-        _showExplanation = false;
+        // Yeni soruya geçtiğimizde, daha önce cevaplandıysa işareti ve durumu geri yükle
+        if (_selectedAnswers.isNotEmpty &&
+            _currentQuestionIndex < _selectedAnswers.length &&
+            _selectedAnswers[_currentQuestionIndex] != null) {
+          _selectedAnswerIndex = _selectedAnswers[_currentQuestionIndex];
+          _isAnswered = true;
+          _showExplanation = true;
+        } else {
+          _selectedAnswerIndex = null;
+          _isAnswered = false;
+          _showExplanation = false;
+        }
         _showExplanationManually = false;
-        _isAnswered = false;
       });
       _checkCurrentQuestionSaved();
       _startTimer();
@@ -215,9 +238,142 @@ class _TestsPageState extends State<TestsPage> {
       );
       
       // Delete ongoing test progress
-      _progressService.deleteTestProgress(widget.topicId);
+      await _progressService.deleteTestProgress(widget.topicId);
       _showResults();
     }
+  }
+
+  Future<void> _previousQuestion() async {
+    if (_currentQuestionIndex > 0) {
+      setState(() {
+        _currentQuestionIndex--;
+        if (_selectedAnswers.isNotEmpty &&
+            _currentQuestionIndex < _selectedAnswers.length &&
+            _selectedAnswers[_currentQuestionIndex] != null) {
+          _selectedAnswerIndex = _selectedAnswers[_currentQuestionIndex];
+          _isAnswered = true;
+          _showExplanation = true;
+        } else {
+          _selectedAnswerIndex = null;
+          _isAnswered = false;
+          _showExplanation = false;
+        }
+        _showExplanationManually = false;
+      });
+      _checkCurrentQuestionSaved();
+      _startTimer();
+      _saveProgress(); // Save progress after moving to previous question
+    }
+  }
+
+  void _showQuestionSelector() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sorulara Git',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 18 : 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemCount: _questions.length,
+                itemBuilder: (context, index) {
+                  final isCurrent = index == _currentQuestionIndex;
+                  final isAnswered = _selectedAnswers.isNotEmpty &&
+                      index < _selectedAnswers.length &&
+                      _selectedAnswers[index] != null;
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _currentQuestionIndex = index;
+                        if (_selectedAnswers.isNotEmpty &&
+                            _currentQuestionIndex < _selectedAnswers.length &&
+                            _selectedAnswers[_currentQuestionIndex] != null) {
+                          _selectedAnswerIndex =
+                              _selectedAnswers[_currentQuestionIndex];
+                          _isAnswered = true;
+                          _showExplanation = true;
+                        } else {
+                          _selectedAnswerIndex = null;
+                          _isAnswered = false;
+                          _showExplanation = false;
+                        }
+                        _showExplanationManually = false;
+                      });
+                      _checkCurrentQuestionSaved();
+                      _startTimer();
+                      _saveProgress();
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? AppColors.primaryBlue
+                            : isAnswered
+                                ? Colors.green.withValues(alpha: 0.2)
+                                : isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : Colors.grey.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isCurrent
+                              ? AppColors.primaryBlue
+                              : isAnswered
+                                  ? Colors.green
+                                  : Colors.grey.withValues(alpha: 0.3),
+                          width: isCurrent ? 2 : 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 12 : 14,
+                            fontWeight: FontWeight.bold,
+                            color: isCurrent
+                                ? Colors.white
+                                : isAnswered
+                                    ? Colors.green
+                                    : (isDark ? Colors.white : AppColors.textPrimary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   // Mevcut sorunun kaydedilip kaydedilmediğini kontrol et
@@ -373,98 +529,213 @@ class _TestsPageState extends State<TestsPage> {
   }
 
   void _showResults() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final correctAnswers = _score ~/ 10;
+    final wrongAnswers = _questions.length - correctAnswers;
+    final percentage = (_score / (_questions.length * 10) * 100).round();
+    
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Test Tamamlandı!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Toplam Puan: $_score'),
-            const SizedBox(height: 8),
-            Text('Doğru: ${_score ~/ 10}/${_questions.length}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              debugPrint('✅ Test completed - Tamam button pressed');
-              // Save final progress
-              if (_questions.isNotEmpty) {
-                debugPrint('🗑️ Deleting test progress...');
-                await _progressService.deleteTestProgress(widget.topicId);
-                debugPrint('✅ Progress deleted');
-              }
-              if (mounted) {
-                // Close result dialog first
-              Navigator.of(context).pop();
-                // Wait a bit for dialog to close
-                await Future.delayed(const Duration(milliseconds: 100));
-                // Show loading dialog
-                if (mounted) {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  barrierColor: Colors.black.withValues(alpha: 0.4),
-                  builder: (context) => Dialog(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Success Icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade400,
+                        Colors.green.shade600,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    size: 50,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Title
+                Text(
+                  'Test Tamamlandı!',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 22 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Score Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.primaryBlue,
-                              ),
-                            ),
+                          _buildStatItem(
+                            'Puan',
+                            '$_score',
+                            Icons.star_rounded,
+                            Colors.amber,
                           ),
-                          const SizedBox(width: 16),
-                          const Text(
-                            'Kaydediliyor...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF333333),
-                            ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                          ),
+                          _buildStatItem(
+                            'Doğru',
+                            '$correctAnswers',
+                            Icons.check_circle_rounded,
+                            Colors.green,
+                          ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                          ),
+                          _buildStatItem(
+                            'Yanlış',
+                            '$wrongAnswers',
+                            Icons.cancel_rounded,
+                            Colors.red,
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '%$percentage Başarı',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      // Sayfayı kapat ve anasayfayı güncelle
+                      if (mounted) {
+                        Navigator.of(context).pop(true);
+                        final mainScreen = MainScreen.of(context);
+                        if (mainScreen != null) {
+                          mainScreen.refreshHomePage();
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        vertical: isSmallScreen ? 14 : 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                    ),
+                    child: Text(
+                      'Tamam',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 16 : 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                );
-                  // Wait 0.5 seconds
-                  await Future.delayed(const Duration(milliseconds: 500));
-                  // Close loading dialog and page
-                  if (mounted) {
-                    Navigator.of(context).pop(); // Close loading dialog
-                    Navigator.of(context).pop(true); // Close page
-                    debugPrint('✅ Page closed');
-                    // Anasayfayı güncelle (puan için)
-                    final mainScreen = MainScreen.of(context);
-                    if (mainScreen != null) {
-                      mainScreen.refreshHomePage();
-                    }
-                  }
-                }
-              } else {
-                debugPrint('⚠️ Widget not mounted');
-              }
-            },
-            child: const Text('Tamam'),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isSmallScreen ? 18 : 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : AppColors.textPrimary,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isSmallScreen ? 11 : 12,
+            color: isDark ? Colors.white70 : AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -707,66 +978,16 @@ class _TestsPageState extends State<TestsPage> {
             } else {
               debugPrint('⚠️ No questions to save');
             }
-              if (mounted) {
-                // Show loading dialog
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  barrierColor: Colors.black.withValues(alpha: 0.4),
-                  builder: (context) => Dialog(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.primaryBlue,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Text(
-                            'Kaydediliyor...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF333333),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-                // Wait 0.5 seconds
-                await Future.delayed(const Duration(milliseconds: 500));
-                // Close dialog and page
-                if (mounted) {
-                  Navigator.of(context).pop(); // Close dialog
-                  if (mounted) {
-                    Navigator.of(context).pop(true); // Close page
-                    debugPrint('✅ Page closed');
-                    // Anasayfayı güncelle (puan için)
-                    final mainScreen = MainScreen.of(context);
-                    if (mainScreen != null) {
-                      mainScreen.refreshHomePage();
-                    }
-                  }
-                }
-              } else {
-                debugPrint('⚠️ Widget not mounted');
+            if (mounted) {
+              Navigator.of(context).pop(true);
+              // Anasayfayı güncelle (puan için)
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) {
+                mainScreen.refreshHomePage();
               }
+            } else {
+              debugPrint('⚠️ Widget not mounted');
+            }
           },
         ),
         title: Text(
@@ -778,6 +999,16 @@ class _TestsPageState extends State<TestsPage> {
           ),
         ),
         actions: [
+          if (_questions.length > 1)
+            IconButton(
+              icon: Icon(
+                Icons.list_rounded,
+                color: Colors.white,
+                size: isSmallScreen ? 18 : 20,
+              ),
+              onPressed: _showQuestionSelector,
+              tooltip: 'Sorulara Git',
+            ),
           Container(
             margin: EdgeInsets.only(right: isTablet ? 20 : 16),
             padding: EdgeInsets.symmetric(
@@ -1078,8 +1309,14 @@ class _TestsPageState extends State<TestsPage> {
                               ),
                               SizedBox(width: isSmallScreen ? 10 : 12),
                               Expanded(
-                                child: Text(
-                                  option,
+                                child: OptionTextWithUnderline(
+                                  text: option,
+                                  underlinedWord: currentQuestion.underlinedWords != null &&
+                                          index < currentQuestion.underlinedWords!.length
+                                      ? (currentQuestion.underlinedWords![index].isEmpty
+                                          ? null
+                                          : currentQuestion.underlinedWords![index])
+                                      : null,
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 13 : 14,
                                     fontWeight: isSelected
@@ -1104,48 +1341,97 @@ class _TestsPageState extends State<TestsPage> {
                       ),
                     );
                   }),
-                  // Explanation (sadece manuel açıldıysa göster)
+                  // Explanation (sadece manuel açıldıysa göster) — Modern kart
                   if (_showExplanation && _showExplanationManually)
                     Container(
                       width: double.infinity,
-                      margin: EdgeInsets.only(top: isSmallScreen ? 10 : 12),
-                      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                      margin: EdgeInsets.only(top: isSmallScreen ? 12 : 16),
                       decoration: BoxDecoration(
-                        color: _selectedAnswerIndex ==
-                                currentQuestion.correctAnswerIndex
-                            ? Colors.green.withValues(alpha: 0.08)
-                            : Colors.orange.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
+                        color: isDark
+                            ? (_selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                ? Colors.green.withValues(alpha: 0.12)
+                                : Colors.orange.withValues(alpha: 0.12))
+                            : (_selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                ? Colors.green.withValues(alpha: 0.06)
+                                : Colors.orange.withValues(alpha: 0.06)),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: _selectedAnswerIndex ==
-                                  currentQuestion.correctAnswerIndex
-                              ? Colors.green.withValues(alpha: 0.2)
-                              : Colors.orange.withValues(alpha: 0.2),
+                          color: _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                              ? Colors.green.withValues(alpha: isDark ? 0.35 : 0.2)
+                              : Colors.orange.withValues(alpha: isDark ? 0.35 : 0.2),
                           width: 1,
                         ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            _selectedAnswerIndex ==
-                                    currentQuestion.correctAnswerIndex
-                                ? Icons.check_circle_rounded
-                                : Icons.info_outline_rounded,
-                            color: _selectedAnswerIndex ==
-                                    currentQuestion.correctAnswerIndex
-                                ? Colors.green
-                                : Colors.orange,
-                            size: isSmallScreen ? 16 : 18,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                    ? Colors.green
+                                    : Colors.orange)
+                                .withValues(alpha: isDark ? 0.08 : 0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                          SizedBox(width: 8),
-                          Expanded(
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Başlık çubuğu
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallScreen ? 12 : 14,
+                              vertical: isSmallScreen ? 8 : 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                  ? Colors.green.withValues(alpha: isDark ? 0.2 : 0.12)
+                                  : Colors.orange.withValues(alpha: isDark ? 0.2 : 0.12),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                        ? Colors.green.withValues(alpha: 0.25)
+                                        : Colors.orange.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                        ? Icons.lightbulb_rounded
+                                        : Icons.school_rounded,
+                                    color: _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade700,
+                                    size: isSmallScreen ? 18 : 20,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Soru açıklaması',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 12 : 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedAnswerIndex == currentQuestion.correctAnswerIndex
+                                        ? Colors.green.shade800
+                                        : Colors.orange.shade800,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Açıklama metni
+                          Padding(
+                            padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
                             child: Text(
                               currentQuestion.explanation,
                               style: TextStyle(
-                                fontSize: isSmallScreen ? 12 : 13,
-                                color: isDark ? Colors.white : AppColors.textPrimary,
-                                height: 1.35,
+                                fontSize: isSmallScreen ? 13 : 14,
+                                color: isDark ? Colors.white.withValues(alpha: 0.92) : AppColors.textPrimary.withValues(alpha: 0.9),
+                                height: 1.5,
+                                letterSpacing: 0.15,
                               ),
                             ),
                           ),
@@ -1156,6 +1442,32 @@ class _TestsPageState extends State<TestsPage> {
                   // Buttons Row
                   Row(
                     children: [
+                      // Önceki Soru Butonu
+                      if (_currentQuestionIndex > 0)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _previousQuestion,
+                            icon: Icon(
+                              Icons.arrow_back_rounded,
+                              size: isSmallScreen ? 16 : 18,
+                            ),
+                            label: const Text('Önceki'),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
+                                vertical: isSmallScreen ? 10 : 12,
+                              ),
+                              side: BorderSide(
+                                color: AppColors.primaryBlue,
+                                width: 1.5,
+                              ),
+                              foregroundColor: AppColors.primaryBlue,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (_currentQuestionIndex > 0) SizedBox(width: 10),
                       // Açıklama Butonu (sadece cevap verildiyse göster)
                       if (_showExplanation)
                         Expanded(
@@ -1196,7 +1508,7 @@ class _TestsPageState extends State<TestsPage> {
                       if (_showExplanation) SizedBox(width: 10),
                       // Sonraki Soru Butonu (her zaman görünür)
                       Expanded(
-                        flex: _showExplanation ? 2 : 1,
+                        flex: (_currentQuestionIndex > 0 && _showExplanation) ? 2 : (_currentQuestionIndex > 0 || _showExplanation ? 2 : 1),
                         child: ElevatedButton(
                           onPressed: _nextQuestion,
                           style: ElevatedButton.styleFrom(

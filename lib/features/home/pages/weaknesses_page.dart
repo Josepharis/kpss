@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/models/weakness_question.dart';
@@ -9,6 +8,8 @@ import '../../../core/services/lessons_service.dart';
 import '../../../core/services/saved_cards_service.dart';
 import 'weakness_lesson_detail_page.dart';
 import 'saved_card_lesson_detail_page.dart';
+
+enum _SavedContentType { questions, cards }
 
 class WeaknessesPage extends StatefulWidget {
   const WeaknessesPage({super.key});
@@ -39,43 +40,24 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     await _loadLessons();
     await _loadWeaknesses();
     await _loadSavedCards();
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadSavedCards() async {
     try {
       final grouped = await SavedCardsService.getSavedCardsGroupedByLesson();
-      
-      if (mounted) {
-        setState(() {
-          _savedCardsGroupedByLesson = grouped;
-        });
-      }
-    } catch (e) {
-      // Silent error handling
-    }
+      if (mounted) setState(() => _savedCardsGroupedByLesson = grouped);
+    } catch (_) {}
   }
 
   Future<void> _loadLessons() async {
     try {
       final lessons = await _lessonsService.getAllLessons();
-      if (mounted) {
-        setState(() {
-          _allLessons = lessons;
-        });
-      }
+      if (mounted) setState(() => _allLessons = lessons);
     } catch (e) {
       debugPrint('Error loading lessons: $e');
     }
@@ -83,788 +65,579 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
 
   Future<void> _loadWeaknesses() async {
     final grouped = await WeaknessesService.getWeaknessesGroupedByLesson();
-    
-    if (mounted) {
-      setState(() {
-        _groupedByLesson = grouped;
-      });
-    }
+    if (mounted) setState(() => _groupedByLesson = grouped);
   }
 
-  // Eksik soru olan dersleri getir
   List<Lesson> _getLessonsWithWeaknesses() {
-    return _allLessons.where((lesson) {
-      return _groupedByLesson.containsKey(lesson.id) &&
-          _groupedByLesson[lesson.id]!.isNotEmpty;
-    }).toList();
+    return _allLessons.where((l) =>
+        _groupedByLesson.containsKey(l.id) && _groupedByLesson[l.id]!.isNotEmpty).toList();
   }
 
-  // Kaydedilmiş kartları olan dersleri getir
   List<Lesson> _getLessonsWithSavedCards() {
-    return _allLessons.where((lesson) {
-      return _savedCardsGroupedByLesson.containsKey(lesson.id) &&
-          _savedCardsGroupedByLesson[lesson.id]!.isNotEmpty;
-    }).toList();
+    return _allLessons.where((l) =>
+        _savedCardsGroupedByLesson.containsKey(l.id) &&
+        _savedCardsGroupedByLesson[l.id]!.isNotEmpty).toList();
   }
 
-  // Bir dersteki eksik soru sayısını getir
-  int _getWeaknessCountForLesson(String lessonId) {
-    return _groupedByLesson[lessonId]?.length ?? 0;
+  int _getWeaknessCountForLesson(String id) => _groupedByLesson[id]?.length ?? 0;
+  int _getSavedCardCountForLesson(String id) => _savedCardsGroupedByLesson[id]?.length ?? 0;
+
+  int _getTopicCountForLesson(String id) {
+    final w = _groupedByLesson[id];
+    if (w == null || w.isEmpty) return 0;
+    return w.map((e) => e.topicName).toSet().length;
   }
 
-  // Bir dersteki kaydedilmiş kart sayısını getir
-  int _getSavedCardCountForLesson(String lessonId) {
-    return _savedCardsGroupedByLesson[lessonId]?.length ?? 0;
+  int _getSavedCardTopicCountForLesson(String id) {
+    final c = _savedCardsGroupedByLesson[id];
+    if (c == null || c.isEmpty) return 0;
+    return c.map((e) => e.topicName).toSet().length;
   }
 
-  // Bir dersteki eksik soru olan konu sayısını getir
-  int _getTopicCountForLesson(String lessonId) {
-    final weaknesses = _groupedByLesson[lessonId];
-    if (weaknesses == null || weaknesses.isEmpty) return 0;
-    
-    final uniqueTopics = weaknesses.map((w) => w.topicName).toSet();
-    return uniqueTopics.length;
+  IconData _lessonIcon(String icon) {
+    const map = {
+      'menu_book': Icons.menu_book_rounded,
+      'calculate': Icons.calculate_rounded,
+      'history': Icons.history_rounded,
+      'map': Icons.map_rounded,
+      'gavel': Icons.gavel_rounded,
+      'school': Icons.school_rounded,
+      'person': Icons.person_rounded,
+      'psychology': Icons.psychology_rounded,
+    };
+    return map[icon] ?? Icons.book_rounded;
   }
 
-  // Bir dersteki kaydedilmiş kart olan konu sayısını getir
-  int _getSavedCardTopicCountForLesson(String lessonId) {
-    final savedCards = _savedCardsGroupedByLesson[lessonId];
-    if (savedCards == null || savedCards.isEmpty) return 0;
-    
-    final uniqueTopics = savedCards.map((c) => c.topicName).toSet();
-    return uniqueTopics.length;
-  }
-
-  // Ders ikonunu getir
-  IconData _getLessonIcon(String icon) {
-    switch (icon) {
-      case 'menu_book':
-        return Icons.menu_book_rounded;
-      case 'calculate':
-        return Icons.calculate_rounded;
-      case 'history':
-        return Icons.history_rounded;
-      case 'map':
-        return Icons.map_rounded;
-      case 'gavel':
-        return Icons.gavel_rounded;
-      case 'school':
-        return Icons.school_rounded;
-      case 'person':
-        return Icons.person_rounded;
-      case 'psychology':
-        return Icons.psychology_rounded;
-      default:
-        return Icons.book_rounded;
-    }
-  }
-
-  // Ders rengini getir
-  Color _getLessonColor(String color) {
-    switch (color.toLowerCase()) {
-      case 'orange':
-        return const Color(0xFFFF6B35);
-      case 'blue':
-        return AppColors.primaryBlue;
-      case 'red':
-        return const Color(0xFFE74C3C);
-      case 'green':
-        return const Color(0xFF27AE60);
-      case 'purple':
-        return const Color(0xFF9B59B6);
-      case 'teal':
-        return const Color(0xFF16A085);
-      case 'indigo':
-        return const Color(0xFF5C6BC0);
-      case 'pink':
-        return const Color(0xFFE91E63);
-      default:
-        return AppColors.primaryBlue;
-    }
-  }
-
-  // Basit ders kartı widget'ı
-  Widget _buildSimpleLessonCard({
-    required Lesson lesson,
-    required int weaknessCount,
-    required int topicCount,
-    required bool isTablet,
-    required bool isSmallScreen,
-  }) {
-    final color = _getLessonColor(lesson.color);
-    final icon = _getLessonIcon(lesson.icon);
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => WeaknessLessonDetailPage(
-              lesson: lesson,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color,
-              color.withValues(alpha: 0.85),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // İkon
-              Icon(
-                icon,
-                size: isSmallScreen ? 26 : 30,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 6 : 8),
-              // Ders adı
-              Text(
-                lesson.name,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 12 : 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: isSmallScreen ? 6 : 8),
-              // Konu ve soru sayısı (şık tasarım)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Konu sayısı (mavi/turuncu)
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 6 : 8,
-                      vertical: isSmallScreen ? 4 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orange.shade400,
-                          Colors.orange.shade600,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.library_books_rounded,
-                          size: isSmallScreen ? 12 : 14,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 5),
-                        Text(
-                          '$topicCount konu',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: isSmallScreen ? 5 : 6),
-                  // Soru sayısı (kırmızı)
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 6 : 8,
-                      vertical: isSmallScreen ? 4 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.red.shade400,
-                          Colors.red.shade600,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.quiz_rounded,
-                          size: isSmallScreen ? 12 : 14,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 5),
-                        Text(
-                          '$weaknessCount soru',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Color _lessonColor(String color) {
+    const map = {
+      'orange': Color(0xFFFF6B35),
+      'blue': AppColors.primaryBlue,
+      'red': Color(0xFFE74C3C),
+      'green': Color(0xFF27AE60),
+      'purple': Color(0xFF9B59B6),
+      'teal': Color(0xFF16A085),
+      'indigo': Color(0xFF5C6BC0),
+      'pink': Color(0xFFE91E63),
+    };
+    return map[color.toLowerCase()] ?? AppColors.primaryBlue;
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
-    final isSmallScreen = MediaQuery.of(context).size.height < 700;
-    final lessonsWithWeaknesses = _getLessonsWithWeaknesses();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appBarColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
-    
+    final topPadding = MediaQuery.of(context).padding.top;
+    final totalQuestions = _groupedByLesson.values.fold<int>(0, (s, l) => s + l.length);
+    final totalCards = _savedCardsGroupedByLesson.values.fold<int>(0, (s, l) => s + l.length);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
         systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: appBarColor,
-          elevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-          ),
-          title: const Text(
-            'Kaydedilenler',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            labelStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.normal,
-              fontSize: 14,
-            ),
-            tabs: const [
-              Tab(text: 'Test Soruları'),
-              Tab(text: 'Bilgi Kartları'),
+        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              _buildHeader(context, isDark, topPadding, totalQuestions, totalCards),
+              _buildTabBar(context, isDark),
+              Expanded(
+                child: _isLoading
+                    ? _buildLoader(isDark)
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildQuestionsTab(isDark),
+                          _buildCardsTab(isDark),
+                        ],
+                      ),
+              ),
             ],
           ),
-          actions: [
-            if (lessonsWithWeaknesses.isNotEmpty || _getLessonsWithSavedCards().isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                onPressed: _loadData,
-                tooltip: 'Yenile',
-              ),
-          ],
         ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primaryBlue,
-              ),
-            )
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                // Test Soruları Sekmesi
-                _buildQuestionsTab(isTablet, isSmallScreen, lessonsWithWeaknesses),
-                // Bilgi Kartları Sekmesi
-                _buildCardsTab(isTablet, isSmallScreen),
-              ],
-            ),
       ),
     );
   }
 
-  Widget _buildQuestionsTab(bool isTablet, bool isSmallScreen, List<Lesson> lessonsWithWeaknesses) {
-    if (lessonsWithWeaknesses.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.quiz_outlined,
-              size: 80,
-              color: Colors.grey.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Builder(
-              builder: (context) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                final textColor = isDark ? Colors.white70 : AppColors.textSecondary;
-                final lightTextColor = isDark ? Colors.white60 : AppColors.textLight;
-                
-                return Column(
-                  children: [
-                    Text(
-                      'Henüz kaydedilmiş soru yok',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Test çözerken yanlış yaptığınız sorular\nveya manuel olarak eklediğiniz sorular\nburada görünecek.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: lightTextColor,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: AppColors.primaryBlue,
-      child: ListView(
-        padding: EdgeInsets.all(isTablet ? 20 : 16),
-        children: [
-          // İstatistik Kartı
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmallScreen ? 12 : 16,
-              vertical: isSmallScreen ? 10 : 12,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primaryBlue,
-                  AppColors.primaryDarkBlue,
+  Widget _buildHeader(
+    BuildContext context,
+    bool isDark,
+    double topPadding,
+    int totalQuestions,
+    int totalCards,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  const Color(0xFF1A1A2E),
+                  const Color(0xFF16213E),
+                  const Color(0xFF0F3460),
+                ]
+              : [
+                  const Color(0xFF2563EB),
+                  const Color(0xFF1D4ED8),
+                  const Color(0xFF1E40AF),
                 ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  Icons.quiz_rounded,
-                  color: Colors.white,
-                  size: isSmallScreen ? 18 : 20,
-                ),
-                const SizedBox(width: 8),
                 Text(
-                  'Toplam: ${_groupedByLesson.values.fold<int>(0, (sum, list) => sum + list.length)} soru',
+                  'Kaydedilenler',
                   style: TextStyle(
-                    fontSize: isSmallScreen ? 13 : 14,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                Material(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    onTap: _loadData,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(Icons.refresh_rounded, size: 20, color: Colors.white.withValues(alpha: 0.9)),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          SizedBox(height: isSmallScreen ? 16 : 20),
-          // Dersler Listesi
-          Builder(
-            builder: (context) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final textColor = isDark ? Colors.white : AppColors.textPrimary;
-              
-              return Text(
-                'Dersler',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 18 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildStatChip(
+                  icon: Icons.quiz_rounded,
+                  count: totalQuestions,
+                  label: 'Soru',
+                  color: const Color(0xFFF59E0B),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isTablet ? 4 : 3,
-              crossAxisSpacing: isSmallScreen ? 8 : 10,
-              mainAxisSpacing: isSmallScreen ? 8 : 10,
-              childAspectRatio: isTablet ? 0.70 : 0.75,
+                const SizedBox(width: 8),
+                _buildStatChip(
+                  icon: Icons.style_rounded,
+                  count: totalCards,
+                  label: 'Kart',
+                  color: const Color(0xFF10B981),
+                ),
+              ],
             ),
-            itemCount: lessonsWithWeaknesses.length,
-            itemBuilder: (context, index) {
-              final lesson = lessonsWithWeaknesses[index];
-              final weaknessCount = _getWeaknessCountForLesson(lesson.id);
-              final topicCount = _getTopicCountForLesson(lesson.id);
-              
-              return _buildSimpleLessonCard(
-                lesson: lesson,
-                weaknessCount: weaknessCount,
-                topicCount: topicCount,
-                isTablet: isTablet,
-                isSmallScreen: isSmallScreen,
-              );
-            },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatChip({
+    required IconData icon,
+    required int count,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCardsTab(bool isTablet, bool isSmallScreen) {
-    final lessonsWithSavedCards = _getLessonsWithSavedCards();
-    
-    if (lessonsWithSavedCards.isEmpty) {
-      return Center(
+  Widget _buildTabBar(BuildContext context, bool isDark) {
+    return Container(
+      color: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TabBar(
+          controller: _tabController,
+          indicator: BoxDecoration(
+            color: isDark ? const Color(0xFF2563EB) : AppColors.primaryBlue,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark ? const Color(0xFF2563EB) : AppColors.primaryBlue)
+                    .withValues(alpha: 0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelColor: Colors.white,
+          unselectedLabelColor: isDark ? Colors.white54 : AppColors.textSecondary,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+          tabs: const [
+            Tab(text: 'Test Soruları'),
+            Tab(text: 'Bilgi Kartları'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoader(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: isDark ? const Color(0xFF3B82F6) : AppColors.primaryBlue,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Yükleniyor...',
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white54 : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionsTab(bool isDark) {
+    final lessons = _getLessonsWithWeaknesses();
+    if (lessons.isEmpty) {
+      return _buildEmptyState(
+        isDark: isDark,
+        icon: Icons.quiz_outlined,
+        title: 'Henüz kaydedilmiş soru yok',
+        subtitle: 'Test çözerken yanlış yaptığınız veya manuel eklediğiniz sorular burada görünecek.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: AppColors.primaryBlue,
+      backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        itemCount: lessons.length,
+        itemBuilder: (context, index) {
+          final lesson = lessons[index];
+          final weaknessCount = _getWeaknessCountForLesson(lesson.id);
+          final topicCount = _getTopicCountForLesson(lesson.id);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildLessonCard(
+              isDark: isDark,
+              lesson: lesson,
+              type: _SavedContentType.questions,
+              count: weaknessCount,
+              topicCount: topicCount,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WeaknessLessonDetailPage(lesson: lesson),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardsTab(bool isDark) {
+    final lessons = _getLessonsWithSavedCards();
+    if (lessons.isEmpty) {
+      return _buildEmptyState(
+        isDark: isDark,
+        icon: Icons.style_outlined,
+        title: 'Henüz kaydedilmiş bilgi kartı yok',
+        subtitle: 'Bilgi kartları sayfasında kaydet butonuna bastığınız kartlar burada listelenir.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: AppColors.primaryBlue,
+      backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        itemCount: lessons.length,
+        itemBuilder: (context, index) {
+          final lesson = lessons[index];
+          final cardCount = _getSavedCardCountForLesson(lesson.id);
+          final topicCount = _getSavedCardTopicCountForLesson(lesson.id);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildLessonCard(
+              isDark: isDark,
+              lesson: lesson,
+              type: _SavedContentType.cards,
+              count: cardCount,
+              topicCount: topicCount,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SavedCardLessonDetailPage(lesson: lesson),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required bool isDark,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.style_outlined,
-              size: 80,
-              color: Colors.grey.withValues(alpha: 0.5),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: (isDark ? Colors.white10 : AppColors.primaryBlue.withValues(alpha: 0.08)),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 44,
+                color: isDark ? Colors.white38 : AppColors.primaryBlue.withValues(alpha: 0.6),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Henüz kaydedilmiş bilgi kartı yok',
+              title,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Bilgi kartları sayfasında kaydet butonuna\nbastığınız kartlar burada görünecek.',
+              subtitle,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textLight,
+                fontSize: 13,
+                height: 1.4,
+                color: isDark ? Colors.white54 : AppColors.textSecondary,
               ),
             ),
           ],
         ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: AppColors.primaryBlue,
-      child: ListView(
-        padding: EdgeInsets.all(isTablet ? 20 : 16),
-        children: [
-          // İstatistik Kartı
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmallScreen ? 12 : 16,
-              vertical: isSmallScreen ? 10 : 12,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.gradientGreenStart,
-                  AppColors.gradientGreenEnd,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.gradientGreenStart.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.style_rounded,
-                  color: Colors.white,
-                  size: isSmallScreen ? 18 : 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Toplam: ${_savedCardsGroupedByLesson.values.fold<int>(0, (sum, list) => sum + list.length)} kart',
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 13 : 14,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: isSmallScreen ? 16 : 20),
-          // Dersler Listesi
-          Builder(
-            builder: (context) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final textColor = isDark ? Colors.white : AppColors.textPrimary;
-              
-              return Text(
-                'Dersler',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 18 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isTablet ? 4 : 3,
-              crossAxisSpacing: isSmallScreen ? 8 : 10,
-              mainAxisSpacing: isSmallScreen ? 8 : 10,
-              childAspectRatio: isTablet ? 0.70 : 0.75,
-            ),
-            itemCount: lessonsWithSavedCards.length,
-            itemBuilder: (context, index) {
-              final lesson = lessonsWithSavedCards[index];
-              final cardCount = _getSavedCardCountForLesson(lesson.id);
-              final topicCount = _getSavedCardTopicCountForLesson(lesson.id);
-              
-              return _buildSavedCardLessonCard(
-                lesson: lesson,
-                cardCount: cardCount,
-                topicCount: topicCount,
-                isTablet: isTablet,
-                isSmallScreen: isSmallScreen,
-              );
-            },
-          ),
-        ],
       ),
     );
   }
 
-  // Kaydedilmiş kartlar için ders kartı
-  Widget _buildSavedCardLessonCard({
+  Widget _buildLessonCard({
+    required bool isDark,
     required Lesson lesson,
-    required int cardCount,
+    required _SavedContentType type,
+    required int count,
     required int topicCount,
-    required bool isTablet,
-    required bool isSmallScreen,
+    required VoidCallback onTap,
   }) {
-    final color = _getLessonColor(lesson.color);
-    final icon = _getLessonIcon(lesson.icon);
+    final color = _lessonColor(lesson.color);
+    final icon = _lessonIcon(lesson.icon);
+    final isQuestions = type == _SavedContentType.questions;
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SavedCardLessonDetailPage(
-              lesson: lesson,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+              width: 1,
             ),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color,
-              color.withValues(alpha: 0.85),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Row(
             children: [
-              // İkon
-              Icon(
-                icon,
-                size: isSmallScreen ? 26 : 30,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 6 : 8),
-              // Ders adı
-              Text(
-                lesson.name,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 12 : 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color, color.withValues(alpha: 0.8)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                child: Icon(icon, color: Colors.white, size: 22),
               ),
-              SizedBox(height: isSmallScreen ? 6 : 8),
-              // Konu ve kart sayısı
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Konu sayısı
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 6 : 8,
-                      vertical: isSmallScreen ? 4 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orange.shade400,
-                          Colors.orange.shade600,
-                        ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      lesson.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 6),
+                    Row(
                       children: [
-                        Icon(
-                          Icons.library_books_rounded,
-                          size: isSmallScreen ? 12 : 14,
-                          color: Colors.white,
+                        _buildMiniBadge(
+                          isDark: isDark,
+                          icon: Icons.folder_rounded,
+                          text: '$topicCount konu',
                         ),
-                        SizedBox(width: isSmallScreen ? 4 : 5),
-                        Text(
-                          '$topicCount konu',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                        const SizedBox(width: 6),
+                        _buildMiniBadge(
+                          isDark: isDark,
+                          icon: isQuestions ? Icons.quiz_rounded : Icons.style_rounded,
+                          text: '$count ${isQuestions ? 'soru' : 'kart'}',
+                          accentColor: isQuestions ? const Color(0xFFEF4444) : const Color(0xFF10B981),
                         ),
                       ],
                     ),
-                  ),
-                  SizedBox(height: isSmallScreen ? 5 : 6),
-                  // Kart sayısı
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 6 : 8,
-                      vertical: isSmallScreen ? 4 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.gradientGreenStart,
-                          AppColors.gradientGreenEnd,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.gradientGreenStart.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.style_rounded,
-                          size: isSmallScreen ? 12 : 14,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 5),
-                        Text(
-                          '$cardCount kart',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 12,
+                color: isDark ? Colors.white38 : AppColors.textLight,
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMiniBadge({
+    required bool isDark,
+    required IconData icon,
+    required String text,
+    Color? accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: (accentColor ?? (isDark ? Colors.white12 : AppColors.backgroundBeige))
+            .withValues(alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: accentColor ?? (isDark ? Colors.white54 : AppColors.textSecondary)),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

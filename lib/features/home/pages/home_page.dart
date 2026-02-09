@@ -18,6 +18,7 @@ import '../widgets/ongoing_flash_cards_section.dart';
 import '../widgets/info_cards_section.dart';
 import '../widgets/daily_quote_card.dart';
 import '../widgets/exam_countdown_card.dart';
+import '../widgets/quick_access_section.dart';
 import '../../../../main.dart';
 
 class HomePage extends StatefulWidget {
@@ -63,7 +64,7 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
-      
+
       // Firestore'dan güncelle
       final score = await _progressService.getUserTotalScore();
       if (mounted) {
@@ -71,7 +72,7 @@ class _HomePageState extends State<HomePage> {
           _userTotalScore = score;
         });
       }
-      
+
       // Cache'e kaydet
       await prefs.setInt('user_total_score', score);
     } catch (e) {
@@ -83,13 +84,15 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadOngoingContentFromCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Testler
       final testsJson = prefs.getString('ongoing_tests_cache');
       if (testsJson != null && testsJson.isNotEmpty) {
         try {
           final List<dynamic> testsList = jsonDecode(testsJson);
-          final tests = testsList.map((json) => OngoingTest.fromMap(json as Map<String, dynamic>)).toList();
+          final tests = testsList
+              .map((json) => OngoingTest.fromMap(json as Map<String, dynamic>))
+              .toList();
           if (mounted) {
             setState(() {
               _ongoingTests = tests;
@@ -99,13 +102,17 @@ class _HomePageState extends State<HomePage> {
           // Silent error handling
         }
       }
-      
+
       // Podcastler
       final podcastsJson = prefs.getString('ongoing_podcasts_cache');
       if (podcastsJson != null && podcastsJson.isNotEmpty) {
         try {
           final List<dynamic> podcastsList = jsonDecode(podcastsJson);
-          final podcasts = podcastsList.map((json) => OngoingPodcast.fromMap(json as Map<String, dynamic>)).toList();
+          final podcasts = podcastsList
+              .map(
+                (json) => OngoingPodcast.fromMap(json as Map<String, dynamic>),
+              )
+              .toList();
           if (mounted) {
             setState(() {
               _ongoingPodcasts = podcasts;
@@ -115,13 +122,15 @@ class _HomePageState extends State<HomePage> {
           // Silent error handling
         }
       }
-      
+
       // Videolar
       final videosJson = prefs.getString('ongoing_videos_cache');
       if (videosJson != null && videosJson.isNotEmpty) {
         try {
           final List<dynamic> videosList = jsonDecode(videosJson);
-          final videos = videosList.map((json) => OngoingVideo.fromMap(json as Map<String, dynamic>)).toList();
+          final videos = videosList
+              .map((json) => OngoingVideo.fromMap(json as Map<String, dynamic>))
+              .toList();
           if (mounted) {
             setState(() {
               _ongoingVideos = videos;
@@ -131,13 +140,18 @@ class _HomePageState extends State<HomePage> {
           // Silent error handling
         }
       }
-      
+
       // Flash Cards (devam eden bilgi kartları)
       final flashCardsJson = prefs.getString('ongoing_flash_cards_cache');
       if (flashCardsJson != null && flashCardsJson.isNotEmpty) {
         try {
           final List<dynamic> flashCardsList = jsonDecode(flashCardsJson);
-          final flashCards = flashCardsList.map((json) => OngoingFlashCard.fromMap(json as Map<String, dynamic>)).toList();
+          final flashCards = flashCardsList
+              .map(
+                (json) =>
+                    OngoingFlashCard.fromMap(json as Map<String, dynamic>),
+              )
+              .toList();
           if (mounted) {
             setState(() {
               _ongoingFlashCards = flashCards;
@@ -147,13 +161,15 @@ class _HomePageState extends State<HomePage> {
           // Silent error handling
         }
       }
-      
+
       // Info Cards (flash cards) - cache'den yükle
       final infoCardsJson = prefs.getString('info_cards_cache');
       if (infoCardsJson != null && infoCardsJson.isNotEmpty) {
         try {
           final List<dynamic> infoCardsList = jsonDecode(infoCardsJson);
-          final infoCards = infoCardsList.map((json) => InfoCard.fromMap(json as Map<String, dynamic>)).toList();
+          final infoCards = infoCardsList
+              .map((json) => InfoCard.fromMap(json as Map<String, dynamic>))
+              .toList();
           if (mounted) {
             setState(() {
               _infoCards = infoCards;
@@ -178,24 +194,32 @@ class _HomePageState extends State<HomePage> {
         _progressService.getOngoingFlashCards(),
         _lessonsService.getAllTopics(), // InfoCards için
       ]);
-      
+
       final tests = results[0] as List<OngoingTest>;
       final podcasts = results[1] as List<OngoingPodcast>;
       final videos = results[2] as List<OngoingVideo>;
       final flashCards = results[3] as List<OngoingFlashCard>;
       final allTopics = results[4] as List<Topic>;
-      
+
       // Load topics with flash cards (videoCount > 0 means flash cards exist)
       final topicsWithFlashCards = allTopics
           .where((topic) => topic.videoCount > 0)
           .toList();
-      
+
       // Convert topics to InfoCards
       final infoCards = topicsWithFlashCards.map((topic) {
         // Generate color based on topic name hash
-        final colors = ['green', 'orange', 'teal', 'purple', 'blue', 'yellow', 'red'];
+        final colors = [
+          'green',
+          'orange',
+          'teal',
+          'purple',
+          'blue',
+          'yellow',
+          'red',
+        ];
         final colorIndex = topic.name.hashCode.abs() % colors.length;
-        
+
         return InfoCard(
           id: topic.id,
           title: topic.name,
@@ -211,27 +235,32 @@ class _HomePageState extends State<HomePage> {
       // Cache'e kaydet
       try {
         final prefs = await SharedPreferences.getInstance();
-        
+
         // Testler
         final testsJson = jsonEncode(tests.map((t) => t.toMap()).toList());
         await prefs.setString('ongoing_tests_cache', testsJson);
-        
+
         // Podcastler
-        final podcastsJson = jsonEncode(podcasts.map((p) => p.toMap()).toList());
+        final podcastsJson = jsonEncode(
+          podcasts.map((p) => p.toMap()).toList(),
+        );
         await prefs.setString('ongoing_podcasts_cache', podcastsJson);
-        
+
         // Videolar
         final videosJson = jsonEncode(videos.map((v) => v.toMap()).toList());
         await prefs.setString('ongoing_videos_cache', videosJson);
-        
+
         // Flash Cards
-        final flashCardsJson = jsonEncode(flashCards.map((f) => f.toMap()).toList());
+        final flashCardsJson = jsonEncode(
+          flashCards.map((f) => f.toMap()).toList(),
+        );
         await prefs.setString('ongoing_flash_cards_cache', flashCardsJson);
-        
+
         // Info Cards
-        final infoCardsJson = jsonEncode(infoCards.map((c) => c.toMap()).toList());
+        final infoCardsJson = jsonEncode(
+          infoCards.map((c) => c.toMap()).toList(),
+        );
         await prefs.setString('info_cards_cache', infoCardsJson);
-        
       } catch (e) {
         // Silent error handling
       }
@@ -262,66 +291,59 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildEmptyState(bool isSmallScreen, bool isTablet) {
+    final isCompact = isTablet;
     return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: isTablet ? 24.0 : 16.0,
+      margin: EdgeInsets.symmetric(horizontal: isTablet ? 20.0 : 16.0),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 24.0 : (isSmallScreen ? 24.0 : 32.0),
+        vertical: isCompact ? 20.0 : (isSmallScreen ? 24.0 : 32.0),
       ),
-      padding: EdgeInsets.all(isSmallScreen ? 24.0 : 32.0),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryBlue.withValues(alpha: 0.1),
-            AppColors.primaryDarkBlue.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.primaryBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.2),
-          width: 1.5,
+          color: AppColors.primaryBlue.withValues(alpha: 0.15),
+          width: 1,
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // İkon
           Container(
-            padding: EdgeInsets.all(isSmallScreen ? 20.0 : 24.0),
+            padding: EdgeInsets.all(
+              isCompact ? 16.0 : (isSmallScreen ? 20.0 : 24.0),
+            ),
             decoration: BoxDecoration(
               color: AppColors.primaryBlue.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.school_outlined,
-              size: isSmallScreen ? 48.0 : 64.0,
+              size: isCompact ? 40.0 : (isSmallScreen ? 48.0 : 64.0),
               color: AppColors.primaryBlue,
             ),
           ),
-          SizedBox(height: isSmallScreen ? 16.0 : 24.0),
-          // Başlık
+          SizedBox(height: isCompact ? 12.0 : (isSmallScreen ? 16.0 : 24.0)),
           Text(
             'Hoş Geldiniz!',
             style: TextStyle(
-              fontSize: isSmallScreen ? 22.0 : 28.0,
+              fontSize: isCompact ? 20.0 : (isSmallScreen ? 22.0 : 28.0),
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-          // Açıklama
+          SizedBox(height: isCompact ? 6.0 : (isSmallScreen ? 8.0 : 12.0)),
           Text(
-            'Çalışmaya başlamak için dersler bölümünden\nbir konu seçebilirsiniz.',
+            'Çalışmaya başlamak için dersler bölümünden bir konu seçebilirsiniz.',
             style: TextStyle(
-              fontSize: isSmallScreen ? 14.0 : 16.0,
+              fontSize: isCompact ? 13.0 : (isSmallScreen ? 14.0 : 16.0),
               color: AppColors.textSecondary,
-              height: 1.5,
+              height: 1.4,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: isSmallScreen ? 24.0 : 32.0),
-          // Hızlı Erişim Butonları
+          SizedBox(height: isCompact ? 16.0 : (isSmallScreen ? 24.0 : 32.0)),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -329,27 +351,21 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.library_books_rounded,
                 label: 'Dersler',
                 color: AppColors.primaryBlue,
-                isSmallScreen: isSmallScreen,
+                isSmallScreen: isSmallScreen || isCompact,
                 onTap: () {
-                  // Dersler sayfasına git
                   final mainScreen = MainScreen.of(context);
-                  if (mainScreen != null) {
-                    mainScreen.navigateToTab(1);
-                  }
+                  if (mainScreen != null) mainScreen.navigateToTab(1);
                 },
               ),
-              SizedBox(width: isSmallScreen ? 12.0 : 16.0),
+              SizedBox(width: isSmallScreen || isCompact ? 12.0 : 16.0),
               _buildQuickActionButton(
                 icon: Icons.school_rounded,
                 label: 'Çalışma',
                 color: AppColors.gradientGreenStart,
-                isSmallScreen: isSmallScreen,
+                isSmallScreen: isSmallScreen || isCompact,
                 onTap: () {
-                  // Çalışma sayfasına git
                   final mainScreen = MainScreen.of(context);
-                  if (mainScreen != null) {
-                    mainScreen.navigateToTab(3);
-                  }
+                  if (mainScreen != null) mainScreen.navigateToTab(3);
                 },
               ),
             ],
@@ -377,10 +393,7 @@ class _HomePageState extends State<HomePage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              color,
-              color.withValues(alpha: 0.8),
-            ],
+            colors: [color, color.withValues(alpha: 0.8)],
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
@@ -394,11 +407,7 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: isSmallScreen ? 20.0 : 24.0,
-            ),
+            Icon(icon, color: Colors.white, size: isSmallScreen ? 20.0 : 24.0),
             SizedBox(width: isSmallScreen ? 8.0 : 10.0),
             Text(
               label,
@@ -413,7 +422,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -433,26 +441,39 @@ class _HomePageState extends State<HomePage> {
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
-    
+
     // Responsive font sizes
     final greetingFontSize = isSmallScreen ? 12.0 : 14.0;
     final titleFontSize = isSmallScreen ? 16.0 : 20.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
-    final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
-    
+    final headerGradientColors = isDark
+        ? [
+            const Color(0xFF1A1A2E),
+            const Color(0xFF16213E),
+            const Color(0xFF0F3460),
+          ]
+        : [
+            const Color(0xFF2563EB),
+            const Color(0xFF1D4ED8),
+            const Color(0xFF1E40AF),
+          ];
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(
           children: [
-            // Custom AppBar with Status Bar
+            // Custom AppBar with Status Bar (Kaydedilenler ile aynı gradient)
             Container(
               padding: EdgeInsets.only(
                 top: statusBarHeight,
@@ -464,14 +485,15 @@ class _HomePageState extends State<HomePage> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    headerColor,
-                    headerDarkColor,
-                  ],
+                  colors: headerGradientColors,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.2),
+                    color:
+                        (isDark
+                                ? const Color(0xFF0F3460)
+                                : const Color(0xFF1E40AF))
+                            .withValues(alpha: 0.25),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -493,7 +515,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'KPSS & AGS 2026',
+                        'Kadrox',
                         style: TextStyle(
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.bold,
@@ -545,12 +567,13 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final hasOngoingContent = _ongoingTests.isNotEmpty || 
-                                           _ongoingPodcasts.isNotEmpty || 
-                                           _ongoingVideos.isNotEmpty || 
-                                           _ongoingFlashCards.isNotEmpty ||
-                                           _infoCards.isNotEmpty;
-                  
+                  final hasOngoingContent =
+                      _ongoingTests.isNotEmpty ||
+                      _ongoingPodcasts.isNotEmpty ||
+                      _ongoingVideos.isNotEmpty ||
+                      _ongoingFlashCards.isNotEmpty ||
+                      _infoCards.isNotEmpty;
+
                   return SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
                     child: ConstrainedBox(
@@ -562,62 +585,92 @@ class _HomePageState extends State<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Daily Quote Card
-                            DailyQuoteCard(
-                              quote: '',
-                              isSmallScreen: isSmallScreen,
-                            ),
+                            // Tablet yatay: Günün Sözü + Sınava Kalan yan yana (kompakt)
+                            if (screenWidth > 900) ...[
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isTablet ? 20.0 : 16.0,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: DailyQuoteCard(
+                                        quote: '',
+                                        isSmallScreen: isSmallScreen,
+                                        isCompactLayout: true,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12.0),
+                                    Expanded(
+                                      child: ExamCountdownCard(
+                                        examDate: DateTime(2026, 7, 1),
+                                        isSmallScreen: isSmallScreen,
+                                        isCompactLayout: true,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              DailyQuoteCard(
+                                quote: '',
+                                isSmallScreen: isSmallScreen,
+                              ),
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                              ExamCountdownCard(
+                                examDate: DateTime(2026, 7, 1),
+                                isSmallScreen: isSmallScreen,
+                              ),
+                            ],
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Exam Countdown Card
-                            ExamCountdownCard(
-                              examDate: DateTime(2026, 7, 1), // KPSS & AGS 2026 sınav tarihi
-                              isSmallScreen: isSmallScreen,
-                            ),
+                            // Quick Access Section
+                            QuickAccessSection(isSmallScreen: isSmallScreen),
                             SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Ongoing Tests Section
                             if (_ongoingTests.isNotEmpty)
-                            OngoingTestsSection(
-                                  tests: _ongoingTests,
+                              OngoingTestsSection(
+                                tests: _ongoingTests,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: constraints.maxHeight * 0.35,
-                            ),
+                              ),
                             if (_ongoingTests.isNotEmpty)
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Ongoing Podcasts Section
                             if (_ongoingPodcasts.isNotEmpty)
-                            OngoingPodcastsSection(
-                                  podcasts: _ongoingPodcasts,
+                              OngoingPodcastsSection(
+                                podcasts: _ongoingPodcasts,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: constraints.maxHeight * 0.35,
                               ),
                             if (_ongoingPodcasts.isNotEmpty)
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Ongoing Videos Section
                             if (_ongoingVideos.isNotEmpty)
-                            OngoingVideosSection(
+                              OngoingVideosSection(
                                 videos: _ongoingVideos,
-                              isSmallScreen: isSmallScreen,
-                              availableHeight: constraints.maxHeight * 0.35,
-                            ),
-                            if (_ongoingVideos.isNotEmpty)
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Ongoing Flash Cards Section
-                            if (_ongoingFlashCards.isNotEmpty)
-                            OngoingFlashCardsSection(
-                                  flashCards: _ongoingFlashCards,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: constraints.maxHeight * 0.35,
-                            ),
+                              ),
+                            if (_ongoingVideos.isNotEmpty)
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                            // Ongoing Flash Cards Section
                             if (_ongoingFlashCards.isNotEmpty)
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                              OngoingFlashCardsSection(
+                                flashCards: _ongoingFlashCards,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: constraints.maxHeight * 0.35,
+                              ),
+                            if (_ongoingFlashCards.isNotEmpty)
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
                             // Info Cards Section (Flash Cards)
                             if (_infoCards.isNotEmpty) ...[
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            InfoCardsSection(
+                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
+                              InfoCardsSection(
                                 infoCards: _infoCards,
-                              isSmallScreen: isSmallScreen,
-                              availableHeight: constraints.maxHeight * 0.35,
-                            ),
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: constraints.maxHeight * 0.35,
+                              ),
                             ],
                             // Boş durum - devam eden içerik yoksa
                             if (!hasOngoingContent) ...[

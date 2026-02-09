@@ -2,6 +2,9 @@ class TestQuestion {
   final String id;
   final String question;
   final List<String> options;
+  /// Her seçenek için altı çizilecek kelime (soru "altı çizili sözcük" dediğinde kullanılır).
+  /// options ile aynı sırada, [options[i]] içinde underline edilecek kelime [underlinedWords[i]].
+  final List<String>? underlinedWords;
   final int correctAnswerIndex;
   final String explanation;
   final int timeLimitSeconds; // seconds
@@ -14,6 +17,7 @@ class TestQuestion {
     required this.id,
     required this.question,
     required this.options,
+    this.underlinedWords,
     required this.correctAnswerIndex,
     required this.explanation,
     required this.timeLimitSeconds,
@@ -25,10 +29,17 @@ class TestQuestion {
 
   // Convert from Firestore document
   factory TestQuestion.fromMap(Map<String, dynamic> map, String id) {
+    final options = List<String>.from(map['options'] ?? []);
+    final rawUnderlined = map['underlinedWords'];
+    List<String>? underlinedWords;
+    if (rawUnderlined is List && rawUnderlined.length == options.length) {
+      underlinedWords = rawUnderlined.map((e) => e?.toString() ?? '').toList();
+    }
     return TestQuestion(
       id: id,
       question: map['question'] ?? '',
-      options: List<String>.from(map['options'] ?? []),
+      options: options,
+      underlinedWords: underlinedWords,
       correctAnswerIndex: (map['correctAnswerIndex'] ?? 0) as int,
       explanation: map['explanation'] ?? '',
       timeLimitSeconds: (map['timeLimitSeconds'] ?? 60) as int,
@@ -44,6 +55,7 @@ class TestQuestion {
     return {
       'question': question,
       'options': options,
+      if (underlinedWords != null) 'underlinedWords': underlinedWords,
       'correctAnswerIndex': correctAnswerIndex,
       'explanation': explanation,
       'timeLimitSeconds': timeLimitSeconds,

@@ -49,7 +49,6 @@ class _SavedCardLessonDetailPageState extends State<SavedCardLessonDetailPage> {
         });
       }
     } catch (e) {
-      // Silent error handling
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -81,236 +80,317 @@ class _SavedCardLessonDetailPageState extends State<SavedCardLessonDetailPage> {
     }
   }
 
+  Widget _buildMiniBadge({
+    required bool isDark,
+    required IconData icon,
+    required String text,
+    Color? accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: (accentColor ?? (isDark ? Colors.white12 : AppColors.backgroundBeige))
+            .withValues(alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: accentColor ?? (isDark ? Colors.white54 : AppColors.textSecondary)),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final topPadding = MediaQuery.of(context).padding.top;
     final topics = _groupedByTopic.keys.toList();
     final totalCards = _groupedByTopic.values.fold<int>(0, (sum, list) => sum + list.length);
+    final color = _getColor();
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      body: Column(
-        children: [
-          // Header (Kompakt)
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + (isSmallScreen ? 4 : 6),
-              bottom: isSmallScreen ? 8 : 10,
-              left: isTablet ? 16 : 12,
-              right: isTablet ? 16 : 12,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _getColor(),
-                  _getColor().withValues(alpha: 0.8),
+      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            // Premium header - Kaydedilenler ekranıyla uyumlu
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color,
+                    color.withValues(alpha: 0.85),
+                    color.withValues(alpha: 0.75),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: _getColor().withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white,
-                    size: isSmallScreen ? 18 : 20,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.lesson.name,
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 18 : 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$totalCards kaydedilmiş kart • ${topics.length} konu',
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 11 : 12,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    color: Colors.white,
-                    size: isSmallScreen ? 20 : 22,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: _loadSavedCards,
-                  tooltip: 'Yenile',
-                ),
-              ],
-            ),
-          ),
-          // Topics List
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primaryBlue,
-                    ),
-                  )
-                : topics.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.style_outlined,
-                              size: 80,
-                              color: Colors.grey.withValues(alpha: 0.5),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(isTablet ? 16 : 12, topPadding + 8, isTablet ? 16 : 12, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Material(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            onTap: () => Navigator.of(context).pop(),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(Icons.arrow_back_ios_new_rounded, size: isSmallScreen ? 18 : 20, color: Colors.white),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Bu derste kaydedilmiş kart yok',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.lesson.name,
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 20 : 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              Text(
+                                '$totalCards kaydedilmiş kart • ${topics.length} konu',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 12 : 13,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadSavedCards,
-                        color: AppColors.primaryBlue,
-                        child: ListView.builder(
-                          padding: EdgeInsets.all(isTablet ? 20 : 16),
-                          itemCount: topics.length,
-                          itemBuilder: (context, index) {
-                            final topicName = topics[index];
-                            final cards = _groupedByTopic[topicName]!;
-                            final cardCount = cards.length;
+                        Material(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            onTap: _loadSavedCards,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(Icons.refresh_rounded, size: isSmallScreen ? 20 : 22, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Topics List - Kaydedilenler'deki ders kartları stili
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: isDark ? const Color(0xFF3B82F6) : AppColors.primaryBlue,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Yükleniyor...',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark ? Colors.white54 : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : topics.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: (isDark ? Colors.white10 : AppColors.gradientGreenStart.withValues(alpha: 0.08)),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.style_outlined,
+                                    size: 44,
+                                    color: isDark ? Colors.white38 : AppColors.gradientGreenStart.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Bu derste kaydedilmiş kart yok',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Bilgi kartları sayfasında kaydettiğiniz kartlar burada listelenir.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? Colors.white54 : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadSavedCards,
+                          color: AppColors.primaryBlue,
+                          backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+                          child: ListView.builder(
+                            padding: EdgeInsets.fromLTRB(isTablet ? 20 : 16, 12, isTablet ? 20 : 16, 16),
+                            itemCount: topics.length,
+                            itemBuilder: (context, index) {
+                              final topicName = topics[index];
+                              final cards = _groupedByTopic[topicName]!;
+                              final cardCount = cards.length;
 
-                            return Container(
-                              margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => SavedCardTopicDetailPage(
-                                          lesson: widget.lesson,
-                                          topicName: topicName,
-                                        ),
-                                      ),
-                                    ).then((_) {
-                                      // Sayfa döndüğünde kartları yeniden yükle
-                                      _loadSavedCards();
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.08),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                topicName,
-                                                style: TextStyle(
-                                                  fontSize: isSmallScreen ? 16 : 18,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppColors.textPrimary,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.gradientGreenStart.withValues(alpha: 0.1),
-                                                      borderRadius: BorderRadius.circular(8),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.style_rounded,
-                                                          size: isSmallScreen ? 14 : 16,
-                                                          color: AppColors.gradientGreenStart,
-                                                        ),
-                                                        const SizedBox(width: 4),
-                                                        Text(
-                                                          '$cardCount kart',
-                                                          style: TextStyle(
-                                                            fontSize: isSmallScreen ? 12 : 13,
-                                                            fontWeight: FontWeight.w600,
-                                                            color: AppColors.gradientGreenStart,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SavedCardTopicDetailPage(
+                                            lesson: widget.lesson,
+                                            topicName: topicName,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          size: isSmallScreen ? 18 : 20,
-                                          color: AppColors.textSecondary,
+                                      ).then((_) => _loadSavedCards());
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                                          width: 1,
                                         ),
-                                      ],
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [color, color.withValues(alpha: 0.8)],
+                                              ),
+                                              borderRadius: BorderRadius.circular(12),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: color.withValues(alpha: 0.35),
+                                                  blurRadius: 6,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Icon(Icons.style_rounded, color: Colors.white, size: 22),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  topicName,
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                _buildMiniBadge(
+                                                  isDark: isDark,
+                                                  icon: Icons.style_rounded,
+                                                  text: '$cardCount kart',
+                                                  accentColor: const Color(0xFF10B981),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            size: 12,
+                                            color: isDark ? Colors.white38 : AppColors.textLight,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

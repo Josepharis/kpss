@@ -1,424 +1,268 @@
 import 'package:flutter/material.dart';
+import '../../../../main.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_podcast.dart';
-import '../../../../main.dart';
 import '../pages/podcasts_page.dart';
 
 class OngoingPodcastCard extends StatelessWidget {
   final OngoingPodcast podcast;
   final bool isSmallScreen;
+  final Future<void> Function()? onReset;
 
   const OngoingPodcastCard({
     super.key,
     required this.podcast,
     this.isSmallScreen = false,
+    this.onReset,
   });
-
-  Color _getGradientStartColor() {
-    switch (podcast.progressColor) {
-      case 'blue':
-        return const Color(0xFF6C5CE7);
-      case 'yellow':
-        return const Color(0xFFFDCB6E);
-      case 'red':
-        return const Color(0xFFE17055);
-      case 'purple':
-        return const Color(0xFFA29BFE);
-      default:
-        return AppColors.gradientBlueStart;
-    }
-  }
-
-  Color _getGradientEndColor() {
-    switch (podcast.progressColor) {
-      case 'blue':
-        return const Color(0xFF5A4FCF);
-      case 'yellow':
-        return const Color(0xFFE17055);
-      case 'red':
-        return const Color(0xFFD63031);
-      case 'purple':
-        return const Color(0xFF6C5CE7);
-      default:
-        return AppColors.gradientBlueEnd;
-    }
-  }
-
-  IconData _getIcon() {
-    if (podcast.title.toLowerCase().contains('kpss')) {
-      return Icons.school_rounded;
-    } else if (podcast.title.toLowerCase().contains('ags')) {
-      return Icons.trending_up_rounded;
-    } else if (podcast.title.toLowerCase().contains('motivasyon')) {
-      return Icons.self_improvement_rounded;
-    }
-    
-    switch (podcast.icon) {
-      case 'atom':
-        return Icons.science_rounded;
-      case 'chart':
-        return Icons.bar_chart_rounded;
-      case 'globe':
-        return Icons.public_rounded;
-      case 'megaphone':
-        return Icons.campaign_rounded;
-      default:
-        return Icons.podcasts_rounded;
-    }
-  }
-
-  String _getSubjectName() {
-    // Önce konu ismini kullan, yoksa title'dan çıkar
-    if (podcast.topic.isNotEmpty) {
-      return podcast.topic;
-    }
-    
-    // Fallback: title'dan çıkarmaya çalış
-    if (podcast.title.toLowerCase().contains('kpss')) {
-      return 'KPSS';
-    } else if (podcast.title.toLowerCase().contains('ags')) {
-      return 'AGS';
-    } else if (podcast.title.toLowerCase().contains('motivasyon')) {
-      return 'Motivasyon';
-    }
-    return 'Podcast';
-  }
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isSmallScreen ? 16.0 : 18.0;
-    
-    return GestureDetector(
-      onTap: () async {
-        // Navigate to podcasts page
-        if (podcast.topicId != null && podcast.lessonId != null) {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PodcastsPage(
-                topicName: podcast.topic.isNotEmpty ? podcast.topic : podcast.title,
-                podcastCount: 1, // Will be loaded in PodcastsPage
-                topicId: podcast.topicId!,
-                lessonId: podcast.lessonId!,
-                initialAudioUrl: podcast.audioUrl.isNotEmpty ? podcast.audioUrl : null, // Cache'den direkt yükle
-              ),
-            ),
-          );
-          // If podcast page returned true, refresh home page
-          if (result == true) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) {
-              mainScreen.refreshHomePage();
-            }
-          }
-        }
-      },
-      child: Container(
-        width: isSmallScreen ? 85 : 95,
-        height: isSmallScreen ? 85 : 95,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _getGradientStartColor(),
-              _getGradientEndColor(),
-            ],
+    // Compact Square Dimensions
+    final double size = isSmallScreen ? 88 : 98;
+    // Official Purple from AppColors
+    final primaryColor = AppColors.gradientPurpleStart;
+    final secondaryColor = AppColors.gradientPurpleEnd;
+    final borderRadius = isSmallScreen ? 18.0 : 22.0;
+
+    return Container(
+      width: size,
+      height: size,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
-          borderRadius: BorderRadius.circular(borderRadius),
-          boxShadow: [
-            BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.6),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-              spreadRadius: 0,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Stack(
+          children: [
+            // Solid Vibrant Gradient Background
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [primaryColor, secondaryColor],
+                    stops: const [0.2, 1.0],
+                  ),
+                ),
+              ),
             ),
-            BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+
+            // Vibrant visual element - Floating Music Note
+            Positioned(
+              right: -5,
+              bottom: -5,
+              child: Icon(
+                Icons.music_note_rounded,
+                size: 64,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Soft gradient overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: RadialGradient(
-                      center: Alignment.topLeft,
-                      radius: 1.5,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.2),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
+
+            // Highlighting glow
+            Positioned(
+              top: -20,
+              right: -10,
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.12),
                 ),
               ),
-              // Wave pattern
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: LinearGradient(
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.1),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.03),
-                      ],
-                      stops: const [0.0, 0.6, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              // Softer decorative elements - clipped
-              Positioned(
-                top: -8,
-                right: -8,
-                child: Container(
-                  width: isSmallScreen ? 40 : 50,
-                  height: isSmallScreen ? 40 : 50,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.24),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -12,
-                left: -12,
-                child: Container(
-                  width: isSmallScreen ? 50 : 60,
-                  height: isSmallScreen ? 50 : 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.18),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Content
-              Padding(
-                padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Top section - Konu badge and Subject
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Konu badge
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isSmallScreen ? 5 : 6,
-                            vertical: isSmallScreen ? 2 : 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.28),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.45),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.headphones_rounded,
-                                size: isSmallScreen ? 7 : 8,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: isSmallScreen ? 2 : 3),
-                              Text(
-                                'Konu',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 7 : 8,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+            ),
+
+            // Content
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  if (podcast.topicId != null && podcast.lessonId != null) {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PodcastsPage(
+                          topicName: podcast.topic.isNotEmpty
+                              ? podcast.topic
+                              : podcast.title,
+                          podcastCount: 1,
+                          topicId: podcast.topicId!,
+                          lessonId: podcast.lessonId!,
+                          initialPodcastId: podcast.id,
+                          initialAudioUrl: podcast.audioUrl.isNotEmpty
+                              ? podcast.audioUrl
+                              : null,
                         ),
-                        SizedBox(height: isSmallScreen ? 4 : 5),
-                        // Subject name
-                        Text(
-                          _getSubjectName(),
+                      ),
+                    );
+                    if (!context.mounted) return;
+                    if (result == true) {
+                      final mainScreen = MainScreen.of(context);
+                      if (mainScreen != null) {
+                        mainScreen.refreshHomePage();
+                      }
+                    }
+                  }
+                },
+                child: Padding(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Podcast Topic
+                      SizedBox(
+                        height: isSmallScreen ? 22 : 26,
+                        child: Text(
+                          podcast.topic.isNotEmpty
+                              ? podcast.topic
+                              : podcast.title,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 9 : 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.95),
-                            letterSpacing: 0.2,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 2,
-                              ),
-                            ],
+                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                            height: 1.1,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    
-                    // Center - Icon with more space
-                    Expanded(
-                      child: Center(
+                      ),
+
+                      const Spacer(),
+
+                      // Glassy Icon
+                      Center(
                         child: Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                          padding: EdgeInsets.all(isSmallScreen ? 4 : 5),
                           decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.32),
-                                Colors.white.withValues(alpha: 0.15),
-                              ],
-                            ),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.48),
-                              width: 1.5,
+                              color: Colors.white.withValues(alpha: 0.35),
+                              width: 0.8,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                blurRadius: 3,
-                                offset: const Offset(-1, -1),
-                              ),
-                            ],
                           ),
                           child: Icon(
                             _getIcon(),
                             size: isSmallScreen ? 14 : 16,
                             color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 4,
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
-                    
-                    // Bottom - Progress section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
+
+                      const Spacer(),
+
+                      // Progress Bar
+                      Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
                                 '${podcast.currentMinute}/${podcast.totalMinutes} dk',
                                 style: TextStyle(
-                                  fontSize: isSmallScreen ? 8 : 9,
+                                  fontSize: isSmallScreen ? 7.5 : 8.5,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.2,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withValues(alpha: 0.4),
-                                      blurRadius: 2,
-                                    ),
-                                  ],
+                                  color: Colors.white.withValues(alpha: 0.95),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            SizedBox(width: isSmallScreen ? 3 : 4),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isSmallScreen ? 4 : 5,
-                                vertical: isSmallScreen ? 1 : 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.28),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text(
-                                '${(podcast.progress * 100).toStringAsFixed(0)}%',
+                              Text(
+                                '${(podcast.progress * 100).toInt()}%',
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 7 : 8,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w900,
                                   color: Colors.white,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isSmallScreen ? 4 : 5),
-                        // Progress bar
-                        Container(
-                          height: isSmallScreen ? 4 : 5,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
                               ),
                             ],
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: LinearProgressIndicator(
-                              value: podcast.progress,
-                              backgroundColor: Colors.white.withValues(alpha: 0.22),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                          const SizedBox(height: 3),
+                          Container(
+                            height: 3,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: podcast.progress.clamp(0.05, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              minHeight: isSmallScreen ? 4 : 5,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // Delete button
+            if (onReset != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onReset,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 13,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
+  }
+
+  IconData _getIcon() {
+    final title = podcast.title.toLowerCase();
+    final topic = podcast.topic.toLowerCase();
+    if (title.contains('motivation') || topic.contains('motivasyon')) {
+      return Icons.self_improvement_rounded;
+    }
+    switch (podcast.icon) {
+      case 'chart':
+        return Icons.insights_rounded;
+      case 'globe':
+        return Icons.public_rounded;
+      case 'megaphone':
+        return Icons.campaign_rounded;
+      default:
+        return Icons.mic_external_on_rounded;
+    }
   }
 }

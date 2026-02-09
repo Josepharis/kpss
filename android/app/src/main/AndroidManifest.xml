@@ -11,7 +11,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
+            android:name="com.kadrox.app.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
@@ -34,13 +34,13 @@
         </activity>
         <!-- Media Notification Service -->
         <service
-            android:name=".MediaNotificationService"
+            android:name="com.kadrox.app.MediaNotificationService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
         
         <!-- Media Notification Receiver -->
         <receiver
-            android:name=".MediaNotificationReceiver"
+            android:name="com.kadrox.app.MediaNotificationReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />

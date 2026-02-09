@@ -9,6 +9,7 @@ import 'features/home/pages/lessons_page.dart';
 import 'features/home/pages/weaknesses_page.dart';
 import 'features/home/pages/study_page.dart';
 import 'features/home/pages/profile_page.dart';
+import 'features/home/pages/ai_assistant_page.dart';
 import 'core/widgets/custom_bottom_nav_bar.dart';
 import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
@@ -25,28 +26,6 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print('✅ Firebase initialized successfully');
-    
-    // Data upload completed - removed upload code
-    // If you need to upload data again, uncomment the code below:
-    /*
-    try {
-      print('📤 Uploading Tarih lesson data to Firebase...');
-      await uploadData();
-    } catch (e) {
-      print('❌ Data upload error: $e');
-    }
-    */
-    
-    // Vatandaşlık dersi ekleme (sadece bir kez çalıştırılacak)
-    try {
-      print('📤 Uploading Vatandaşlık lesson to Firebase...');
-      final uploader = FirebaseDataUploader();
-      await uploader.uploadVatandaslikLessonData();
-      print('✅ Vatandaşlık lesson uploaded!');
-      print('💡 Konular otomatik olarak Storage\'dan çekilecek: dersler/vatandaslik/konular/');
-    } catch (e) {
-      print('❌ Vatandaşlık lesson upload error: $e');
-    }
   } catch (e) {
     // Continue even if Firebase fails to initialize
     print('❌ Firebase initialization error: $e');
@@ -60,9 +39,6 @@ void main() async {
     // Continue even if date formatting fails
     print('Date formatting initialization error: $e');
   }
-  
-  // Run storage cleanup in background (non-blocking)
-  _runStorageCleanup();
   
   runApp(const MyApp());
 }
@@ -124,7 +100,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       key: ValueKey(_themeKey),
-      title: 'KPSS & AGS 2026',
+      title: 'Kadrox',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -203,6 +179,9 @@ class _MainScreenState extends State<MainScreen> {
         page = StudyPage(key: ValueKey('study_$_themeKey'));
         break;
       case 4:
+        page = const AiAssistantPage();
+        break;
+      case 5:
         page = ProfilePage(key: ValueKey('profile_$_themeKey'));
         break;
       default:
@@ -259,7 +238,7 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(
         key: ValueKey(_themeKey),
         index: _currentIndex,
-        children: List.generate(5, (index) => _getPage(index)),
+        children: List.generate(6, (index) => _getPage(index)),
       ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _currentIndex,

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
+import 'dart:ui';
 import 'dart:async';
 import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import 'pomodoro_settings_page.dart';
 import 'pomodoro_stats_page.dart';
 import 'pomodoro_save_session_page.dart';
+import 'my_program_page.dart';
 
 class ModernPomodoroPage extends StatefulWidget {
   const ModernPomodoroPage({super.key});
@@ -43,7 +45,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   DateTime? _currentWorkStartTime;
   DateTime? _currentBreakStartTime;
   Duration _currentWorkDuration = Duration.zero;
-  int _completedMinutes = 0; // For backward compatibility
+  int _completedMinutes = 0; // Used to track work seconds (legacy name)
 
   @override
   void initState() {
@@ -1032,93 +1034,242 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
               : screenWidth * 0.85;
     }
     
-    return Scaffold(
-        appBar: AppBar(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          toolbarHeight: 50,
-          title: const Text(
-            'Pomodoro',
-            style: TextStyle(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+          appBar: AppBar(
+            elevation: 0,
+            backgroundColor: isDark ? Colors.transparent : AppColors.primaryBlue,
+            iconTheme: const IconThemeData(color: Colors.white),
+            actionsIconTheme: const IconThemeData(color: Colors.white),
+            titleTextStyle: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
+              color: Colors.white,
             ),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.bar_chart, size: 20),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PomodoroStatsPage(),
-                  ),
-                );
-              },
-              tooltip: 'İstatistikler',
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings, size: 20),
-              onPressed: showSettings,
-              tooltip: 'Ayarlar',
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final availableHeight = constraints.maxHeight;
-              final isCompact = availableHeight < 700;
-              
-              return SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: screenWidth * 0.05,
-                  vertical: isCompact ? 8 : 12,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(height: isCompact ? 8 : 12),
-                    
-                    // Circular Timer with Video Inside
-                    _buildCircularTimerWithVideo(timerSize, isDark),
-                    
-                    SizedBox(height: isCompact ? 12 : 16),
-                    
-                    // Timer Text Below (Altında)
-                    _buildTimerTextBelow(timerSize, isDark, isCompact),
-                    
-                    SizedBox(height: isCompact ? 12 : 16),
-                    
-                    // Status Text
-                    _buildStatusText(isDark, isCompact),
-                    
-                    SizedBox(height: isCompact ? 12 : 16),
-                    
-                    // Control Buttons
-                    _buildControlButtons(isDark, isCompact),
-                    
-                    // Finish Work Button (sadece çalışma sırasında)
-                    if (!_isBreakTime && (_isRunning || _isPaused || _currentWorkStartTime != null))
-                      Column(
-                        children: [
-                          SizedBox(height: isCompact ? 12 : 16),
-                          _buildFinishWorkButton(isDark, isCompact),
+            flexibleSpace: isDark
+                ? null
+                : Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppColors.primaryBlue,
+                          AppColors.primaryDarkBlue,
                         ],
                       ),
-                    
-                    SizedBox(height: isCompact ? 12 : 16),
-                    
-                    // Session Records (Mola alındığında veya kayıtlar varsa) - Kompakt
-                    if (_isBreakTime || _sessionRecords.isNotEmpty || _currentWorkStartTime != null)
-                      _buildSessionRecords(isDark, isCompact),
-                  ],
+                    ),
+                  ),
+            toolbarHeight: 50,
+            title: const Text('Çalışma'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.bar_chart, size: 20),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PomodoroStatsPage(),
+                    ),
+                  );
+                },
+                tooltip: 'İstatistikler',
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, size: 20),
+                onPressed: showSettings,
+                tooltip: 'Ayarlar',
+              ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(54),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Colors.white.withOpacity(0.20),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(isDark ? 0.16 : 0.22),
+                        ),
+                      ),
+                      child: TabBar(
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicator: BoxDecoration(
+                          color: Colors.white.withOpacity(isDark ? 0.14 : 0.42),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.25 : 0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.white.withOpacity(0.85),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                        tabs: const [
+                          Tab(
+                            iconMargin: EdgeInsets.zero,
+                            icon: Icon(Icons.timer_rounded, size: 16),
+                            text: 'Pomodoro',
+                          ),
+                          Tab(
+                            iconMargin: EdgeInsets.zero,
+                            icon: Icon(Icons.calendar_month_rounded, size: 16),
+                            text: 'Programım',
+                          ),
+                        ],
+                        dividerColor: Colors.transparent,
+                      ),
+                    ),
+                  ),
                 ),
-              );
-            },
+              ),
+            ),
+          ),
+          body: TabBarView(
+            physics: const ClampingScrollPhysics(),
+            children: [
+              SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final availableHeight = constraints.maxHeight;
+                    final isCompact = availableHeight < 700;
+                    final isVeryCompactLandscape = isLandscape && availableHeight < 520;
+                    final controlsCompact = isCompact || isLandscape;
+
+                    // Landscape: dış scroll olmasın; butonlar her zaman sığsın.
+                    if (isLandscape) {
+                      final showRecords = _isBreakTime || _sessionRecords.isNotEmpty || _currentWorkStartTime != null;
+                      // Daha küçük ekran yüksekliklerinde timer'ı daha agresif küçült.
+                      final landscapeTimerSize = math.min(
+                        timerSize,
+                        availableHeight * (isVeryCompactLandscape ? 0.56 : 0.62),
+                      );
+
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.03,
+                          vertical: isVeryCompactLandscape ? 6 : 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Center(
+                                      child: _buildCircularTimerWithVideo(landscapeTimerSize, isDark),
+                                    ),
+                                  ),
+                                  SizedBox(height: isVeryCompactLandscape ? 6 : 10),
+                                  _buildTimerTextBelow(landscapeTimerSize, isDark, controlsCompact),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: isVeryCompactLandscape ? 10 : 14),
+                            Expanded(
+                              flex: 5,
+                              child: Column(
+                                children: [
+                                  _buildStatusText(isDark, controlsCompact),
+                                  SizedBox(height: isVeryCompactLandscape ? 8 : 12),
+                                  _buildControlButtons(isDark, controlsCompact),
+                                  if (!_isBreakTime && (_isRunning || _isPaused || _currentWorkStartTime != null)) ...[
+                                    SizedBox(height: isVeryCompactLandscape ? 6 : 10),
+                                    _buildFinishWorkButton(isDark, true),
+                                  ],
+                                  SizedBox(height: isVeryCompactLandscape ? 6 : 10),
+                                  if (showRecords)
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        child: _buildSessionRecords(isDark, true),
+                                      ),
+                                    )
+                                  else
+                                    const Spacer(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Portrait: scroll kalabilir; ama butonlar kompakt boyutlarda.
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.05,
+                        vertical: isCompact ? 8 : 12,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(height: isCompact ? 8 : 12),
+
+                          // Circular Timer with Video Inside
+                          _buildCircularTimerWithVideo(timerSize, isDark),
+
+                          SizedBox(height: isCompact ? 12 : 16),
+
+                          // Timer Text Below (Altında)
+                          _buildTimerTextBelow(timerSize, isDark, controlsCompact),
+
+                          SizedBox(height: isCompact ? 12 : 16),
+
+                          // Status Text
+                          _buildStatusText(isDark, controlsCompact),
+
+                          SizedBox(height: isCompact ? 12 : 16),
+
+                          // Control Buttons
+                          _buildControlButtons(isDark, controlsCompact),
+
+                          // Finish Work Button (sadece çalışma sırasında)
+                          if (!_isBreakTime && (_isRunning || _isPaused || _currentWorkStartTime != null))
+                            Column(
+                              children: [
+                                SizedBox(height: isCompact ? 12 : 16),
+                                _buildFinishWorkButton(isDark, controlsCompact),
+                              ],
+                            ),
+
+                          SizedBox(height: isCompact ? 12 : 16),
+
+                          // Session Records (Mola alındığında veya kayıtlar varsa) - Kompakt
+                          if (_isBreakTime || _sessionRecords.isNotEmpty || _currentWorkStartTime != null)
+                            _buildSessionRecords(isDark, controlsCompact),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SafeArea(
+                child: MyProgramPage(),
+              ),
+            ],
           ),
         ),
-      );
+    );
   }
 
   Widget _buildCircularTimerWithVideo(double size, bool isDark) {
@@ -1259,6 +1410,8 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
     final primaryColor = isBreak 
         ? AppColors.gradientGreenStart 
         : AppColors.gradientBlueStart;
+    final h = MediaQuery.of(context).size.height;
+    final isVeryCompact = h < 520;
     
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1267,7 +1420,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
           _formatDuration(_remainingTime),
           style: TextStyle(
             color: primaryColor,
-            fontSize: isCompact ? 36 : 42,
+            fontSize: isVeryCompact ? 30 : (isCompact ? 36 : 42),
             fontWeight: FontWeight.bold,
             fontFeatures: [FontFeature.tabularFigures()],
             shadows: [
@@ -1283,7 +1436,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
           isBreak ? 'Mola' : 'Çalışma',
           style: TextStyle(
             color: primaryColor.withOpacity(0.8),
-            fontSize: isCompact ? 14 : 16,
+            fontSize: isVeryCompact ? 12 : (isCompact ? 14 : 16),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1292,6 +1445,9 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   }
 
   Widget _buildStatusText(bool isDark, bool isCompact) {
+    final totalWorkMinutes = (_completedMinutes / 60).floor();
+    final h = MediaQuery.of(context).size.height;
+    final isVeryCompact = h < 520;
     if (!_isRunning && !_isPaused && !_isBreakTime) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -1299,7 +1455,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
           Text(
             'Başlamak için butona basın',
             style: TextStyle(
-              fontSize: isCompact ? 13 : 14,
+              fontSize: isVeryCompact ? 11.5 : (isCompact ? 13 : 14),
               color: isDark ? Colors.white70 : Colors.black54,
               fontWeight: FontWeight.w500,
             ),
@@ -1308,11 +1464,22 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
           Text(
             'Oturum ${_currentSession + 1}/$_sessionCount',
             style: TextStyle(
-              fontSize: isCompact ? 13 : 14,
+              fontSize: isVeryCompact ? 11.5 : (isCompact ? 13 : 14),
               color: isDark ? Colors.white60 : Colors.black45,
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (totalWorkMinutes > 0) ...[
+            SizedBox(height: isCompact ? 6 : 8),
+            Text(
+              'Bugün: $totalWorkMinutes dk',
+              style: TextStyle(
+                fontSize: isVeryCompact ? 10.5 : (isCompact ? 12 : 13),
+                color: isDark ? Colors.white70 : Colors.black54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       );
     }
@@ -1323,17 +1490,28 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         Text(
           'Oturum ${_currentSession + 1}/$_sessionCount',
           style: TextStyle(
-            fontSize: isCompact ? 15 : 17,
+            fontSize: isVeryCompact ? 13.5 : (isCompact ? 15 : 17),
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : Colors.black87,
           ),
         ),
+        if (totalWorkMinutes > 0) ...[
+          SizedBox(height: isCompact ? 4 : 6),
+          Text(
+            'Bugün: $totalWorkMinutes dk',
+            style: TextStyle(
+              fontSize: isVeryCompact ? 10.5 : (isCompact ? 12 : 13),
+              color: isDark ? Colors.white70 : Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
         if (_isPaused) ...[
           SizedBox(height: isCompact ? 4 : 6),
           Text(
             'Duraklatıldı',
             style: TextStyle(
-              fontSize: isCompact ? 12 : 13,
+              fontSize: isVeryCompact ? 10.5 : (isCompact ? 12 : 13),
               color: Colors.orange,
               fontWeight: FontWeight.w500,
             ),
@@ -1448,12 +1626,16 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
     required bool isCompact,
     bool isPrimary = false,
   }) {
+    final h = MediaQuery.of(context).size.height;
+    final isVeryCompact = h < 520;
     final size = isCompact 
         ? (isPrimary ? 56.0 : 50.0)
         : (isPrimary ? 64.0 : 56.0);
     final iconSize = isCompact
         ? (isPrimary ? 26.0 : 24.0)
         : (isPrimary ? 28.0 : 26.0);
+    final scaledSize = isVeryCompact ? size * 0.86 : size;
+    final scaledIconSize = isVeryCompact ? iconSize * 0.86 : iconSize;
     
     return Tooltip(
       message: tooltip,
@@ -1461,10 +1643,10 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(size / 2),
+          borderRadius: BorderRadius.circular(scaledSize / 2),
           child: Container(
-            width: size,
-            height: size,
+            width: scaledSize,
+            height: scaledSize,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -1479,7 +1661,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
             child: Icon(
               icon,
               color: Colors.white,
-              size: iconSize,
+              size: scaledIconSize,
             ),
           ),
         ),

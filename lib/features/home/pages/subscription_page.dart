@@ -471,9 +471,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                 isSmallScreen: isSmallScreen,
                 isSelected: _selectedPlan == plan['type'],
                 onTap: () {
-                  setState(() {
-                    _selectedPlan = plan['type'] as String;
-                  });
                   _handlePurchase(plan['type'] as String);
                 },
               ),
@@ -493,24 +490,29 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: isPopular || isSelected ? 0.22 : 0.12),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: isPopular || isSelected ? 0.45 : 0.25),
-          width: isPopular || isSelected ? 2 : 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: isPopular || isSelected ? 12 : 6,
-            spreadRadius: isPopular || isSelected ? 1.5 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: isPopular || isSelected ? 0.22 : 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isPopular || isSelected ? 0.45 : 0.25),
+              width: isPopular || isSelected ? 2 : 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: isPopular || isSelected ? 12 : 6,
+                spreadRadius: isPopular || isSelected ? 1.5 : 1,
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
+          child: Stack(
+            children: [
           if (isPopular)
             Positioned(
               top: 0,
@@ -676,60 +678,45 @@ class _SubscriptionPageState extends State<SubscriptionPage>
               ],
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  void _handlePurchase(String type) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text('Premium Satın Al'),
-        content: Text(
-          'In-App Purchase entegrasyonu yakında eklenecek.\n\n'
-          'Test için manuel abonelik eklemek ister misiniz?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final days = type == 'yearly'
-                  ? 365
-                  : type == '6monthly'
-                      ? 180
-                      : 30;
-              final endDate = DateTime.now().add(Duration(days: days));
-              await _subscriptionService.setSubscriptionStatus(
-                status: 'premium',
-                type: type,
-                endDate: endDate,
-              );
-              await _loadSubscriptionStatus();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Premium abonelik aktif edildi! (Test)'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Test Aboneliği Ekle'),
-          ),
-        ],
-      ),
+  void _handlePurchase(String type) async {
+    // Şuanlık direkt premium açılsın ve erişimler açılsın
+    setState(() {
+      _selectedPlan = type;
+    });
+    
+    final days = type == 'yearly'
+        ? 365
+        : type == '6monthly'
+            ? 180
+            : 30;
+    final endDate = DateTime.now().add(Duration(days: days));
+    
+    await _subscriptionService.setSubscriptionStatus(
+      status: 'premium',
+      type: type,
+      endDate: endDate,
     );
+    
+    await _loadSubscriptionStatus();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Premium abonelik aktif edildi! Erişimler açıldı.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      // Premium aktif edildi, true döndür ki önceki sayfa durumu güncelleyebilsin
+      Navigator.pop(context, true);
+    }
   }
 }
 

@@ -62,6 +62,9 @@ dependencies:
   # PDF Viewer
   syncfusion_flutter_pdfviewer: ^27.1.48
 
+  # Modern bottom navigation (curved + labels)
+  curved_labeled_navigation_bar: ^2.0.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

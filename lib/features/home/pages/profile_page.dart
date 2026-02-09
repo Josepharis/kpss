@@ -233,7 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'KPSS & AGS 2026',
+                          'Kadrox',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 11 : 12,
                             color: Colors.white70,
@@ -318,6 +318,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     
                     // Çıkış
                     _buildLogoutButton(isSmallScreen, fontSize),
+                    SizedBox(height: compactSpacing),
+
+                    // Hesap Silme
+                    _buildDeleteAccountButton(isSmallScreen, fontSize),
                     SizedBox(height: compactSpacing),
                   ],
                 ),
@@ -911,6 +915,60 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Widget _buildDeleteAccountButton(bool isSmallScreen, double fontSize) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leading: Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.delete_forever,
+            size: isSmallScreen ? 18 : 20,
+            color: Colors.red,
+          ),
+        ),
+        title: Text(
+          'Hesabı Sil',
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w700,
+            color: Colors.red,
+          ),
+        ),
+        subtitle: Text(
+          'Bu işlem geri alınamaz',
+          style: TextStyle(
+            fontSize: fontSize - 2,
+            color: isDark ? Colors.white70 : AppColors.textSecondary,
+          ),
+        ),
+        onTap: () {
+          _showDeleteAccountDialog();
+        },
+      ),
+    );
+  }
+
   void _showThemeDialog() {
     showDialog(
       context: context,
@@ -1048,7 +1106,7 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('KPSS & AGS 2026'),
+        title: Text('Kadrox'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1056,7 +1114,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Text('Versiyon: 1.0.0'),
             SizedBox(height: 8),
             Text(
-              'KPSS ve AGS sınavlarına hazırlık için kapsamlı bir çalışma uygulaması.',
+              'KPSS ve AGS sınavlarına hazırlık için kapsamlı bir çalışma uygulaması: Kadrox.',
               style: TextStyle(fontSize: 14),
             ),
           ],
@@ -1150,14 +1208,15 @@ class _ProfilePageState extends State<ProfilePage> {
           size: 20,
           color: secondaryTextColor,
         ),
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const SubscriptionPage()),
-          ).then((_) {
-            // Sayfa döndüğünde abonelik durumunu yenile
+          );
+          // Premium aktif edildiyse abonelik durumunu yenile
+          if (result == true) {
             _loadSubscriptionStatus();
-          });
+          }
         },
       ),
     );
@@ -1194,5 +1253,111 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    final passwordController = TextEditingController();
+    bool isObscured = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Hesabı Sil'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Hesabınız, ilerleme verileriniz ve kaydedilen içerikleriniz silinecek. Bu işlem geri alınamaz.',
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Devam etmek için şifrenizi girin:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: isObscured,
+                    decoration: InputDecoration(
+                      hintText: 'Şifre',
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => isObscured = !isObscured),
+                        icon: Icon(isObscured ? Icons.visibility : Icons.visibility_off),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('İptal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text(
+                    'Sil',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      passwordController.dispose();
+      return;
+    }
+
+    final password = passwordController.text;
+    passwordController.dispose();
+
+    if (password.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen şifrenizi girin.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final result = await _authService.deleteAccount(password: password);
+
+    if (!mounted) return;
+    Navigator.pop(context); // progress dialog
+
+    if (result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message.isNotEmpty ? result.message : 'Hesabınız silindi.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 }

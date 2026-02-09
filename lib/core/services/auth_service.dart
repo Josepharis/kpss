@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Authentication service for handling user login, registration, and session management
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserName = 'user_name';
   static const String _keyKpssType = 'kpss_type';
@@ -170,6 +172,126 @@ class AuthService {
     await logout();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+  }
+
+  /// Delete current user account and related data (Firestore + local cache)
+  ///
+  /// Notes:
+  /// - Firebase requires "recent login" to delete a user, so we reauthenticate.
+  /// - Deletes user-related documents under:
+  ///   - userProgress/{uid} (and known subcollections)
+  ///   - users/{uid}/subscription/current and users/{uid}
+  Future<AuthResult> deleteAccount({required String password}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        return AuthResult.failure('Kullanıcı bulunamadı. Lütfen tekrar giriş yapın.');
+      }
+
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        return AuthResult.failure('E-posta bulunamadı. Lütfen tekrar giriş yapın.');
+      }
+
+      // Re-authenticate (required for account deletion)
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      final uid = user.uid;
+
+      // 1) Delete Firestore data first (while auth is still valid)
+      await _deleteUserFirestoreData(uid);
+
+      // 2) Delete auth user
+      await user.delete();
+
+      // 3) Clear local cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      // Best-effort sign out (user may already be signed out after delete)
+      try {
+        await _auth.signOut();
+      } catch (_) {}
+
+      return AuthResult.success(uid, 'Hesabınız başarıyla silindi.');
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'wrong-password':
+          return AuthResult.failure('Şifre hatalı. Lütfen tekrar deneyin.');
+        case 'requires-recent-login':
+          return AuthResult.failure('Güvenlik nedeniyle tekrar giriş yapmanız gerekiyor. Lütfen çıkış yapıp tekrar giriş yaptıktan sonra deneyin.');
+        case 'user-mismatch':
+        case 'user-not-found':
+          return AuthResult.failure('Kullanıcı doğrulanamadı. Lütfen tekrar giriş yapın.');
+        case 'network-request-failed':
+          return AuthResult.failure('İnternet bağlantınızı kontrol edin.');
+        default:
+          return AuthResult.failure('Hesap silme başarısız: ${e.message ?? "Bilinmeyen hata"}');
+      }
+    } catch (e) {
+      return AuthResult.failure('Hesap silme sırasında hata oluştu: ${e.toString()}');
+    }
+  }
+
+  Future<void> _deleteUserFirestoreData(String uid) async {
+    // userProgress/{uid} + subcollections
+    final userProgressDoc = _firestore.collection('userProgress').doc(uid);
+    const userProgressSubcollections = <String>[
+      'videos',
+      'podcasts',
+      'tests',
+      'flashCards',
+      'testResults',
+      'lessons',
+      'savedCards',
+      'weaknesses',
+    ];
+
+    for (final sub in userProgressSubcollections) {
+      await _deleteSubcollection(parent: userProgressDoc, collectionName: sub);
+    }
+
+    // Delete the root progress doc (best-effort)
+    try {
+      await userProgressDoc.delete();
+    } catch (_) {}
+
+    // users/{uid}/subscription/current + users/{uid}
+    final userDoc = _firestore.collection('users').doc(uid);
+    try {
+      await userDoc.collection('subscription').doc('current').delete();
+    } catch (_) {}
+
+    // If there are other user subcollections in the future, add them here.
+    try {
+      await userDoc.delete();
+    } catch (_) {}
+  }
+
+  Future<void> _deleteSubcollection({
+    required DocumentReference parent,
+    required String collectionName,
+  }) async {
+    // Firestore batch limit is 500. Use 200 for safety.
+    const batchSize = 200;
+    Query query = parent.collection(collectionName).limit(batchSize);
+
+    while (true) {
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) break;
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Continue until empty
+    }
   }
 
   /// Send password reset email

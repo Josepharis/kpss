@@ -5,6 +5,7 @@ import '../../../core/models/video.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/video_download_service.dart';
+import '../../../core/widgets/floating_home_button.dart';
 import 'video_player_page.dart';
 
 class VideosPage extends StatefulWidget {
@@ -221,6 +222,8 @@ class _VideosPageState extends State<VideosPage> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
         child: Container(

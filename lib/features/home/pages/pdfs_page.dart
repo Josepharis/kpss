@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/pdf_download_service.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/widgets/floating_home_button.dart';
 import 'topic_pdf_viewer_page.dart';
 
 class PdfsPage extends StatefulWidget {
@@ -35,11 +38,74 @@ class _PdfsPageState extends State<PdfsPage> {
   bool _shouldRefresh = false;
   Map<String, bool> _downloadedPdfs = {}; // Track downloaded PDFs
 
+  bool _isLoadingFromStorage = false;
+
   @override
   void initState() {
     super.initState();
-    _loadPdfs();
-    _checkDownloadedPdfs();
+    // Önce cache'den hızlıca yükle
+    _loadPdfsFromCache();
+  }
+
+  /// Cache'den PDF listesini hemen yükle (synchronous - çok hızlı)
+  Future<void> _loadPdfsFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'pdfs_list_${widget.topicId}';
+      final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
+      final cachedJson = prefs.getString(cacheKey);
+      final cacheTime = prefs.getInt(cacheTimeKey);
+      
+      // Cache geçerlilik süresi: 7 gün (PDF listesi çok sık değişmez)
+      const cacheValidDuration = Duration(days: 7);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final isCacheValid = cacheTime != null && 
+                          (now - cacheTime) < cacheValidDuration.inMilliseconds;
+      
+      if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
+        try {
+          final List<dynamic> cachedList = jsonDecode(cachedJson);
+          final cachedPdfs = cachedList
+              .map((json) => {
+                    'name': (json['name'] ?? '') as String,
+                    'pdfUrl': (json['pdfUrl'] ?? '') as String,
+                  })
+              .cast<Map<String, String>>()
+              .toList();
+          
+          if (cachedPdfs.isNotEmpty && mounted) {
+            setState(() {
+              _pdfs = cachedPdfs;
+              _isLoading = false;
+            });
+            print('✅ Loaded ${_pdfs.length} PDFs from cache (NO Storage request)');
+            _checkDownloadedPdfs();
+            // Cache geçerliyse Storage'dan ÇEKME - hiç istek atma
+            return;
+          }
+        } catch (e) {
+          print('⚠️ Error parsing PDFs cache: $e');
+        }
+      } else if (cachedJson != null && cachedJson.isNotEmpty && !isCacheValid) {
+        final daysOld = cacheTime != null ? ((now - cacheTime) / 86400000).toStringAsFixed(1) : "unknown";
+        print('⚠️ PDF cache expired ($daysOld days old), will refresh from Storage');
+      } else {
+        print('⚠️ No PDF cache found, will load from Storage');
+      }
+      
+      // Cache yok veya geçersizse Storage'dan yükle (flag'i _loadPdfs() kendisi yönetir)
+      if (mounted) {
+        _loadPdfs();
+        _checkDownloadedPdfs();
+      }
+    } catch (e) {
+      print('⚠️ Error loading PDFs from cache: $e');
+      // Hata olursa Storage'dan yükle (sadece bir kez)
+      if (mounted) {
+        _loadPdfs();
+        _checkDownloadedPdfs();
+      }
+    }
   }
   
   Future<void> _checkDownloadedPdfs() async {
@@ -56,12 +122,41 @@ class _PdfsPageState extends State<PdfsPage> {
   }
 
   Future<void> _loadPdfs() async {
+    // Eğer zaten yükleniyorsa tekrar başlatma
+    if (_isLoadingFromStorage) {
+      print('⚠️ Already loading from Storage, skipping duplicate request');
+      return;
+    }
+    _isLoadingFromStorage = true;
+    
     try {
+      // Cache kontrolü - eğer cache geçerliyse hiç Storage'dan çekme
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'pdfs_list_${widget.topicId}';
+        final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
+        final cachedJson = prefs.getString(cacheKey);
+        final cacheTime = prefs.getInt(cacheTimeKey);
+        
+        const cacheValidDuration = Duration(days: 7);
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final isCacheValid = cacheTime != null && 
+                            (now - cacheTime) < cacheValidDuration.inMilliseconds;
+        
+        if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
+          print('✅ Cache is valid, skipping Storage request');
+          return;
+        }
+      } catch (e) {
+        // Cache kontrolü başarısız, devam et
+      }
+      
       setState(() {
         _isLoading = true;
       });
       
-      print('🔍 Loading PDFs from Storage for topic: ${widget.topic.name}');
+      print('🌐 Loading PDFs from Storage for topic: ${widget.topic.name} (cache miss or expired)');
+      print('⚠️ WARNING: This will make Storage requests and use MB!');
       
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
@@ -147,7 +242,9 @@ class _PdfsPageState extends State<PdfsPage> {
       }
       
       // 1. konu/ klasöründen PDF'leri al (öncelikli)
+      // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
+        print('📡 Making Storage request to list files in: $konuAnlatimiPath');
         final konuFiles = await _storageService.listFilesWithPaths(konuAnlatimiPath);
         print('📄 Found ${konuFiles.length} files in konu/ folder');
         for (final fileInfo in konuFiles) {
@@ -172,7 +269,9 @@ class _PdfsPageState extends State<PdfsPage> {
       }
       
       // 2. konu_anlatimi/ klasöründen PDF'leri al
+      // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
+        print('📡 Making Storage request to list files in: $konuAnlatimiPathAlt');
         final konuAnlatimiFiles = await _storageService.listFilesWithPaths(konuAnlatimiPathAlt);
         print('📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder');
         for (final fileInfo in konuAnlatimiFiles) {
@@ -197,7 +296,9 @@ class _PdfsPageState extends State<PdfsPage> {
       }
       
       // 3. pdf/ klasöründen PDF'leri al
+      // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
+        print('📡 Making Storage request to list files in: $pdfPath');
         final pdfFiles = await _storageService.listFilesWithPaths(pdfPath);
         print('📄 Found ${pdfFiles.length} files in pdf/ folder');
         for (final fileInfo in pdfFiles) {
@@ -265,6 +366,19 @@ class _PdfsPageState extends State<PdfsPage> {
         print('  PDF ${i + 1}: ${_pdfs[i]['name']} - ${_pdfs[i]['pdfUrl']}');
       }
       
+      // Cache'e kaydet (hızlı erişim için)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'pdfs_list_${widget.topicId}';
+        final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
+        final pdfsJson = jsonEncode(_pdfs);
+        await prefs.setString(cacheKey, pdfsJson);
+        await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+        print('✅ Saved ${_pdfs.length} PDFs to cache');
+      } catch (e) {
+        print('⚠️ Error saving PDFs to cache: $e');
+      }
+      
       setState(() {
         _isLoading = false;
       });
@@ -278,6 +392,8 @@ class _PdfsPageState extends State<PdfsPage> {
         _isLoading = false;
         _pdfs = [];
       });
+    } finally {
+      _isLoadingFromStorage = false;
     }
   }
 
@@ -291,6 +407,8 @@ class _PdfsPageState extends State<PdfsPage> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
         child: Container(

@@ -438,7 +438,7 @@ class ProgressService {
           topic: data['topicName'] ?? '',
           currentMinute: data['currentMinute'] ?? 0,
           totalMinutes: data['totalMinutes'] ?? 1,
-          progressColor: 'blue',
+          progressColor: 'red',
           icon: 'play',
           topicId: topicId,
           lessonId: lessonId,

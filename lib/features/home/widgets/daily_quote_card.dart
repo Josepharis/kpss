@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
 
 class DailyQuoteCard extends StatelessWidget {
   final String quote;
   final bool isSmallScreen;
+  final bool isCompactLayout;
 
   const DailyQuoteCard({
     super.key,
     required this.quote,
     this.isSmallScreen = false,
+    this.isCompactLayout = false,
   });
 
   String _getQuoteOfDay() {
@@ -35,123 +36,160 @@ class DailyQuoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
+    final isSmallDevice = screenHeight < 700;
     final quoteText = quote.isNotEmpty ? quote : _getQuoteOfDay();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Responsive padding & sizing (tablet yatayda kompakt mod)
+    final horizontalMargin = isCompactLayout ? 0.0 : (isTablet ? 24.0 : 16.0);
+    final cardPadding = isCompactLayout ? 12.0 : (isSmallDevice ? 12.0 : 14.0);
+    final iconSize = isCompactLayout ? 22.0 : (isSmallDevice ? 24.0 : 28.0);
+    final titleFontSize = isCompactLayout ? 9.0 : (isSmallDevice ? 10.0 : 11.0);
+    final quoteFontSize = isCompactLayout ? 11.5 : (isSmallDevice ? 12.5 : 13.5);
 
     return Container(
       margin: EdgeInsets.symmetric(
-        horizontal: isTablet ? 24.0 : 16.0,
-        vertical: isSmallScreen ? 4.0 : 6.0,
+        horizontal: horizontalMargin,
+        vertical: isCompactLayout ? 4.0 : (isSmallDevice ? 4.0 : 6.0),
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryBlue.withValues(alpha: 0.12),
-            AppColors.gradientPurpleStart.withValues(alpha: 0.1),
-          ],
+          colors: isDark 
+            ? [
+                const Color(0xFF2C3E50).withValues(alpha: 0.9),
+                const Color(0xFF34495E).withValues(alpha: 0.85),
+              ]
+            : [
+                const Color(0xFF667EEA),
+                const Color(0xFF764BA2),
+              ],
         ),
-        borderRadius: BorderRadius.circular(isSmallScreen ? 12.0 : 14.0),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(isSmallDevice ? 14.0 : 16.0),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryBlue.withValues(alpha: 0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: isDark 
+              ? Colors.black.withValues(alpha: 0.4)
+              : const Color(0xFF667EEA).withValues(alpha: 0.3),
+            blurRadius: isSmallDevice ? 10 : 12,
+            offset: const Offset(0, 3),
             spreadRadius: 0,
           ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 12.0 : 14.0,
-          vertical: isSmallScreen ? 10.0 : 12.0,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Quote icon - compact
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 6.0 : 7.0),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            top: -18,
+            right: -18,
+            child: Container(
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primaryBlue,
-                    AppColors.gradientPurpleStart,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.format_quote_rounded,
-                color: Colors.white,
-                size: isSmallScreen ? 16.0 : 18.0,
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
-            SizedBox(width: isSmallScreen ? 10.0 : 12.0),
-            // Quote text - compact single line
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Builder(
-                    builder: (context) {
-                      final isDark = Theme.of(context).brightness == Brightness.dark;
-                      final textColor = isDark ? Colors.white : AppColors.textPrimary;
-                      
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+          ),
+          Positioned(
+            bottom: -24,
+            left: -24,
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: EdgeInsets.all(cardPadding),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Modern Quote Icon
+                Container(
+                  width: iconSize,
+                  height: iconSize,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(isSmallDevice ? 9 : 10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1.25,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.format_quote_rounded,
+                      color: Colors.white,
+                      size: isSmallDevice ? 16.0 : 18.0,
+                    ),
+                  ),
+                ),
+                SizedBox(width: isSmallDevice ? 10.0 : 12.0),
+                // Quote Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Title with decorative line
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Günün Sözü',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 9.0 : 10.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primaryBlue,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Container(
-                                  height: 1,
-                                  color: AppColors.primaryBlue.withValues(alpha: 0.2),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: isSmallScreen ? 4.0 : 5.0),
                           Text(
-                            quoteText,
+                            'GÜNÜN SÖZÜ',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 11.0 : 12.0,
-                              fontWeight: FontWeight.w500,
-                              color: textColor,
-                              height: 1.4,
-                              fontStyle: FontStyle.italic,
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withValues(alpha: 0.95),
+                              letterSpacing: 1.2,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Container(
+                              height: 1.25,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.5),
+                                    Colors.white.withValues(alpha: 0.0),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ],
-                      );
-                    },
+                      ),
+                      SizedBox(height: isSmallDevice ? 6.0 : 7.0),
+                      // Quote Text
+                      Text(
+                        '"$quoteText"',
+                        style: TextStyle(
+                          fontSize: quoteFontSize,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                          height: 1.35,
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: isSmallDevice ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

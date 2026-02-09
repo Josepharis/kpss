@@ -101,7 +101,7 @@ void main() async {
 
 1. Firebase Console'da projenizi açın
 2. Android ikonuna tıklayın
-3. Package name'i girin: `com.example.kpss_ags_2026`
+3. Package name'i girin: `com.kadrox.app`
 4. `google-services.json` dosyasını indirin
 5. İndirilen dosyayı `android/app/` klasörüne kopyalayın
 

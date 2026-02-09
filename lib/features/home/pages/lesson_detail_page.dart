@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/subscription_service.dart';
+import '../../../core/services/quick_access_service.dart';
+import '../../../core/utils/turkish_text.dart';
+import '../../../core/widgets/floating_home_button.dart';
+import '../../../../main.dart';
 import 'topic_detail_page.dart';
 import 'subscription_page.dart';
 
@@ -150,34 +155,210 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
   }
 
   void _showPremiumRequiredDialog(BuildContext context, Topic topic) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Premium Gerekli'),
-        content: Text(
-          'Bu konuya erişmek için Premium aboneliğe ihtiyacınız var.\n\n'
-          'Her dersin ilk konusu ücretsizdir. Diğer konular için Premium\'a geçin.',
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Gradient Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryBlue,
+                      AppColors.primaryDarkBlue,
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Premium Icon
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.star_rounded,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Title
+                    const Text(
+                      'Premium Gerekli',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Text(
+                      'Bu konuya erişmek için Premium aboneliğe ihtiyacınız var.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.white.withValues(alpha: 0.9) : AppColors.textPrimary,
+                        height: 1.6,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primaryBlue.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: AppColors.primaryBlue,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Her dersin ilk konusu ücretsizdir',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.primaryBlue,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              'Kapat',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white.withValues(alpha: 0.7) : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+                              );
+                              // Premium aktif edildiyse subscription durumunu yeniden kontrol et
+                              if (result == true) {
+                                await _checkSubscription();
+                                await _checkSubscriptionFromCache();
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 4,
+                              shadowColor: AppColors.primaryBlue.withValues(alpha: 0.4),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.star_rounded, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Premium\'a Geç',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SubscriptionPage()),
-            );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Premium\'a Geç'),
-          ),
-        ],
       ),
     );
   }
@@ -185,23 +366,35 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
-    final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isSmallScreen = screenHeight < 700;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundWhite,
-      body: Column(
-        children: [
-          // Blue Header Card
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + (isSmallScreen ? 12 : 16),
-              left: isTablet ? 24 : 18,
-              right: isTablet ? 24 : 18,
-              bottom: isSmallScreen ? 20 : 24,
-            ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundWhite,
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: const FloatingHomeButton(),
+        body: Column(
+          children: [
+            // Blue Header Card
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.only(
+                top: statusBarHeight + (isSmallScreen ? 12 : 16),
+                left: isTablet ? 24 : 18,
+                right: isTablet ? 24 : 18,
+                bottom: isSmallScreen ? 20 : 24,
+              ),
             decoration: BoxDecoration(
               gradient: isDark
                   ? null
@@ -311,15 +504,44 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                widget.lesson.name.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 22 : 26,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  letterSpacing: 1.5,
-                                  height: 1.2,
-                                ),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final title = turkishToUpper(widget.lesson.name);
+                                  final hasSpaces = title.trim().contains(' ');
+
+                                  final style = TextStyle(
+                                    fontSize: isSmallScreen ? 22 : 26,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    // Slightly reduced to prevent awkward breaks on long titles.
+                                    letterSpacing: isSmallScreen ? 1.0 : 1.2,
+                                    height: 1.2,
+                                  );
+
+                                  // If it's a single long word (e.g. "VATANDAŞLIK"),
+                                  // don't let Flutter split it into awkward pieces like "VATANDAŞLI" + "K".
+                                  if (!hasSpaces) {
+                                    return FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        title,
+                                        style: style,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: TextOverflow.visible,
+                                      ),
+                                    );
+                                  }
+
+                                  // Multi-word titles can wrap nicely into 2 lines.
+                                  return Text(
+                                    title,
+                                    style: style,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -405,86 +627,159 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                         ),
                       )
                     : ListView.builder(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isTablet ? 24 : 18,
-                          vertical: isSmallScreen ? 12 : 16,
+                        padding: EdgeInsets.only(
+                          left: isTablet ? 24 : 18,
+                          right: isTablet ? 24 : 18,
+                          top: isSmallScreen ? 12 : 16,
+                          bottom: bottomPadding + (isSmallScreen ? 12 : 16),
                         ),
                         itemCount: _topics.length,
                         itemBuilder: (context, index) {
                           final topic = _topics[index];
                           final topicNumber = (index + 1).toString().padLeft(2, '0');
                           
-                          final isFree = _subscriptionService.isTopicFree(topic);
-                          final isLocked = !isFree && !_isPremium;
-                          
-                          return GestureDetector(
+                          return _TopicListItem(
+                            topic: topic,
+                            topicNumber: topicNumber,
+                            lessonName: widget.lesson.name,
+                            isSmallScreen: isSmallScreen,
+                            isDark: isDark,
                             onTap: () => _handleTopicTap(topic),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                vertical: isSmallScreen ? 14 : 18,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Number
-                                  Container(
-                                    width: isSmallScreen ? 40 : 44,
-                                    alignment: Alignment.topLeft,
-                                    child: Text(
-                                      topicNumber,
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 16 : 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: isLocked 
-                                            ? Colors.grey 
-                                            : AppColors.primaryBlue,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: isSmallScreen ? 12 : 16),
-                                  // Title
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            topic.name,
-                                            style: TextStyle(
-                                              fontSize: isSmallScreen ? 16 : 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: isLocked
-                                                  ? Colors.grey
-                                                  : (isDark ? Colors.white : AppColors.textPrimary),
-                                            ),
-                                          ),
-                                        ),
-                                        if (isLocked) ...[
-                                          const SizedBox(width: 8),
-                                          Icon(
-                                            Icons.lock_outline,
-                                            size: 20,
-                                            color: Colors.grey,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           );
                         },
                       ),
           ),
         ],
+      ),
+      ),
+    );
+  }
+}
+
+class _TopicListItem extends StatefulWidget {
+  final Topic topic;
+  final String topicNumber;
+  final String lessonName;
+  final bool isSmallScreen;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _TopicListItem({
+    required this.topic,
+    required this.topicNumber,
+    required this.lessonName,
+    required this.isSmallScreen,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_TopicListItem> createState() => _TopicListItemState();
+}
+
+class _TopicListItemState extends State<_TopicListItem> {
+  bool _isFavorite = false;
+  bool _isLoadingFavorite = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFavoriteStatus();
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    final isFavorite = await QuickAccessService.isInQuickAccess(widget.topic.id);
+    if (mounted) {
+      setState(() {
+        _isFavorite = isFavorite;
+        _isLoadingFavorite = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final newFavoriteState = await QuickAccessService.toggleQuickAccessItem(
+      topicId: widget.topic.id,
+      lessonId: widget.topic.lessonId,
+      topicName: widget.topic.name,
+      lessonName: widget.lessonName,
+      podcastCount: widget.topic.podcastCount,
+      videoCount: widget.topic.videoCount,
+      flashCardCount: widget.topic.flashCardCount,
+      pdfCount: widget.topic.pdfCount,
+    );
+    if (mounted) {
+      setState(() {
+        _isFavorite = newFavoriteState;
+      });
+      // Anasayfayı yenile
+      final mainScreen = MainScreen.of(context);
+      if (mainScreen != null) {
+        mainScreen.refreshHomePage();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          vertical: widget.isSmallScreen ? 14 : 18,
+        ),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: widget.isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Number
+            Container(
+              width: widget.isSmallScreen ? 40 : 44,
+              alignment: Alignment.topLeft,
+              child: Text(
+                widget.topicNumber,
+                style: TextStyle(
+                  fontSize: widget.isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryBlue,
+                ),
+              ),
+            ),
+            SizedBox(width: widget.isSmallScreen ? 12 : 16),
+            // Title
+            Expanded(
+              child: Text(
+                widget.topic.name,
+                style: TextStyle(
+                  fontSize: widget.isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.bold,
+                  color: widget.isDark ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            SizedBox(width: widget.isSmallScreen ? 8 : 12),
+            // Favorite button
+            if (!_isLoadingFavorite)
+              GestureDetector(
+                onTap: () => _toggleFavorite(),
+                child: Container(
+                  padding: EdgeInsets.all(widget.isSmallScreen ? 6 : 8),
+                  child: Icon(
+                    _isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: _isFavorite ? Colors.amber : (widget.isDark ? Colors.white70 : AppColors.textSecondary),
+                    size: widget.isSmallScreen ? 20 : 22,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

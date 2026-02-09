@@ -172,12 +172,13 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: _getColor(),
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -204,9 +205,9 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
     
     if (_savedCards.isEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: _getColor(),
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -232,14 +233,14 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
               Icon(
                 Icons.style_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade700 : Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               Text(
                 'Bu konuda kaydedilmiş kart yok',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -251,9 +252,9 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
     final currentCard = _savedCards[_currentCardIndex];
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: _getColor(),
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
         elevation: 0,
         leading: IconButton(
           icon: Icon(
@@ -340,10 +341,12 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                   bottom: isSmallScreen ? 16 : 20,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.backgroundLight,
+                  color: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: isDark 
+                          ? Colors.black.withValues(alpha: 0.3)
+                          : Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
@@ -404,8 +407,8 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                               overflow: TextOverflow.ellipsis,
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.textPrimary,
+                              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
                                 horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
                                 vertical: isSmallScreen ? 10 : 12,
@@ -414,7 +417,9 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: Colors.grey.withValues(alpha: 0.3),
+                                  color: isDark 
+                                      ? Colors.grey.withValues(alpha: 0.3)
+                                      : Colors.grey.withValues(alpha: 0.3),
                                   width: 1.5,
                                 ),
                               ),
@@ -472,8 +477,8 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                               overflow: TextOverflow.ellipsis,
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.textPrimary,
+                              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
                                 horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
                                 vertical: isSmallScreen ? 10 : 12,

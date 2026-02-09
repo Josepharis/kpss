@@ -7,377 +7,248 @@ import '../pages/tests_page.dart';
 class OngoingTestCard extends StatelessWidget {
   final OngoingTest test;
   final bool isSmallScreen;
+  final Future<void> Function()? onReset;
 
   const OngoingTestCard({
     super.key,
     required this.test,
     this.isSmallScreen = false,
+    this.onReset,
   });
-
-  Color _getGradientStartColor() {
-    switch (test.progressColor) {
-      case 'blue':
-        return const Color(0xFF4A90E2);
-      case 'yellow':
-        return const Color(0xFFFFB347);
-      case 'red':
-        return const Color(0xFFE74C3C);
-      case 'purple':
-        return const Color(0xFF9B59B6);
-      default:
-        return AppColors.gradientBlueStart;
-    }
-  }
-
-  Color _getGradientEndColor() {
-    switch (test.progressColor) {
-      case 'blue':
-        return const Color(0xFF357ABD);
-      case 'yellow':
-        return const Color(0xFFFF8C42);
-      case 'red':
-        return const Color(0xFFC0392B);
-      case 'purple':
-        return const Color(0xFF8E44AD);
-      default:
-        return AppColors.gradientBlueEnd;
-    }
-  }
-
-  IconData _getIcon() {
-    if (test.title.toLowerCase().contains('matematik')) {
-      return Icons.calculate_rounded;
-    } else if (test.title.toLowerCase().contains('türkçe')) {
-      return Icons.menu_book_rounded;
-    } else if (test.title.toLowerCase().contains('tarih')) {
-      return Icons.history_rounded;
-    } else if (test.title.toLowerCase().contains('coğrafya')) {
-      return Icons.map_rounded;
-    }
-    
-    switch (test.icon) {
-      case 'atom':
-        return Icons.science_rounded;
-      case 'chart':
-        return Icons.bar_chart_rounded;
-      case 'globe':
-        return Icons.public_rounded;
-      case 'megaphone':
-        return Icons.campaign_rounded;
-      default:
-        return Icons.quiz_rounded;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isSmallScreen ? 16.0 : 18.0;
-    
-    return GestureDetector(
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TestsPage(
-              topicName: test.topic,
-              testCount: test.totalQuestions,
-              lessonId: test.lessonId,
-              topicId: test.topicId,
-            ),
+    // Compact Square Dimensions
+    final double size = isSmallScreen ? 88 : 98;
+    final primaryColor = AppColors.gradientBlueStart;
+    final secondaryColor = AppColors.gradientBlueEnd;
+    final borderRadius = isSmallScreen ? 18.0 : 22.0;
+
+    return Container(
+      width: size,
+      height: size,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
-        );
-        // If test page returned true, refresh home page
-        if (result == true) {
-          // Find MainScreen and refresh home page
-          final mainScreen = MainScreen.of(context);
-          if (mainScreen != null) {
-            mainScreen.refreshHomePage();
-          }
-        }
-      },
-      child: Container(
-        width: isSmallScreen ? 85 : 95,
-        height: isSmallScreen ? 85 : 95,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _getGradientStartColor(),
-              _getGradientEndColor(),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(borderRadius),
-          boxShadow: [
-            BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.6),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-              spreadRadius: 0,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Stack(
+          children: [
+            // Solid Gradient Background using AppColors
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [primaryColor, secondaryColor],
+                  ),
+                ),
+              ),
             ),
-            BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+
+            // Modern "Glow" highlights (not mesh, just clean highlights)
+            Positioned(
+              top: -15,
+              left: -15,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.25),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Multi-layer gradient overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: RadialGradient(
-                      center: Alignment.topRight,
-                      radius: 1.6,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.22),
-                        Colors.transparent,
-                      ],
+
+            // Content
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TestsPage(
+                        topicName: test.topic,
+                        testCount: test.totalQuestions,
+                        lessonId: test.lessonId,
+                        topicId: test.topicId,
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              // Pattern overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.12),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.04),
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              // Decorative glow
-              Positioned(
-                top: -8,
-                right: -8,
-                child: Container(
-                  width: isSmallScreen ? 40 : 50,
-                  height: isSmallScreen ? 40 : 50,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.28),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -12,
-                left: -12,
-                child: Container(
-                  width: isSmallScreen ? 50 : 60,
-                  height: isSmallScreen ? 50 : 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.2),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Content
-              Padding(
-                padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Top section - Konu (topic)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Topic name
-                        Text(
+                  );
+                  if (!context.mounted) return;
+                  if (result == true) {
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                    }
+                  }
+                },
+                child: Padding(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Topic Name
+                      SizedBox(
+                        height: isSmallScreen ? 22 : 26,
+                        child: Text(
                           test.topic,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 9 : 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.95),
-                            letterSpacing: 0.2,
-                            height: 1.2,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 2,
-                              ),
-                            ],
+                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                            height: 1.1,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    
-                    // Center - Icon with more space
-                    Expanded(
-                      child: Center(
+                      ),
+
+                      const Spacer(),
+
+                      // Glassy Icon Container
+                      Center(
                         child: Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                          padding: EdgeInsets.all(isSmallScreen ? 4 : 5),
                           decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.38),
-                                Colors.white.withValues(alpha: 0.18),
-                              ],
-                            ),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              width: 1.5,
+                              color: Colors.white.withValues(alpha: 0.35),
+                              width: 0.8,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                blurRadius: 3,
-                                offset: const Offset(-1, -1),
-                              ),
-                            ],
                           ),
                           child: Icon(
                             _getIcon(),
                             size: isSmallScreen ? 14 : 16,
                             color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                blurRadius: 4,
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
-                    
-                    // Bottom - Progress section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // Soru sayısı - Sol taraf
-                            Text(
-                              '${test.currentQuestion}/${test.totalQuestions}',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 8 : 9,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.2,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 2,
-                                  ),
-                                ],
+
+                      const Spacer(),
+
+                      // Progress Area
+                      Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${test.currentQuestion}/${test.totalQuestions}',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 7.5 : 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            // Puan - Sağ taraf
-                            if (test.score > 0)
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isSmallScreen ? 3 : 4,
-                                  vertical: isSmallScreen ? 1 : 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.yellow.withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(
-                                    color: Colors.yellow.withValues(alpha: 0.5),
-                                    width: 0.5,
+                              if (test.score > 0)
+                                Text(
+                                  '${test.score}P',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 7 : 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.star_rounded,
-                                      size: isSmallScreen ? 7 : 8,
-                                      color: Colors.white,
-                                    ),
-                                    SizedBox(width: 2),
-                                    Text(
-                                      '${test.score}',
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 7 : 8,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            height: 3,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: test.progress.clamp(0.05, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.6,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      blurRadius: 4,
                                     ),
                                   ],
                                 ),
                               ),
-                          ],
-                        ),
-                        SizedBox(height: isSmallScreen ? 4 : 5),
-                        // Progress bar
-                        Container(
-                          height: isSmallScreen ? 4 : 5,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: LinearProgressIndicator(
-                              value: test.progress,
-                              backgroundColor: Colors.white.withValues(alpha: 0.22),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                              minHeight: isSmallScreen ? 4 : 5,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // Delete button
+            if (onReset != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onReset,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 13,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
+  }
+
+  IconData _getIcon() {
+    final title = test.topic.toLowerCase();
+    if (title.contains('matematik')) return Icons.functions_rounded;
+    if (title.contains('türkçe')) return Icons.spellcheck_rounded;
+    if (title.contains('tarih')) return Icons.auto_stories_rounded;
+    if (title.contains('coğrafya')) return Icons.public_rounded;
+
+    switch (test.icon) {
+      case 'atom':
+        return Icons.psychology_outlined;
+      case 'chart':
+        return Icons.insert_chart_outlined_rounded;
+      case 'globe':
+        return Icons.language_rounded;
+      case 'megaphone':
+        return Icons.notification_important_rounded;
+      default:
+        return Icons.assignment_outlined;
+    }
   }
 }

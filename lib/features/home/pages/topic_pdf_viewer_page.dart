@@ -482,8 +482,127 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
       );
     }
 
+    Widget pdfViewer = Builder(
+      builder: (context) {
+        // Cache kontrolü tamamlanana kadar bekle
+        if (!_cacheCheckComplete) {
+          return Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+        
+        try {
+          // Strategy:
+          // - If _localPdfPath is set: Use file mode (INSTANT, reads from local cache)
+          // - If _localPdfPath is null: Use network mode (streaming)
+          if (_localPdfPath != null && _localPdfPath!.isNotEmpty) {
+            // Use cached file - INSTANT, reads from local disk
+            final file = File(_localPdfPath!);
+            if (file.existsSync()) {
+              print('📄 Using file mode (cache): $_localPdfPath');
+              return SfPdfViewer.file(
+                file,
+                key: _pdfViewerKey,
+                onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+                  print('✅ PDF loaded from file (cache) - INSTANT!');
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                  }
+                },
+                onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                  print('❌ PDF file load failed: ${details.error}');
+                  if (mounted) {
+                    setState(() {
+                      _localPdfPath = null; // Fallback to network
+                      _isLoading = false;
+                      _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
+                    });
+                  }
+                },
+              );
+            } else {
+              print('⚠️ Cache file does not exist, using network mode');
+              // File doesn't exist, use network
+              _localPdfPath = null;
+            }
+          }
+          
+          // Use network mode for streaming (when not cached or file doesn't exist)
+          print('📄 Using network mode (streaming): ${widget.topic.pdfUrl}');
+          return SfPdfViewer.network(
+            widget.topic.pdfUrl!,
+            key: _pdfViewerKey,
+            onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+              print('✅ PDF loaded from network (streaming)');
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+              }
+            },
+            onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
+                });
+              }
+            },
+          );
+        } catch (e) {
+          // Handle plugin exception
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _errorMessage = 'PDF görüntüleyici başlatılamadı. Lütfen uygulamayı tamamen kapatıp yeniden açın.';
+              });
+            }
+          });
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.orange.shade400,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'PDF görüntüleyici başlatılamadı',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Lütfen uygulamayı tamamen kapatıp yeniden açın.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
+    );
+
     return Stack(
       children: [
+        // PDF Viewer
+        pdfViewer,
         // Download progress overlay
         if (_isDownloading)
           Positioned.fill(
@@ -519,153 +638,37 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
               ),
             ),
           ),
-        Builder(
-          builder: (context) {
-            // Cache kontrolü tamamlanana kadar bekle
-            if (!_cacheCheckComplete) {
-              return Center(
-                child: CircularProgressIndicator(),
-              );
-            }
-            
-            try {
-              // Strategy:
-              // - If _localPdfPath is set: Use file mode (INSTANT, reads from local cache)
-              // - If _localPdfPath is null: Use network mode (streaming)
-              if (_localPdfPath != null && _localPdfPath!.isNotEmpty) {
-                // Use cached file - INSTANT, reads from local disk
-                final file = File(_localPdfPath!);
-                if (file.existsSync()) {
-                  print('📄 Using file mode (cache): $_localPdfPath');
-                  return SfPdfViewer.file(
-                    file,
-                    key: _pdfViewerKey,
-                    onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-                      print('✅ PDF loaded from file (cache) - INSTANT!');
-                      if (mounted) {
-                        setState(() {
-                          _isLoading = false;
-                        });
-                      }
-                    },
-                    onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
-                      print('❌ PDF file load failed: ${details.error}');
-                      if (mounted) {
-                        setState(() {
-                          _localPdfPath = null; // Fallback to network
-                          _isLoading = false;
-                          _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
-                        });
-                      }
-                    },
-                  );
-                } else {
-                  print('⚠️ Cache file does not exist, using network mode');
-                  // File doesn't exist, use network
-                  _localPdfPath = null;
-                }
-              }
-              
-              // Use network mode for streaming (when not cached or file doesn't exist)
-              print('📄 Using network mode (streaming): ${widget.topic.pdfUrl}');
-              return SfPdfViewer.network(
-                widget.topic.pdfUrl!,
-                key: _pdfViewerKey,
-                onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-                  print('✅ PDF loaded from network (streaming)');
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                  }
-                },
-                onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = false;
-                      _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
-                    });
-                  }
-                },
-              );
-            } catch (e) {
-              // Handle plugin exception
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    _isLoading = false;
-                    _errorMessage = 'PDF görüntüleyici başlatılamadı. Lütfen uygulamayı tamamen kapatıp yeniden açın.';
-                  });
-                }
-              });
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.orange.shade400,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'PDF görüntüleyici başlatılamadı',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Lütfen uygulamayı tamamen kapatıp yeniden açın.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-          },
-        ),
+        // Loading overlay
         if (_isLoading)
           Builder(
             builder: (context) {
               final isDark = Theme.of(context).brightness == Brightness.dark;
               return Container(
                 color: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      const Color(0xFFFF9800),
-                    ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          const Color(0xFFFF9800),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'PDF yükleniyor...',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 16),
-                  Text(
-                    'PDF yükleniyor...',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+                ),
+              );
             },
           ),
       ],
     );
   }
 }
-

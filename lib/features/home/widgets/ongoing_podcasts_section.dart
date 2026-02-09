@@ -8,23 +8,24 @@ class OngoingPodcastsSection extends StatelessWidget {
   final List<OngoingPodcast> podcasts;
   final bool isSmallScreen;
   final double availableHeight;
+  final Future<void> Function(OngoingPodcast podcast)? onReset;
 
   const OngoingPodcastsSection({
     super.key,
     required this.podcasts,
     this.isSmallScreen = false,
     this.availableHeight = 130.0,
+    this.onReset,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (podcasts.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (podcasts.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final cardHeight = isSmallScreen ? 105.0 : 115.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,80 +34,61 @@ class OngoingPodcastsSection extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isTablet ? 24.0 : 16.0,
-            vertical: isSmallScreen ? 4.0 : 6.0,
+            vertical: 8.0,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OngoingPodcastsListPage(
-                        podcasts: podcasts,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C5CE7),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  );
-                },
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(isSmallScreen ? 5.0 : 6.0),
-                      decoration: BoxDecoration(
-                        color: AppColors.gradientPurpleStart.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.podcasts_outlined,
-                        size: isSmallScreen ? 16.0 : 18.0,
-                        color: AppColors.gradientPurpleStart,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Devam Eden Podcastler',
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 16.0 : 18.0,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      letterSpacing: -0.5,
                     ),
-                    SizedBox(width: isSmallScreen ? 6.0 : 8.0),
-                    Builder(
-                      builder: (context) {
-                        final isDark = Theme.of(context).brightness == Brightness.dark;
-                        final textColor = isDark ? Colors.white : AppColors.textPrimary;
-                        
-                        return Text(
-                          'Devam Eden Podcastler',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 14.0 : 18.0,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OngoingPodcastsListPage(
-                        podcasts: podcasts,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        OngoingPodcastsListPage(podcasts: podcasts),
+                  ),
+                ),
                 style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 8.0 : 12.0,
-                    vertical: isSmallScreen ? 4.0 : 8.0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: const Color(
+                    0xFF6C5CE7,
+                  ).withValues(alpha: 0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-                child: Text(
+                child: const Text(
                   'Hepsi',
                   style: TextStyle(
-                    fontSize: isSmallScreen ? 11.0 : 13.0,
-                    color: AppColors.primaryBlue,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Color(0xFF6C5CE7),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -117,18 +99,19 @@ class OngoingPodcastsSection extends StatelessWidget {
           height: cardHeight,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: isTablet ? 24.0 : 16.0,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: isTablet ? 24.0 : 16.0),
             itemCount: podcasts.length,
             itemBuilder: (context, index) {
               return Padding(
                 padding: EdgeInsets.only(
-                  right: index < podcasts.length - 1 ? (isSmallScreen ? 10.0 : 12.0) : 0,
+                  right: index < podcasts.length - 1 ? 12.0 : 0,
                 ),
                 child: OngoingPodcastCard(
                   podcast: podcasts[index],
                   isSmallScreen: isSmallScreen,
+                  onReset: onReset != null
+                      ? () => onReset!(podcasts[index])
+                      : null,
                 ),
               );
             },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/services/lessons_service.dart';
@@ -82,6 +83,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
+    final orientation = MediaQuery.of(context).orientation;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final headerColor1 = isDark ? const Color(0xFF1E1E1E) : const Color(0xFF8B5CF6);
@@ -183,11 +185,17 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                   Container(
                     height: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                       borderRadius: BorderRadius.circular(14),
+                      border: isDark
+                          ? Border.all(
+                              color: Colors.white.withOpacity(0.08),
+                              width: 1,
+                            )
+                          : null,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withOpacity(isDark ? 0.25 : 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 3),
                         ),
@@ -200,20 +208,21 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                           _searchQuery = value;
                         });
                       },
-                      style: const TextStyle(
+                      cursorColor: isDark ? Colors.white : const Color(0xFF1E293B),
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF1E293B),
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
                       ),
                       decoration: InputDecoration(
                         hintText: 'Ders ara...',
                         hintStyle: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade500,
+                          color: isDark ? Colors.white.withOpacity(0.65) : Colors.grey.shade500,
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: Colors.grey.shade400,
+                          color: isDark ? Colors.white.withOpacity(0.65) : Colors.grey.shade400,
                           size: 20,
                         ),
                         border: InputBorder.none,
@@ -305,6 +314,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                           lessons: genelKultur,
                           isSmallScreen: isSmallScreen,
                           isTablet: isTablet,
+                          orientation: orientation,
                         ),
                       if (genelKultur.isNotEmpty && genelYetenek.isNotEmpty)
                         const SizedBox(height: 16),
@@ -315,6 +325,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                           lessons: genelYetenek,
                           isSmallScreen: isSmallScreen,
                           isTablet: isTablet,
+                          orientation: orientation,
                         ),
                       if (allLessons.isEmpty && _searchQuery.isNotEmpty)
                         Padding(
@@ -357,6 +368,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
     required List<Lesson> lessons,
     required bool isSmallScreen,
     required bool isTablet,
+    required Orientation orientation,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,50 +414,77 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 6),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isTablet ? 4 : 3,
-            crossAxisSpacing: isSmallScreen ? 8 : 10,
-            mainAxisSpacing: isSmallScreen ? 8 : 10,
-            childAspectRatio: isTablet ? 0.68 : 0.70,
-          ),
-          itemCount: lessons.length,
-          itemBuilder: (context, index) {
-            final lesson = lessons[index];
-            return StreamBuilder<double?>(
-              stream: _progressService.streamLessonProgress(lesson.id),
-              builder: (context, snapshot) {
-                double progress = 0.0;
-                
-                if (snapshot.hasData && snapshot.data != null) {
-                  // Stream has data, use it
-                  progress = snapshot.data!;
-                } else if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
-                  // While waiting or no data, try to get from cache
-                  return FutureBuilder<double?>(
-                    future: _progressService.getLessonProgress(lesson.id),
-                    builder: (context, cacheSnapshot) {
-                      final cachedProgress = cacheSnapshot.hasData && cacheSnapshot.data != null
-                          ? cacheSnapshot.data!
-                          : 0.0;
-                      return LessonCard(
-                        lesson: lesson,
-                        progress: cachedProgress,
-                        isSmallScreen: isSmallScreen,
-                        onTap: () => _navigateToDetail(lesson),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth;
+
+            // Hedef: kart genişliği ~160-210px bandında kalsın (telefon landscape dahil).
+            // Bu sayede yatay modda kartlar "çok büyük" görünmez.
+            final isLandscape = orientation == Orientation.landscape;
+            final spacing = isSmallScreen ? 8.0 : 10.0;
+            final targetCardWidth = isTablet ? 200.0 : (isLandscape ? 170.0 : 180.0);
+
+            var crossAxisCount = (availableWidth / targetCardWidth).floor();
+            final minCount = 3;
+            final maxCount = isTablet ? 6 : 5;
+            crossAxisCount = crossAxisCount.clamp(minCount, maxCount);
+
+            // Kartların yüksekliğini landscape'de biraz küçült (daha kompakt görünüm).
+            final double mainAxisExtent = isTablet
+                ? (isLandscape ? 155 : 175)
+                : (isLandscape ? 150 : (isSmallScreen ? 160 : 170));
+
+            // Çok geniş ekranlarda (özellikle tablet landscape) kart enini daha da sınırlamak için
+            // crossAxisCount'u gerekirse 1 artır.
+            final approxCardWidth =
+                (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+            if (approxCardWidth > (isTablet ? 230 : 220) && crossAxisCount < maxCount) {
+              crossAxisCount = math.min(maxCount, crossAxisCount + 1);
+            }
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+                mainAxisExtent: mainAxisExtent,
+              ),
+              itemCount: lessons.length,
+              itemBuilder: (context, index) {
+                final lesson = lessons[index];
+                return StreamBuilder<double?>(
+                  stream: _progressService.streamLessonProgress(lesson.id),
+                  builder: (context, snapshot) {
+                    double progress = 0.0;
+
+                    if (snapshot.hasData && snapshot.data != null) {
+                      progress = snapshot.data!;
+                    } else if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                      return FutureBuilder<double?>(
+                        future: _progressService.getLessonProgress(lesson.id),
+                        builder: (context, cacheSnapshot) {
+                          final cachedProgress =
+                              cacheSnapshot.hasData && cacheSnapshot.data != null ? cacheSnapshot.data! : 0.0;
+                          return LessonCard(
+                            lesson: lesson,
+                            progress: cachedProgress,
+                            isSmallScreen: isSmallScreen,
+                            onTap: () => _navigateToDetail(lesson),
+                          );
+                        },
                       );
-                    },
-                  );
-                }
-                
-                return LessonCard(
-                  lesson: lesson,
-                  progress: progress,
-                  isSmallScreen: isSmallScreen,
-                  onTap: () => _navigateToDetail(lesson),
+                    }
+
+                    return LessonCard(
+                      lesson: lesson,
+                      progress: progress,
+                      isSmallScreen: isSmallScreen,
+                      onTap: () => _navigateToDetail(lesson),
+                    );
+                  },
                 );
               },
             );

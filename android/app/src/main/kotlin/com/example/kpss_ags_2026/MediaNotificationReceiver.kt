@@ -1,4 +1,4 @@
-package com.example.kpss_ags_2026
+package com.kadrox.app
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,7 +13,7 @@ class MediaNotificationReceiver : BroadcastReceiver() {
         
         val flutterEngine = FlutterEngineCache.getInstance().get(MainActivity.FLUTTER_ENGINE_ID)
         if (flutterEngine != null) {
-            val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.kpss_ags_2026/media")
+            val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.kadrox.app/media")
             methodChannel.invokeMethod("mediaAction", action)
         }
     }

@@ -3,10 +3,16 @@ import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service for uploading files to Firebase Storage
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // Cache duration: 7 days (Firebase Storage URLs are valid for a long time)
+  static const Duration _cacheDuration = Duration(days: 7);
+  static const String _urlCachePrefix = 'storage_url_cache_';
+  static const String _urlCacheTimePrefix = 'storage_url_cache_time_';
 
   /// Upload audio file to Firebase Storage
   /// Returns the download URL
@@ -35,6 +41,9 @@ class StorageService {
       await uploadTask;
       
       final downloadUrl = await storageRef.getDownloadURL();
+      
+      // Cache the URL
+      await _cacheUrl(storageRef.fullPath, downloadUrl);
       
       return downloadUrl;
     } catch (e) {
@@ -69,6 +78,9 @@ class StorageService {
       
       final downloadUrl = await storageRef.getDownloadURL();
       
+      // Cache the URL
+      await _cacheUrl(storageRef.fullPath, downloadUrl);
+      
       return downloadUrl;
     } catch (e) {
       debugPrint('❌ Error uploading image file: $e');
@@ -96,6 +108,97 @@ class StorageService {
       return ref.fullPath;
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Get cached download URL for a storage path
+  /// Returns cached URL if valid, null otherwise
+  Future<String?> _getCachedUrl(String fullPath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_urlCachePrefix$fullPath';
+      final timeKey = '$_urlCacheTimePrefix$fullPath';
+      
+      final cachedUrl = prefs.getString(cacheKey);
+      final cachedTime = prefs.getInt(timeKey);
+      
+      if (cachedUrl != null && cachedTime != null) {
+        final cacheTime = DateTime.fromMillisecondsSinceEpoch(cachedTime);
+        final now = DateTime.now();
+        
+        // Check if cache is still valid
+        if (now.difference(cacheTime) < _cacheDuration) {
+          // Silent: URL cache hit (no log needed)
+          return cachedUrl;
+        } else {
+          // Cache expired, remove it
+          await prefs.remove(cacheKey);
+          await prefs.remove(timeKey);
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Cache download URL for a storage path
+  Future<void> _cacheUrl(String fullPath, String url) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_urlCachePrefix$fullPath';
+      final timeKey = '$_urlCacheTimePrefix$fullPath';
+      
+      await prefs.setString(cacheKey, url);
+      await prefs.setInt(timeKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
+      // Silent error handling
+    }
+  }
+
+  /// Get download URL with caching support
+  /// Uses cache if available and valid, otherwise fetches from Firebase
+  Future<String?> _getDownloadUrlWithCache(Reference ref) async {
+    try {
+      final fullPath = ref.fullPath;
+      
+      // Try cache first
+      final cachedUrl = await _getCachedUrl(fullPath);
+      if (cachedUrl != null) {
+        return cachedUrl;
+      }
+      
+      // Cache miss, fetch from Firebase
+      final url = await ref.getDownloadURL();
+      
+      // Cache the URL
+      await _cacheUrl(fullPath, url);
+      
+      return url;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Clear all cached download URLs
+  /// Useful for debugging or when URLs need to be refreshed
+  Future<void> clearUrlCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      
+      int clearedCount = 0;
+      for (final key in keys) {
+        if (key.startsWith(_urlCachePrefix) || key.startsWith(_urlCacheTimePrefix)) {
+          await prefs.remove(key);
+          clearedCount++;
+        }
+      }
+      
+      debugPrint('✅ Cleared $clearedCount cached URLs');
+    } catch (e) {
+      debugPrint('❌ Error clearing URL cache: $e');
     }
   }
 
@@ -127,8 +230,10 @@ class StorageService {
               fileName.endsWith('.mkv') ||
               fileName.endsWith('.webm')) {
             try {
-              final url = await item.getDownloadURL();
-              urls.add(url);
+              final url = await _getDownloadUrlWithCache(item);
+              if (url != null) {
+                urls.add(url);
+              }
             } catch (e) {
               // Silent error handling
             }
@@ -238,12 +343,14 @@ class StorageService {
         final List<Map<String, String>> files = [];
         for (var item in result.items) {
           try {
-            final url = await item.getDownloadURL();
-            files.add({
-              'url': url,
-              'fullPath': item.fullPath,
-              'name': item.name,
-            });
+            final url = await _getDownloadUrlWithCache(item);
+            if (url != null) {
+              files.add({
+                'url': url,
+                'fullPath': item.fullPath,
+                'name': item.name,
+              });
+            }
           } catch (e) {
             // Silent error handling
           }
@@ -288,8 +395,10 @@ class StorageService {
         final List<String> urls = [];
         for (var item in jsonItems) {
           try {
-            final url = await item.getDownloadURL();
-            urls.add(url);
+            final url = await _getDownloadUrlWithCache(item);
+            if (url != null) {
+              urls.add(url);
+            }
           } catch (e) {
             // Silent error handling
           }
@@ -504,8 +613,10 @@ class StorageService {
         final List<String> urls = [];
         for (var item in audioItems) {
           try {
-            final url = await item.getDownloadURL();
-            urls.add(url);
+            final url = await _getDownloadUrlWithCache(item);
+            if (url != null) {
+              urls.add(url);
+            }
           } catch (e) {
             // Silent error handling
           }

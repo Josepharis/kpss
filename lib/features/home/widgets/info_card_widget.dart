@@ -17,19 +17,21 @@ class InfoCardWidget extends StatelessWidget {
   Color _getGradientStartColor() {
     switch (infoCard.color) {
       case 'blue':
-        return const Color(0xFF4A90E2);
+        return AppColors.gradientBlueStart;
       case 'yellow':
-        return const Color(0xFFFFB347);
+        return AppColors.gradientYellowStart;
       case 'red':
-        return const Color(0xFFE74C3C);
+        return AppColors.gradientRedStart;
       case 'purple':
-        return const Color(0xFF9B59B6);
+        return AppColors.gradientPurpleStart;
       case 'green':
-        return const Color(0xFF27AE60);
+        return AppColors.gradientGreenStart;
       case 'orange':
-        return const Color(0xFFFF9800);
+        return AppColors.gradientOrangeStart;
       case 'teal':
-        return const Color(0xFF16A085);
+        return AppColors.gradientTealStart;
+      case 'pink':
+        return const Color(0xFFE91E63);
       default:
         return AppColors.gradientBlueStart;
     }
@@ -38,19 +40,21 @@ class InfoCardWidget extends StatelessWidget {
   Color _getGradientEndColor() {
     switch (infoCard.color) {
       case 'blue':
-        return const Color(0xFF357ABD);
+        return AppColors.gradientBlueEnd;
       case 'yellow':
-        return const Color(0xFFFF8C42);
+        return AppColors.gradientYellowEnd;
       case 'red':
-        return const Color(0xFFC0392B);
+        return AppColors.gradientRedEnd;
       case 'purple':
-        return const Color(0xFF8E44AD);
+        return AppColors.gradientPurpleEnd;
       case 'green':
-        return const Color(0xFF229954);
+        return AppColors.gradientGreenEnd;
       case 'orange':
-        return const Color(0xFFF57C00);
+        return AppColors.gradientOrangeEnd;
       case 'teal':
-        return const Color(0xFF138D75);
+        return AppColors.gradientTealEnd;
+      case 'pink':
+        return const Color(0xFFC2185B);
       default:
         return AppColors.gradientBlueEnd;
     }
@@ -77,8 +81,10 @@ class InfoCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isSmallScreen ? 16.0 : 18.0;
-    
+    final borderRadius = isSmallScreen ? 18.0 : 22.0;
+    final primaryColor = _getGradientStartColor();
+    final secondaryColor = _getGradientEndColor();
+
     return GestureDetector(
       onTap: () async {
         final result = await Navigator.push(
@@ -92,9 +98,7 @@ class InfoCardWidget extends StatelessWidget {
             ),
           ),
         );
-        // If flash cards page returned true, refresh home page
         if (result == true) {
-          // Find MainScreen and refresh
           final mainScreen = MainScreen.of(context);
           if (mainScreen != null) {
             mainScreen.refreshHomePage();
@@ -102,210 +106,98 @@ class InfoCardWidget extends StatelessWidget {
         }
       },
       child: Container(
-        width: isSmallScreen ? 85 : 95,
-        height: isSmallScreen ? 85 : 95,
+        width: isSmallScreen ? 88 : 98,
+        height: isSmallScreen ? 88 : 98,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              _getGradientStartColor(),
-              _getGradientEndColor(),
-            ],
+            colors: [primaryColor, secondaryColor],
           ),
           borderRadius: BorderRadius.circular(borderRadius),
           boxShadow: [
             BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.6),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-              spreadRadius: 0,
-            ),
-            BoxShadow(
-              color: _getGradientStartColor().withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: primaryColor.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
           child: Stack(
-            clipBehavior: Clip.none,
             children: [
-              // Multi-layer gradient overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: RadialGradient(
-                      center: Alignment.topRight,
-                      radius: 1.6,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.22),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Pattern overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.12),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.04),
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              // Decorative glow
+              // Glossy highlights
               Positioned(
-                top: -8,
-                right: -8,
+                top: -10,
+                right: -10,
                 child: Container(
-                  width: isSmallScreen ? 40 : 50,
-                  height: isSmallScreen ? 40 : 50,
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.28),
-                        Colors.transparent,
-                      ],
-                    ),
+                    color: Colors.white.withValues(alpha: 0.15),
                   ),
                 ),
               ),
-              Positioned(
-                bottom: -12,
-                left: -12,
-                child: Container(
-                  width: isSmallScreen ? 50 : 60,
-                  height: isSmallScreen ? 50 : 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.2),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+
               // Content
               Padding(
-                padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Top section - Title
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          infoCard.title,
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 9 : 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.95),
-                            letterSpacing: 0.2,
-                            height: 1.2,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 2,
-                              ),
-                            ],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                    // Title
+                    SizedBox(
+                      height: isSmallScreen ? 22 : 26,
+                      child: Text(
+                        infoCard.title,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 8.5 : 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                          height: 1.1,
                         ),
-                      ],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    
-                    // Center - Icon with more space
-                    Expanded(
-                      child: Center(
-                        child: Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.38),
-                                Colors.white.withValues(alpha: 0.18),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                blurRadius: 3,
-                                offset: const Offset(-1, -1),
-                              ),
-                            ],
+
+                    const Spacer(),
+
+                    // Glassy Icon
+                    Center(
+                      child: Container(
+                        padding: EdgeInsets.all(isSmallScreen ? 4 : 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                            width: 0.8,
                           ),
-                          child: Icon(
-                            _getIcon(),
-                            size: isSmallScreen ? 14 : 16,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
+                        ),
+                        child: Icon(
+                          _getIcon(),
+                          size: isSmallScreen ? 14 : 16,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                    
-                    // Bottom - Description
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          infoCard.description,
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 7 : 8,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            letterSpacing: 0.1,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 2,
-                              ),
-                            ],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+
+                    const Spacer(),
+
+                    // Count Description
+                    Text(
+                      infoCard.description,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 7.5 : 8.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -317,4 +209,3 @@ class InfoCardWidget extends StatelessWidget {
     );
   }
 }
-

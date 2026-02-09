@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
 import '../../../core/services/progress_service.dart';
@@ -102,11 +105,55 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       // Storage yolunu oluştur
       final storagePath = '$basePath/bilgikarti';
       
-      // Storage'dan gerçek dosya isimlerini al (cache kontrolü için doğru isimleri kullanmak için)
+      // Önce cache'den dosya listesini kontrol et (Storage isteğini önlemek için)
       List<Map<String, String>> files = [];
       try {
-        files = await _storageService.listFilesWithPaths(storagePath);
-        debugPrint('📊 Found ${files.length} files in Storage');
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'flash_cards_files_${widget.topicId}';
+        final cacheTimeKey = 'flash_cards_files_time_${widget.topicId}';
+        final cachedJson = prefs.getString(cacheKey);
+        final cacheTime = prefs.getInt(cacheTimeKey);
+        
+        // Cache geçerlilik süresi: 7 gün
+        const cacheValidDuration = Duration(days: 7);
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final isCacheValid = cacheTime != null && 
+                            (now - cacheTime) < cacheValidDuration.inMilliseconds;
+        
+        if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
+          try {
+            final List<dynamic> cachedList = jsonDecode(cachedJson);
+            files = cachedList
+                .map((json) => {
+                      'name': (json['name'] ?? '') as String,
+                      'fullPath': (json['fullPath'] ?? '') as String,
+                      'url': (json['url'] ?? '') as String,
+                    })
+                .cast<Map<String, String>>()
+                .toList();
+            debugPrint('✅ Loaded ${files.length} flash card files from cache (NO Storage request)');
+          } catch (e) {
+            debugPrint('⚠️ Error parsing flash cards files cache: $e');
+          }
+        }
+        
+        // Cache yoksa veya geçersizse Storage'dan çek
+        if (files.isEmpty) {
+          debugPrint('🌐 Loading flash card files from Storage (cache miss or expired)');
+          debugPrint('⚠️ WARNING: This will make Storage requests!');
+          files = await _storageService.listFilesWithPaths(storagePath);
+          debugPrint('📊 Found ${files.length} files in Storage');
+          
+          // Cache'e kaydet
+          try {
+            final filesJson = jsonEncode(files);
+            await prefs.setString(cacheKey, filesJson);
+            await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+            debugPrint('✅ Saved ${files.length} flash card files to cache (valid for 7 days)');
+          } catch (e) {
+            debugPrint('⚠️ Error saving flash cards files to cache: $e');
+          }
+        }
       } catch (e) {
         debugPrint('⚠️ Error getting files from Storage: $e');
         // Hata durumunda eski yöntemi kullan (fallback)
@@ -487,93 +534,110 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: isSmallScreen ? 18 : 20,
-            ),
-            onPressed: () {
-              Navigator.of(context).pop(true);
-              // MainScreen'e refresh sinyali gönder
-              final mainScreen = MainScreen.of(context);
-              if (mainScreen != null) {
-                mainScreen.refreshHomePage();
-              }
-            },
-          ),
-          title: Text(
-            widget.topicName,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light.copyWith(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
+        child: Scaffold(
+          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+          appBar: AppBar(
+            backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: isSmallScreen ? 18 : 20,
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                // MainScreen'e refresh sinyali gönder
+                final mainScreen = MainScreen.of(context);
+                if (mainScreen != null) {
+                  mainScreen.refreshHomePage();
+                }
+              },
+            ),
+            title: Text(
+              widget.topicName,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 16 : 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          body: const Center(
+            child: CircularProgressIndicator(),
+          ),
         ),
       );
     }
     
     if (_cards.isEmpty) {
-      return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: isSmallScreen ? 18 : 20,
-            ),
-            onPressed: () {
-              Navigator.of(context).pop(true);
-              // MainScreen'e refresh sinyali gönder
-              final mainScreen = MainScreen.of(context);
-              if (mainScreen != null) {
-                mainScreen.refreshHomePage();
-              }
-            },
-          ),
-          title: Text(
-            widget.topicName,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light.copyWith(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.style_outlined,
-                size: 64,
-                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+        child: Scaffold(
+          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+          appBar: AppBar(
+            backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: isSmallScreen ? 18 : 20,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Bu konu için henüz bilgi kartı eklenmemiş',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                // MainScreen'e refresh sinyali gönder
+                final mainScreen = MainScreen.of(context);
+                if (mainScreen != null) {
+                  mainScreen.refreshHomePage();
+                }
+              },
+            ),
+            title: Text(
+              widget.topicName,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 16 : 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.style_outlined,
+                  size: 64,
+                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  'Bu konu için henüz bilgi kartı eklenmemiş',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -581,9 +645,16 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     
     final currentCard = _cards[_currentCardIndex];
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-      appBar: AppBar(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+        appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
         elevation: 0,
         leading: IconButton(
@@ -650,6 +721,52 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         builder: (context, constraints) {
           final isVerySmallScreen = constraints.maxWidth < 360;
           final screenHeight = constraints.maxHeight;
+          final screenWidth = constraints.maxWidth;
+          
+          // Dinamik font ve buton boyutları - ekran genişliğine göre
+          final double buttonFontSize;
+          final double buttonIconSize;
+          final double buttonHeight;
+          final double buttonHorizontalPadding;
+          final double buttonSpacing;
+          
+          if (screenWidth < 340) {
+            // Çok küçük ekranlar
+            buttonFontSize = 11.0;
+            buttonIconSize = 16.0;
+            buttonHeight = 40.0;
+            buttonHorizontalPadding = 8.0;
+            buttonSpacing = 6.0;
+          } else if (screenWidth < 380) {
+            // Küçük ekranlar
+            buttonFontSize = 12.0;
+            buttonIconSize = 17.0;
+            buttonHeight = 42.0;
+            buttonHorizontalPadding = 10.0;
+            buttonSpacing = 8.0;
+          } else if (screenWidth < 420) {
+            // Orta-küçük ekranlar
+            buttonFontSize = 13.0;
+            buttonIconSize = 18.0;
+            buttonHeight = 44.0;
+            buttonHorizontalPadding = 12.0;
+            buttonSpacing = 10.0;
+          } else if (isSmallScreen) {
+            // Küçük ekran yüksekliği
+            buttonFontSize = 14.0;
+            buttonIconSize = 18.0;
+            buttonHeight = 46.0;
+            buttonHorizontalPadding = 14.0;
+            buttonSpacing = 10.0;
+          } else {
+            // Normal ve büyük ekranlar
+            buttonFontSize = 15.0;
+            buttonIconSize = 20.0;
+            buttonHeight = 48.0;
+            buttonHorizontalPadding = 16.0;
+            buttonSpacing = 12.0;
+          }
+          
           return Column(
             children: [
               // Flash Card - maksimum alan kullan
@@ -691,7 +808,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                   left: isTablet ? 20 : 12,
                   right: isTablet ? 20 : 12,
                   top: isSmallScreen ? 16 : 20,
-                  bottom: isSmallScreen ? 16 : 20,
+                  bottom: bottomPadding + (isSmallScreen ? 16 : 20),
                 ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundLight,
@@ -706,7 +823,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Kaydet butonu
+                    // Kaydet butonu - dinamik boyutlarla
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -715,15 +832,16 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                           _savedCardIds.contains(currentCard.id)
                               ? Icons.bookmark_rounded
                               : Icons.bookmark_border_rounded,
-                          size: isSmallScreen ? 18 : 20,
+                          size: buttonIconSize + 2, // Biraz daha büyük
                         ),
                         label: Text(
                           _savedCardIds.contains(currentCard.id)
                               ? 'Kaydedildi'
                               : 'Kaydet',
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 14 : 16,
+                            fontSize: buttonFontSize + 1, // Biraz daha büyük
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 0.3,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -732,9 +850,10 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                               : AppColors.gradientRedStart,
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.symmetric(
-                            vertical: isSmallScreen ? 12 : 14,
+                            vertical: 10,
+                            horizontal: 16,
                           ),
-                          minimumSize: Size(0, isSmallScreen ? 48 : 52),
+                          minimumSize: Size(0, buttonHeight + 4), // Biraz daha yüksek
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -743,34 +862,35 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                       ),
                     ),
                     SizedBox(height: isSmallScreen ? 8 : 10),
-                    // Navigation buttons
+                    // Navigation buttons - dinamik boyutlarla
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Flexible(
+                        Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _previousCard,
                             icon: Icon(
                               Icons.arrow_back_rounded,
-                              size: isSmallScreen ? 18 : 20,
+                              size: buttonIconSize,
                             ),
                             label: Text(
                               'Önceki',
                               style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
+                                fontSize: buttonFontSize,
                                 fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.visible,
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
                               foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
-                                vertical: isSmallScreen ? 10 : 12,
+                                horizontal: buttonHorizontalPadding,
+                                vertical: 8,
                               ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              minimumSize: Size(double.infinity, buttonHeight),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
@@ -782,31 +902,32 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                             ),
                           ),
                         ),
-                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
-                        Flexible(
+                        SizedBox(width: buttonSpacing),
+                        Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _flipCard,
                             icon: Icon(
                               _isFlipped ? Icons.refresh_rounded : Icons.autorenew_rounded,
-                              size: isSmallScreen ? 18 : 20,
+                              size: buttonIconSize,
                             ),
                             label: Text(
                               _isFlipped ? 'Çevir' : 'Göster',
                               style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
+                                fontSize: buttonFontSize,
                                 fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.visible,
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.gradientRedStart,
                               foregroundColor: Colors.white,
                               padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 12 : isSmallScreen ? 16 : 20,
-                                vertical: isSmallScreen ? 10 : 12,
+                                horizontal: buttonHorizontalPadding,
+                                vertical: 8,
                               ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              minimumSize: Size(double.infinity, buttonHeight),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -814,31 +935,32 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                             ),
                           ),
                         ),
-                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
-                        Flexible(
+                        SizedBox(width: buttonSpacing),
+                        Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _nextCard,
                             icon: Icon(
                               Icons.arrow_forward_rounded,
-                              size: isSmallScreen ? 18 : 20,
+                              size: buttonIconSize,
                             ),
                             label: Text(
                               'Sonraki',
                               style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
+                                fontSize: buttonFontSize,
                                 fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.visible,
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
                               foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
                               padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
-                                vertical: isSmallScreen ? 10 : 12,
+                                horizontal: buttonHorizontalPadding,
+                                vertical: 8,
                               ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
+                              minimumSize: Size(double.infinity, buttonHeight),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
@@ -858,6 +980,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             ],
           );
         },
+      ),
       ),
     );
   }

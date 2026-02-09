@@ -47,7 +47,7 @@ class OngoingVideo {
       topic: map['topic'] ?? '',
       currentMinute: map['currentMinute'] ?? 0,
       totalMinutes: map['totalMinutes'] ?? 1,
-      progressColor: map['progressColor'] ?? 'blue',
+      progressColor: map['progressColor'] ?? 'red',
       icon: map['icon'] ?? 'atom',
       topicId: map['topicId'] ?? '',
       lessonId: map['lessonId'] ?? '',

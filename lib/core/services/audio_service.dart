@@ -10,13 +10,18 @@ class AudioPlayerService {
   AudioPlayerService._internal();
 
   final AudioPlayer _player = AudioPlayer();
-  final MethodChannel _channel = const MethodChannel('com.example.kpss_ags_2026/media');
+  final MethodChannel _channel = const MethodChannel('com.kadrox.app/media');
   bool _isInitialized = false;
+  bool _isSourceLoading = false;
   String? _currentTitle;
   String? _currentArtist;
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   Timer? _updateTimer;
+  
+  // Callbacks for next/previous podcast navigation
+  VoidCallback? _onNextPodcast;
+  VoidCallback? _onPreviousPodcast;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -30,6 +35,9 @@ class AudioPlayerService {
           print('🎮 Media action: $action');
           switch (action) {
             case 'PLAY_PAUSE':
+              // If we're switching/loading a new source, ignore rapid toggles to avoid
+              // resuming an old source from a stale notification.
+              if (_isSourceLoading) return;
               if (_player.playing) {
                 await pause();
               } else {
@@ -42,12 +50,22 @@ class AudioPlayerService {
               break;
             case 'NEXT':
               print('⏭️ Next requested from native');
-              // Implement next logic
+              // Call next podcast callback if available
+              if (_onNextPodcast != null) {
+                _onNextPodcast!();
+              } else {
+                print('⚠️ No next podcast callback registered');
+              }
               break;
             case 'PREVIOUS':
               print('⏮️ Previous requested from native');
-              // Seek to beginning
-              await seek(Duration.zero);
+              // Call previous podcast callback if available, otherwise seek to beginning
+              if (_onPreviousPodcast != null) {
+                _onPreviousPodcast!();
+              } else {
+                // Fallback: seek to beginning
+                await seek(Duration.zero);
+              }
               break;
           }
           break;
@@ -86,7 +104,7 @@ class AudioPlayerService {
     try {
       await _channel.invokeMethod('updateNotification', {
         'title': _currentTitle ?? 'Podcast',
-        'artist': _currentArtist ?? 'KPSS & AGS 2026',
+        'artist': _currentArtist ?? 'Kadrox',
         'isPlaying': _player.playing,
         'position': _player.position.inMilliseconds,
         'duration': (_player.duration?.inMilliseconds ?? 0),
@@ -110,13 +128,19 @@ class AudioPlayerService {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  Future<void> play(String url, {String? title, String? artist, Duration? duration, String? localFilePath}) async {
+  Future<void> play(
+    String url, {
+    String? title,
+    String? artist,
+    Duration? duration,
+    String? localFilePath,
+    Duration? initialPosition,
+    bool autoPlay = true,
+  }) async {
     if (!_isInitialized) await initialize();
-    
-    _currentTitle = title;
-    _currentArtist = artist;
-    
+
     try {
+      _isSourceLoading = true;
       // If local file path is provided and exists, use it
       if (localFilePath != null && await File(localFilePath).exists()) {
         print('📁 Playing from local file: $localFilePath');
@@ -126,16 +150,30 @@ class AudioPlayerService {
         print('🌐 Playing from network: $url');
         await _player.setUrl(url);
       }
-      
-      await _player.play();
+      _currentTitle = title;
+      _currentArtist = artist;
+
+      // Seek BEFORE starting playback to avoid briefly playing from 00:00 and then jumping.
+      if (initialPosition != null && initialPosition > Duration.zero) {
+        try {
+          await _player.seek(initialPosition);
+        } catch (e) {
+          // If seek fails (e.g. source not fully ready), just ignore and continue.
+          print('⚠️ Error seeking to initialPosition: $e');
+        }
+      }
+
+      if (autoPlay) {
+        await _player.play();
+      }
       
       // Start notification service (non-blocking - audio will play even if this fails)
       try {
         await _channel.invokeMethod('startService', {
           'title': title ?? 'Podcast',
-          'artist': artist ?? 'KPSS & AGS 2026',
-          'isPlaying': true,
-          'position': 0,
+          'artist': artist ?? 'Kadrox',
+          'isPlaying': _player.playing,
+          'position': _player.position.inMilliseconds,
           'duration': duration?.inMilliseconds ?? 0,
         });
         print('✅ Native notification service started successfully');
@@ -152,6 +190,8 @@ class AudioPlayerService {
     } catch (e) {
       print('❌ Error playing audio: $e');
       rethrow;
+    } finally {
+      _isSourceLoading = false;
     }
   }
 
@@ -162,12 +202,15 @@ class AudioPlayerService {
   }
 
   Future<void> resume() async {
+    // Prevent resuming an unknown/old source from a stale notification.
+    if (_currentTitle == null) return;
     await _player.play();
     print('▶️ Audio resumed');
     await _updateNotification();
   }
 
   Future<void> stop() async {
+    _isSourceLoading = false;
     await _player.stop();
     _currentTitle = null;
     _currentArtist = null;
@@ -199,6 +242,16 @@ class AudioPlayerService {
   bool get playing => _player.playing;
   double get speed => _player.speed;
   ProcessingState get processingState => _player.processingState;
+
+  /// Set callback for next podcast action
+  void setOnNextPodcast(VoidCallback? callback) {
+    _onNextPodcast = callback;
+  }
+
+  /// Set callback for previous podcast action
+  void setOnPreviousPodcast(VoidCallback? callback) {
+    _onPreviousPodcast = callback;
+  }
 
   Future<void> dispose() async {
     _updateTimer?.cancel();

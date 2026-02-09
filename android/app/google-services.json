@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:327696741252:android:10e35c1458e9d7111fa3d1",
+        "mobilesdk_app_id": "1:327696741252:android:cecec45217501b201fa3d1",
         "android_client_info": {
-          "package_name": "com.example.kpss_ags_2026"
+          "package_name": "com.kadrox.app"
         }
       },
       "oauth_client": [],

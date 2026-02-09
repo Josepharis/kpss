@@ -20,7 +20,7 @@ import AVFoundation
     }
     
     methodChannel = FlutterMethodChannel(
-      name: "com.example.kpss_ags_2026/media",
+      name: "com.kadrox.app/media",
       binaryMessenger: controller.binaryMessenger
     )
     
@@ -107,7 +107,7 @@ import AVFoundation
     case "startService":
       if let args = call.arguments as? [String: Any] {
         let title = args["title"] as? String ?? "Podcast"
-        let artist = args["artist"] as? String ?? "KPSS & AGS 2026"
+        let artist = args["artist"] as? String ?? "Kadrox"
         let isPlaying = args["isPlaying"] as? Bool ?? false
         let position = args["position"] as? Int ?? 0
         let duration = args["duration"] as? Int ?? 0
@@ -125,7 +125,7 @@ import AVFoundation
     case "updateNotification":
       if let args = call.arguments as? [String: Any] {
         let title = args["title"] as? String ?? "Podcast"
-        let artist = args["artist"] as? String ?? "KPSS & AGS 2026"
+        let artist = args["artist"] as? String ?? "Kadrox"
         let isPlaying = args["isPlaying"] as? Bool ?? false
         let position = args["position"] as? Int ?? 0
         let duration = args["duration"] as? Int ?? 0
@@ -159,7 +159,7 @@ import AVFoundation
     var nowPlayingInfo = [String: Any]()
     nowPlayingInfo[MPMediaItemPropertyTitle] = title
     nowPlayingInfo[MPMediaItemPropertyArtist] = artist
-    nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "KPSS & AGS 2026"
+    nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "Kadrox"
     
     if duration > 0 {
       nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = Double(duration) / 1000.0

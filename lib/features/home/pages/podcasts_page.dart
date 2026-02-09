@@ -15,6 +15,7 @@ import '../../../core/services/progress_service.dart';
 import '../../../core/services/podcast_download_service.dart';
 import '../../../core/services/storage_cleanup_service.dart';
 import '../../../core/services/podcasts_service.dart';
+import '../../../core/widgets/floating_home_button.dart';
 import '../../../../main.dart';
 
 class PodcastsPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class PodcastsPage extends StatefulWidget {
   final String topicId; // Storage'dan podcast çekmek için
   final String lessonId; // Ders ID'si (Storage yolunu oluşturmak için)
   final String? initialAudioUrl; // Anasayfadan geliyorsa, cache'den direkt yükle
+  final String? initialPodcastId; // Devam eden podcast'ten geliyorsa direkt seç
 
   const PodcastsPage({
     super.key,
@@ -31,6 +33,7 @@ class PodcastsPage extends StatefulWidget {
     required this.topicId,
     required this.lessonId,
     this.initialAudioUrl, // Opsiyonel: anasayfadan ongoing podcast'ten geliyorsa
+    this.initialPodcastId,
   });
 
   @override
@@ -100,7 +103,45 @@ class _PodcastsPageState extends State<PodcastsPage>
     await _loadDownloadedPodcastsStatus();
     
     // Audio'yu initialize et
-    _initializeAudio();
+    await _initializeAudio();
+    
+    // Eğer devam eden podcast'ten gelindiyse, o podcast'i seçip direkt başlat.
+    await _applyInitialSelectionAndAutoplayIfNeeded();
+  }
+
+  Future<void> _applyInitialSelectionAndAutoplayIfNeeded() async {
+    final initialId = widget.initialPodcastId;
+    final initialUrl = widget.initialAudioUrl;
+    if ((initialId == null || initialId.isEmpty) &&
+        (initialUrl == null || initialUrl.isEmpty)) {
+      return;
+    }
+    if (_podcasts.isEmpty) return;
+
+    int index = -1;
+    if (initialId != null && initialId.isNotEmpty) {
+      index = _podcasts.indexWhere((p) => p.id == initialId);
+    }
+    // Fallback: URL ile eşle (id bulunamazsa)
+    if (index < 0 && initialUrl != null && initialUrl.isNotEmpty) {
+      index = _podcasts.indexWhere((p) => p.audioUrl == initialUrl);
+    }
+    if (index < 0 || index >= _podcasts.length) return;
+
+    if (mounted) {
+      setState(() {
+        _selectedPodcastIndex = index;
+        _isPlaying = false;
+        _isBuffering = false;
+        _currentPosition = Duration.zero;
+        _totalDuration = null;
+        _currentPlayingUrl = null;
+      });
+    } else {
+      _selectedPodcastIndex = index;
+    }
+
+    await _loadAndPlayCurrentPodcast();
   }
   
   /// Load podcasts from local cache (Firestore'dan çekilmiş podcast listesi)
@@ -616,7 +657,12 @@ class _PodcastsPageState extends State<PodcastsPage>
     try {
       final audioPlayer = AudioPlayer();
       // Sadece metadata'yı yükle
-      await audioPlayer.setUrl(podcast.audioUrl);
+      if (podcast.audioUrl.startsWith('file://')) {
+        // Cache'den gelen yerel dosya
+        await audioPlayer.setFilePath(podcast.audioUrl.substring(7));
+      } else {
+        await audioPlayer.setUrl(podcast.audioUrl);
+      }
       
       // Duration'ı bekle (maksimum 2 saniye - daha hızlı)
       Duration? duration;
@@ -655,6 +701,10 @@ class _PodcastsPageState extends State<PodcastsPage>
 
   Future<void> _initializeAudio() async {
     await _audioService.initialize();
+    
+    // Register callbacks for next/previous podcast navigation
+    _audioService.setOnNextPodcast(_playNextPodcast);
+    _audioService.setOnPreviousPodcast(_playPreviousPodcast);
     
     // Listen to position updates
     _positionSubscription = _audioService.positionStream.listen((position) {
@@ -699,28 +749,75 @@ class _PodcastsPageState extends State<PodcastsPage>
     _progressSaveTimer?.cancel();
     // Save progress every 5 seconds
     _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_podcasts.isNotEmpty && 
-          _selectedPodcastIndex < _podcasts.length && 
-          _totalDuration != null && 
-          _totalDuration!.inSeconds > 0) {
-        _saveProgress();
+      if (_podcasts.isNotEmpty && _selectedPodcastIndex < _podcasts.length) {
+        // Duration bazen geç geliyor (özellikle streaming'de).
+        // Bu yüzden duration kontrolünü _saveProgress içinde çözüyoruz.
+        _saveProgress(allowDurationLoad: false);
       }
     });
   }
 
-  Future<void> _saveProgress() async {
+  Future<void> _saveProgress({bool allowDurationLoad = true}) async {
     if (_podcasts.isEmpty || _selectedPodcastIndex >= _podcasts.length) return;
-    if (_totalDuration == null || _totalDuration!.inSeconds == 0) return;
     
     final currentPodcast = _podcasts[_selectedPodcastIndex];
+    final position = _audioService.position;
+    
+    Duration? total = _audioService.duration ?? _totalDuration;
+    if (total == null || total.inSeconds == 0) {
+      if (currentPodcast.durationMinutes > 0) {
+        total = Duration(minutes: currentPodcast.durationMinutes);
+      }
+    }
+    
+    // Cache'den duration çek (streaming'de duration null kalabiliyor)
+    if (total == null || total.inSeconds == 0) {
+      final cachedMinutes = await PodcastCacheService.getDuration(currentPodcast.audioUrl);
+      if (cachedMinutes != null && cachedMinutes > 0) {
+        total = Duration(minutes: cachedMinutes);
+        // UI'a zorla setState yapma; sadece local list'i güncelle (save için yeterli).
+        if (currentPodcast.durationMinutes == 0 && _selectedPodcastIndex < _podcasts.length) {
+          _podcasts[_selectedPodcastIndex] = Podcast(
+            id: currentPodcast.id,
+            title: currentPodcast.title,
+            description: currentPodcast.description,
+            audioUrl: currentPodcast.audioUrl,
+            durationMinutes: cachedMinutes,
+            thumbnailUrl: currentPodcast.thumbnailUrl,
+            topicId: currentPodcast.topicId,
+            lessonId: currentPodcast.lessonId,
+            order: currentPodcast.order,
+          );
+        }
+      }
+    }
+    
+    // Eğer hala duration yoksa, (özellikle podcast değiştirirken) hızlıca metadata yüklemeyi dene
+    if ((total == null || total.inSeconds == 0) && allowDurationLoad) {
+      await _loadDurationForPodcast(_selectedPodcastIndex, currentPodcast);
+      if (_selectedPodcastIndex < _podcasts.length) {
+        final updated = _podcasts[_selectedPodcastIndex];
+        if (updated.durationMinutes > 0) {
+          total = Duration(minutes: updated.durationMinutes);
+        }
+      }
+    }
+    
+    if (total == null || total.inSeconds == 0) return;
+    
+    // Güvenli clamp: hatalı/yuvarlanmış duration yüzünden "tamamlandı" sayılıp silinmesin
+    final safeMaxPosSeconds = math.max(0, total.inSeconds - 1);
+    final safePosSeconds = position.inSeconds.clamp(0, safeMaxPosSeconds);
+    final safePosition = Duration(seconds: safePosSeconds);
+
     await _progressService.savePodcastProgress(
       podcastId: currentPodcast.id,
       podcastTitle: currentPodcast.title,
       topicId: currentPodcast.topicId,
       lessonId: currentPodcast.lessonId,
       topicName: widget.topicName,
-      currentPosition: _currentPosition,
-      totalDuration: _totalDuration!,
+      currentPosition: safePosition,
+      totalDuration: total,
     );
   }
 
@@ -730,11 +827,14 @@ class _PodcastsPageState extends State<PodcastsPage>
     
     // Save final progress before disposing
     if (_podcasts.isNotEmpty && 
-        _selectedPodcastIndex < _podcasts.length && 
-        _totalDuration != null && 
-        _totalDuration!.inSeconds > 0) {
-      _saveProgress();
+        _selectedPodcastIndex < _podcasts.length) {
+      // Dispose içinde pahalı metadata yüklemeye girme.
+      _saveProgress(allowDurationLoad: false);
     }
+    
+    // Clear callbacks
+    _audioService.setOnNextPodcast(null);
+    _audioService.setOnPreviousPodcast(null);
     
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
@@ -874,7 +974,7 @@ class _PodcastsPageState extends State<PodcastsPage>
           ? Duration(minutes: durationMinutes)
           : null;
       
-      // Load saved progress and seek to that position
+      // Load saved progress (we will seek BEFORE starting playback)
       final savedProgress = await _progressService.getPodcastProgress(currentPodcast.id);
       
       // Check if podcast is downloaded locally (cache kontrolü - hızlı)
@@ -925,6 +1025,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         artist: widget.topicName,
         duration: duration,
         localFilePath: finalLocalPath,
+        initialPosition: (savedProgress != null && savedProgress.inSeconds > 5) ? savedProgress : null,
       );
       
       // Update last access time if playing from local file
@@ -932,11 +1033,8 @@ class _PodcastsPageState extends State<PodcastsPage>
         await _cleanupService.updateLastAccessTime(currentPodcast.audioUrl);
       }
       
-      // Seek to saved position if available
       if (savedProgress != null && savedProgress.inSeconds > 5) {
-        // Only resume if saved position is more than 5 seconds
-        await _audioService.seek(savedProgress);
-        debugPrint('✅ Resuming podcast from saved position: ${savedProgress.inMinutes}m');
+        debugPrint('✅ Starting podcast from saved position: ${savedProgress.inMinutes}m');
       }
       
       // Start progress save timer
@@ -1014,46 +1112,106 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
   }
 
   Future<void> _selectPodcast(int index) async {
-    if (_selectedPodcastIndex == index) return;
+    if (_selectedPodcastIndex == index) {
+      // Aynı podcast'e tekrar tıklandıysa, eğer durdurulmuşsa oynat
+      if (!_isPlaying) {
+        await _loadAndPlayCurrentPodcast();
+      }
+      return;
+    }
     
-    await _audioService.stop();
+    // Kaydet: podcast değiştirirken ilerleme kaybolmasın.
+    _progressSaveTimer?.cancel();
+    await _saveProgress();
+
+    // Stop yerine pause: notification tarafında "eski podcast'in" yeniden resume edilmesini
+    // ve geçiş sırasında yanlış state'leri azaltır.
+    await _audioService.pause();
     setState(() {
       _selectedPodcastIndex = index;
       _isPlaying = false;
       _currentPosition = Duration.zero;
       _totalDuration = null;
+      _currentPlayingUrl = null;
     });
     
-    // Seçilen podcast'i kontrol et - eğer indirilmişse hemen aç
+    // Seçilen podcast'i otomatik olarak oynat
     if (index < _podcasts.length) {
       final podcast = _podcasts[index];
       if (podcast.audioUrl.isNotEmpty) {
-        // Önce indirme kontrolü yap (cache kontrolü - hızlı)
-        final localFilePath = await _downloadService.getLocalFilePath(podcast.audioUrl);
-        
-        if (localFilePath != null) {
-          // İndirilmiş - hemen aç (PDF'lerdeki gibi anında açılış)
-          debugPrint('📁 Podcast is downloaded, opening immediately: $localFilePath');
-          await _loadAndPlayCurrentPodcast();
-        } else {
-          // İndirilmemiş - arka planda önceden yükle (preload)
-          _preloadPodcast(podcast.audioUrl);
-        }
+        // Her durumda otomatik oynat (indirilmiş olsun veya olmasın)
+        await _loadAndPlayCurrentPodcast();
       }
     }
   }
-  
-  // Podcast'i önceden yükle (preload)
-  Future<void> _preloadPodcast(String audioUrl) async {
-    try {
-      // just_audio'da preload için setUrl çağır ama play() çağırma
-      // Bu sayede dosya önceden yüklenir ve play'e basınca hemen başlar
-      final audioPlayer = AudioPlayer();
-      await audioPlayer.setUrl(audioUrl);
-      // Preload tamamlandı, dispose et
-      await audioPlayer.dispose();
-    } catch (e) {
-      debugPrint('⚠️ Error preloading podcast: $e');
+
+  /// Play next podcast in the list (called from notification)
+  Future<void> _playNextPodcast() async {
+    if (_podcasts.isEmpty) return;
+    
+    final nextIndex = _selectedPodcastIndex + 1;
+    if (nextIndex < _podcasts.length) {
+      debugPrint('⏭️ Playing next podcast: ${_podcasts[nextIndex].title}');
+      // Save current progress before switching
+      _progressSaveTimer?.cancel();
+      await _saveProgress();
+      await _audioService.pause();
+      setState(() {
+        _selectedPodcastIndex = nextIndex;
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+        _totalDuration = null;
+        _currentPlayingUrl = null;
+      });
+      // Always play the next podcast (whether downloaded or not)
+      await _loadAndPlayCurrentPodcast();
+    } else {
+      debugPrint('⚠️ No next podcast available (at end of list)');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Son podcast\'e ulaşıldı'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Play previous podcast in the list (called from notification)
+  Future<void> _playPreviousPodcast() async {
+    if (_podcasts.isEmpty) return;
+    
+    final previousIndex = _selectedPodcastIndex - 1;
+    if (previousIndex >= 0) {
+      debugPrint('⏮️ Playing previous podcast: ${_podcasts[previousIndex].title}');
+      // Save current progress before switching
+      _progressSaveTimer?.cancel();
+      await _saveProgress();
+      await _audioService.pause();
+      setState(() {
+        _selectedPodcastIndex = previousIndex;
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+        _totalDuration = null;
+        _currentPlayingUrl = null;
+      });
+      // Always play the previous podcast (whether downloaded or not)
+      await _loadAndPlayCurrentPodcast();
+    } else {
+      debugPrint('⚠️ No previous podcast available (at beginning of list)');
+      // If at beginning, seek to beginning of current podcast
+      await _audioService.seek(Duration.zero);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('İlk podcast\'e ulaşıldı'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -1090,6 +1248,8 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         if (_isLoading) {
           return Scaffold(
             backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+            floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+            floatingActionButton: const FloatingHomeButton(),
             appBar: AppBar(
               backgroundColor: AppColors.gradientPurpleStart,
               elevation: 0,
@@ -1138,6 +1298,8 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         if (_podcasts.isEmpty) {
           return Scaffold(
             backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+            floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+            floatingActionButton: const FloatingHomeButton(),
             appBar: AppBar(
               backgroundColor: AppColors.gradientPurpleStart,
               elevation: 0,
@@ -1204,6 +1366,8 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
 
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: const FloatingHomeButton(),
           extendBodyBehindAppBar: false,
           appBar: PreferredSize(
             preferredSize: Size.fromHeight(isSmallScreen ? 80 : 90),

@@ -1,4 +1,4 @@
-package com.example.kpss_ags_2026
+package com.kadrox.app
 
 import android.app.*
 import android.content.Intent
@@ -25,10 +25,10 @@ class MediaNotificationService : Service() {
         // Get FlutterEngine from cache for method channel (to send events to Flutter)
         val flutterEngine = FlutterEngineCache.getInstance().get(MainActivity.FLUTTER_ENGINE_ID)
         if (flutterEngine != null) {
-            methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.kpss_ags_2026/media")
+            methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.kadrox.app/media")
         }
         
-        mediaSession = MediaSessionCompat(this, "KPSS Podcast").apply {
+        mediaSession = MediaSessionCompat(this, "Kadrox Podcast").apply {
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
                 MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
@@ -66,7 +66,7 @@ class MediaNotificationService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "KPSS Podcast",
+                "Kadrox Podcast",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Podcast oynatma bildirimleri"
@@ -88,7 +88,7 @@ class MediaNotificationService : Service() {
         val metadata = MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "KPSS & AGS 2026")
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Kadrox")
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
             .build()
         
@@ -165,10 +165,14 @@ class MediaNotificationService : Service() {
     }
 
     private fun createActionIntent(action: String): PendingIntent {
-        val intent = Intent(this, MediaNotificationReceiver::class.java).apply {
-            putExtra("action", action)
+        // Start this Service with the action so we use the Service's methodChannel
+        // (set when podcast started). This makes play/pause work from notification
+        // even when the app was never paused from in-app (BroadcastReceiver path
+        // can miss Flutter engine when app is backgrounded).
+        val intent = Intent(this, MediaNotificationService::class.java).apply {
+            this.action = action
         }
-        return PendingIntent.getBroadcast(
+        return PendingIntent.getService(
             this,
             action.hashCode(),
             intent,
@@ -178,18 +182,25 @@ class MediaNotificationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            when (intent.action) {
+            when (val action = intent.action) {
                 "UPDATE_NOTIFICATION" -> {
                     val title = intent.getStringExtra("title") ?: "Podcast"
-                    val artist = intent.getStringExtra("artist") ?: "KPSS & AGS 2026"
+                    val artist = intent.getStringExtra("artist") ?: "Kadrox"
                     val isPlaying = intent.getBooleanExtra("isPlaying", false)
                     val position = intent.getLongExtra("position", 0L)
                     val duration = intent.getLongExtra("duration", 0L)
                     updateNotification(title, artist, isPlaying, position, duration)
                 }
+                "PLAY_PAUSE", "NEXT", "PREVIOUS", "STOP" -> {
+                    // Handle notification button taps via Service's methodChannel so
+                    // play/pause works even when app hasn't been paused in-app (no
+                    // dependency on FlutterEngine in BroadcastReceiver).
+                    methodChannel?.invokeMethod("mediaAction", action)
+                }
                 else -> {
+                    // Initial start or legacy: update from extras
                     val title = intent.getStringExtra("title") ?: "Podcast"
-                    val artist = intent.getStringExtra("artist") ?: "KPSS & AGS 2026"
+                    val artist = intent.getStringExtra("artist") ?: "Kadrox"
                     val isPlaying = intent.getBooleanExtra("isPlaying", false)
                     val position = intent.getLongExtra("position", 0L)
                     val duration = intent.getLongExtra("duration", 0L)
