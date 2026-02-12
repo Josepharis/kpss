@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/formatted_text.dart';
 
 class GeographyLocation {
   final String id;
@@ -42,13 +43,11 @@ class GeographySection {
 class GeographyExplanationPage extends StatefulWidget {
   final String topicName;
 
-  const GeographyExplanationPage({
-    super.key,
-    required this.topicName,
-  });
+  const GeographyExplanationPage({super.key, required this.topicName});
 
   @override
-  State<GeographyExplanationPage> createState() => _GeographyExplanationPageState();
+  State<GeographyExplanationPage> createState() =>
+      _GeographyExplanationPageState();
 }
 
 class _GeographyExplanationPageState extends State<GeographyExplanationPage> {
@@ -132,7 +131,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Van Gölü',
         type: 'lake',
         region: 'Doğu Anadolu',
-        description: 'Türkiye\'nin en büyük gölü (3.713 km²). Sodalı bir göldür ve inci kefali balığı ile ünlüdür.',
+        description:
+            'Türkiye\'nin en büyük gölü (3.713 km²). Sodalı bir göldür ve inci kefali balığı ile ünlüdür.',
         x: 0.82, // Doğu Anadolu - sağ üst
         y: 0.22,
         color: Colors.blue.shade600,
@@ -142,7 +142,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Tuz Gölü',
         type: 'lake',
         region: 'İç Anadolu',
-        description: 'Türkiye\'nin en tuzlu gölü. Tuz üretimi yapılır. Yazın büyük ölçüde kurur.',
+        description:
+            'Türkiye\'nin en tuzlu gölü. Tuz üretimi yapılır. Yazın büyük ölçüde kurur.',
         x: 0.48, // İç Anadolu - merkez
         y: 0.42,
         color: Colors.blue.shade400,
@@ -152,7 +153,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Beyşehir Gölü',
         type: 'lake',
         region: 'Akdeniz',
-        description: 'Türkiye\'nin üçüncü büyük gölü. Tatlı su gölüdür ve balıkçılık yapılır.',
+        description:
+            'Türkiye\'nin üçüncü büyük gölü. Tatlı su gölüdür ve balıkçılık yapılır.',
         x: 0.38, // Akdeniz - güneybatı
         y: 0.58,
         color: Colors.blue.shade500,
@@ -173,7 +175,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Çukurova',
         type: 'plain',
         region: 'Akdeniz',
-        description: 'Türkiye\'nin en verimli ovası. Pamuk, turunçgil ve sebze üretiminde öne çıkar.',
+        description:
+            'Türkiye\'nin en verimli ovası. Pamuk, turunçgil ve sebze üretiminde öne çıkar.',
         x: 0.52, // Akdeniz - güney, Adana bölgesi
         y: 0.72,
         color: Colors.green.shade600,
@@ -183,7 +186,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Konya Ovası',
         type: 'plain',
         region: 'İç Anadolu',
-        description: 'Türkiye\'nin en büyük ovası. Tahıl üretiminde önemli bir yere sahiptir.',
+        description:
+            'Türkiye\'nin en büyük ovası. Tahıl üretiminde önemli bir yere sahiptir.',
         x: 0.42, // İç Anadolu - Konya bölgesi
         y: 0.48,
         color: Colors.green.shade500,
@@ -193,7 +197,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Bafra Ovası',
         type: 'plain',
         region: 'Karadeniz',
-        description: 'Kızılırmak\'ın oluşturduğu delta ovası. Tütün ve sebze üretimi yapılır.',
+        description:
+            'Kızılırmak\'ın oluşturduğu delta ovası. Tütün ve sebze üretimi yapılır.',
         x: 0.58, // Karadeniz - kuzey orta
         y: 0.18,
         color: Colors.green.shade500,
@@ -203,7 +208,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
         name: 'Çarşamba Ovası',
         type: 'plain',
         region: 'Karadeniz',
-        description: 'Yeşilırmak\'ın oluşturduğu delta ovası. Fındık ve çay üretimi yapılır.',
+        description:
+            'Yeşilırmak\'ın oluşturduğu delta ovası. Fındık ve çay üretimi yapılır.',
         x: 0.62, // Karadeniz - kuzey doğu
         y: 0.12,
         color: Colors.green.shade500,
@@ -585,8 +591,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                section.content.trim(),
+              FormattedText(
+                text: section.content.trim(),
                 style: TextStyle(
                   fontSize: isSmallScreen ? 15 : 16,
                   height: 1.7,
@@ -594,7 +600,8 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
                   letterSpacing: 0.1,
                 ),
               ),
-              if (section.keyPoints != null && section.keyPoints!.isNotEmpty) ...[
+              if (section.keyPoints != null &&
+                  section.keyPoints!.isNotEmpty) ...[
                 SizedBox(height: 24),
                 _buildKeyPointsSection(section.keyPoints!, isSmallScreen),
               ],
@@ -616,8 +623,9 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
 
   Widget _buildInteractiveMap(bool isSmallScreen, bool isTablet) {
     final mapHeight = (isSmallScreen ? 300.0 : 350.0);
-    final mapWidth = MediaQuery.of(context).size.width - (isTablet ? 40.0 : 32.0);
-    
+    final mapWidth =
+        MediaQuery.of(context).size.width - (isTablet ? 40.0 : 32.0);
+
     return Container(
       height: mapHeight,
       margin: EdgeInsets.only(bottom: 20),
@@ -636,7 +644,7 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
           ),
         ],
       ),
-        child: ClipRRect(
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Stack(
           children: [
@@ -644,9 +652,7 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
             Container(
               width: double.infinity,
               height: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-              ),
+              decoration: BoxDecoration(color: Colors.grey.shade50),
               child: Image.network(
                 'https://raw.githubusercontent.com/djaiss/mapsicon/master/all/turkey/turkey-vector.svg',
                 fit: BoxFit.contain,
@@ -670,7 +676,7 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
                           ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
+                                loadingProgress.expectedTotalBytes!
                           : null,
                       color: AppColors.gradientGreenStart,
                     ),
@@ -679,85 +685,91 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
               ),
             ),
             // Location Markers with Labels
-            ..._locations.where((loc) {
-              if (_selectedSectionIndex == 0) return loc.type == 'lake';
-              if (_selectedSectionIndex == 1) return loc.type == 'plain';
-              return false;
-            }).map((location) {
-              final isSelected = _selectedLocationId == location.id;
-              final markerX = location.x * mapWidth;
-              final markerY = location.y * mapHeight;
-              
-              return Positioned(
-                left: markerX - (isSelected ? 40 : 30),
-                top: markerY - (isSelected ? 50 : 40),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedLocationId = isSelected ? null : location.id;
-                    });
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Location Name Label
-                      if (isSelected)
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          margin: EdgeInsets.only(bottom: 6),
-                          decoration: BoxDecoration(
-                            color: location.color,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: location.color.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+            ..._locations
+                .where((loc) {
+                  if (_selectedSectionIndex == 0) return loc.type == 'lake';
+                  if (_selectedSectionIndex == 1) return loc.type == 'plain';
+                  return false;
+                })
+                .map((location) {
+                  final isSelected = _selectedLocationId == location.id;
+                  final markerX = location.x * mapWidth;
+                  final markerY = location.y * mapHeight;
+
+                  return Positioned(
+                    left: markerX - (isSelected ? 40 : 30),
+                    top: markerY - (isSelected ? 50 : 40),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedLocationId = isSelected ? null : location.id;
+                        });
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Location Name Label
+                          if (isSelected)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
                               ),
-                            ],
-                          ),
-                          child: Text(
-                            location.name,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              margin: EdgeInsets.only(bottom: 6),
+                              decoration: BoxDecoration(
+                                color: location.color,
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: location.color.withValues(
+                                      alpha: 0.3,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                location.name,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          // Marker
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: isSelected ? 36 : 28,
+                            height: isSelected ? 36 : 28,
+                            decoration: BoxDecoration(
+                              color: location.color,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: location.color.withValues(alpha: 0.6),
+                                  blurRadius: isSelected ? 16 : 8,
+                                  spreadRadius: isSelected ? 3 : 1,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(
+                                location.type == 'lake'
+                                    ? Icons.water_drop
+                                    : Icons.landscape,
+                                color: Colors.white,
+                                size: isSelected ? 20 : 16,
+                              ),
                             ),
                           ),
-                        ),
-                      // Marker
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: isSelected ? 36 : 28,
-                        height: isSelected ? 36 : 28,
-                        decoration: BoxDecoration(
-                          color: location.color,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: location.color.withValues(alpha: 0.6),
-                              blurRadius: isSelected ? 16 : 8,
-                              spreadRadius: isSelected ? 3 : 1,
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Icon(
-                            location.type == 'lake' ? Icons.water_drop : Icons.landscape,
-                            color: Colors.white,
-                            size: isSelected ? 20 : 16,
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+                    ),
+                  );
+                }),
             // Legend
             Positioned(
               bottom: 12,
@@ -792,7 +804,10 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
                         SizedBox(width: 6),
                         Text(
                           'Göl',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -810,7 +825,10 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
                         SizedBox(width: 6),
                         Text(
                           'Ova',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -939,34 +957,36 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
           ],
         ),
         SizedBox(height: 14),
-        ...keyPoints.map((point) => Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: EdgeInsets.only(top: 6),
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.gradientGreenStart,
+        ...keyPoints.map(
+          (point) => Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: EdgeInsets.only(top: 6),
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.gradientGreenStart,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    point,
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 14 : 15,
+                      height: 1.6,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      point,
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 14 : 15,
-                        height: 1.6,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -995,7 +1015,9 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
             child: Container(
               padding: EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: canGoPrevious ? AppColors.backgroundWhite : AppColors.backgroundLight,
+                color: canGoPrevious
+                    ? AppColors.backgroundWhite
+                    : AppColors.backgroundLight,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: canGoPrevious
@@ -1062,7 +1084,9 @@ Göller ve ovalar Türkiye ekonomisi için çok önemlidir. Ovalar tarımsal ür
                 boxShadow: canGoNext
                     ? [
                         BoxShadow(
-                          color: AppColors.gradientGreenStart.withValues(alpha: 0.25),
+                          color: AppColors.gradientGreenStart.withValues(
+                            alpha: 0.25,
+                          ),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1117,38 +1141,38 @@ class TurkeyMapPainter extends CustomPainter {
       ..strokeWidth = 2.5;
 
     final path = Path();
-    
+
     // Turkey's approximate shape (simplified but recognizable)
     // Starting from top-left (Thrace region)
     path.moveTo(size.width * 0.15, size.height * 0.08); // Thrace top
-    
+
     // Top border (Thrace to Black Sea)
     path.lineTo(size.width * 0.25, size.height * 0.05);
     path.lineTo(size.width * 0.40, size.height * 0.03);
     path.lineTo(size.width * 0.55, size.height * 0.04);
     path.lineTo(size.width * 0.70, size.height * 0.06);
     path.lineTo(size.width * 0.85, size.height * 0.08);
-    
+
     // Right border (Eastern border)
     path.lineTo(size.width * 0.92, size.height * 0.15);
     path.lineTo(size.width * 0.95, size.height * 0.30);
     path.lineTo(size.width * 0.93, size.height * 0.50);
     path.lineTo(size.width * 0.90, size.height * 0.70);
     path.lineTo(size.width * 0.88, size.height * 0.85);
-    
+
     // Bottom border (Syrian border)
     path.lineTo(size.width * 0.75, size.height * 0.92);
     path.lineTo(size.width * 0.60, size.height * 0.95);
     path.lineTo(size.width * 0.45, size.height * 0.94);
     path.lineTo(size.width * 0.30, size.height * 0.90);
-    
+
     // Left border (Aegean and Mediterranean)
     path.lineTo(size.width * 0.20, size.height * 0.85);
     path.lineTo(size.width * 0.12, size.height * 0.75);
     path.lineTo(size.width * 0.10, size.height * 0.60);
     path.lineTo(size.width * 0.12, size.height * 0.40);
     path.lineTo(size.width * 0.13, size.height * 0.20);
-    
+
     path.close();
 
     canvas.drawPath(path, paint);
@@ -1169,11 +1193,13 @@ class TurkeyMapPainter extends CustomPainter {
     textPaint.layout();
     textPaint.paint(
       canvas,
-      Offset(size.width * 0.5 - textPaint.width / 2, size.height * 0.5 - textPaint.height / 2),
+      Offset(
+        size.width * 0.5 - textPaint.width / 2,
+        size.height * 0.5 - textPaint.height / 2,
+      ),
     );
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/formatted_text.dart';
 
 class PastQuestion {
   final String id;
@@ -10,6 +11,7 @@ class PastQuestion {
   final int correctAnswerIndex;
   final String explanation;
   final String? topic;
+  final String? imageUrl;
 
   PastQuestion({
     required this.id,
@@ -19,6 +21,7 @@ class PastQuestion {
     required this.correctAnswerIndex,
     required this.explanation,
     this.topic,
+    this.imageUrl,
   });
 }
 
@@ -26,10 +29,7 @@ class QuestionDistribution {
   final int year;
   final int questionCount;
 
-  QuestionDistribution({
-    required this.year,
-    required this.questionCount,
-  });
+  QuestionDistribution({required this.year, required this.questionCount});
 }
 
 class PastQuestionsPage extends StatefulWidget {
@@ -71,7 +71,8 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
       PastQuestion(
         id: '1',
         year: 2024,
-        question: 'Aşağıdaki cümlelerden hangisinde "de" bağlacı yanlış yazılmıştır?',
+        question:
+            'Aşağıdaki cümlelerden hangisinde "de" bağlacı yanlış yazılmıştır?',
         options: [
           'A) O da buraya gelecek.',
           'B) Sen de mi gideceksin?',
@@ -79,25 +80,23 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           'D) O da benim gibi düşünüyor.',
         ],
         correctAnswerIndex: 2,
-        explanation: '"de" bağlacı ayrı yazılır. Cümlede "Bende" yerine "Bende de" yazılmalıydı.',
+        explanation:
+            '"de" bağlacı ayrı yazılır. Cümlede "Bende" yerine "Bende de" yazılmalıydı.',
       ),
       PastQuestion(
         id: '2',
         year: 2024,
         question: 'Aşağıdaki kelimelerden hangisi büyük ünlü uyumuna uymaz?',
-        options: [
-          'A) Kitap',
-          'B) Kalem',
-          'C) Araba',
-          'D) Kardeş',
-        ],
+        options: ['A) Kitap', 'B) Kalem', 'C) Araba', 'D) Kardeş'],
         correctAnswerIndex: 1,
-        explanation: '"Kalem" kelimesi büyük ünlü uyumuna uymaz çünkü ilk hecede "a", ikinci hecede "e" ünlüsü vardır.',
+        explanation:
+            '"Kalem" kelimesi büyük ünlü uyumuna uymaz çünkü ilk hecede "a", ikinci hecede "e" ünlüsü vardır.',
       ),
       PastQuestion(
         id: '3',
         year: 2023,
-        question: 'Aşağıdaki cümlelerden hangisinde noktalama işareti yanlış kullanılmıştır?',
+        question:
+            'Aşağıdaki cümlelerden hangisinde noktalama işareti yanlış kullanılmıştır?',
         options: [
           'A) Bugün hava çok güzel; dışarı çıkmak istiyorum.',
           'B) Ali, Ahmet ve Mehmet geldi.',
@@ -105,20 +104,17 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           'D) Ankara\'da yaşıyorum.',
         ],
         correctAnswerIndex: 0,
-        explanation: 'Noktalı virgül (;) bağımsız cümleler arasında kullanılır. Bu cümlede virgül kullanılmalıydı.',
+        explanation:
+            'Noktalı virgül (;) bağımsız cümleler arasında kullanılır. Bu cümlede virgül kullanılmalıydı.',
       ),
       PastQuestion(
         id: '4',
         year: 2023,
         question: 'Aşağıdaki kelimelerden hangisinde ünsüz yumuşaması görülür?',
-        options: [
-          'A) Kitap',
-          'B) Ağaç',
-          'C) Renk',
-          'D) Yurt',
-        ],
+        options: ['A) Kitap', 'B) Ağaç', 'C) Renk', 'D) Yurt'],
         correctAnswerIndex: 3,
-        explanation: '"Yurt" kelimesi ek aldığında "yurdu" şeklinde ünsüz yumuşaması görülür.',
+        explanation:
+            '"Yurt" kelimesi ek aldığında "yurdu" şeklinde ünsüz yumuşaması görülür.',
       ),
       PastQuestion(
         id: '5',
@@ -131,7 +127,8 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           'D) Kitap okuyorum.',
         ],
         correctAnswerIndex: 2,
-        explanation: 'Devrik cümle, yüklemi sonda olmayan cümledir. "Geldi dün akşam" cümlesinde yüklem başta olduğu için devrik cümledir.',
+        explanation:
+            'Devrik cümle, yüklemi sonda olmayan cümledir. "Geldi dün akşam" cümlesinde yüklem başta olduğu için devrik cümledir.',
       ),
     ];
   }
@@ -143,7 +140,8 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     return _questions.where((q) => q.year == _selectedYear).toList();
   }
 
-  int get _totalQuestions => _distribution.fold(0, (sum, d) => sum + d.questionCount);
+  int get _totalQuestions =>
+      _distribution.fold(0, (sum, d) => sum + d.questionCount);
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +151,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
         child: Container(
@@ -163,10 +163,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFFF6B35),
-                      const Color(0xFFFF9800),
-                    ],
+                    colors: [const Color(0xFFFF6B35), const Color(0xFFFF9800)],
                   ),
             color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
@@ -279,7 +276,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               vertical: isSmallScreen ? 10 : 12,
             ),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : AppColors.backgroundWhite,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -342,18 +341,19 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  colors: [
-                    const Color(0xFFFF6B35),
-                    const Color(0xFFFF9800),
-                  ],
+                  colors: [const Color(0xFFFF6B35), const Color(0xFFFF9800)],
                 )
               : null,
-          color: isSelected ? null : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
+          color: isSelected
+              ? null
+              : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
+                : (isDark
+                      ? Colors.grey.withValues(alpha: 0.3)
+                      : AppColors.textSecondary.withValues(alpha: 0.2)),
             width: 1,
           ),
         ),
@@ -363,7 +363,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
             Icon(
               icon,
               size: isSmallScreen ? 18 : 20,
-              color: isSelected ? Colors.white : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
             ),
             SizedBox(width: isSmallScreen ? 6 : 8),
             Text(
@@ -371,7 +373,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               style: TextStyle(
                 fontSize: isSmallScreen ? 13 : 14,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white : AppColors.textPrimary),
               ),
             ),
           ],
@@ -395,10 +399,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFFFF6B35),
-                  const Color(0xFFFF9800),
-                ],
+                colors: [const Color(0xFFFF6B35), const Color(0xFFFF9800)],
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
@@ -497,7 +498,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               return Container(
                 padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+                  color: isDark
+                      ? const Color(0xFF1E1E1E)
+                      : AppColors.backgroundWhite,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -518,7 +521,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                         });
                       },
                       child: Container(
-                        margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
+                        margin: EdgeInsets.only(
+                          bottom: isSmallScreen ? 16 : 20,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -543,7 +548,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                                       style: TextStyle(
                                         fontSize: isSmallScreen ? 14 : 16,
                                         fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : AppColors.textPrimary,
+                                        color: isDark
+                                            ? Colors.white
+                                            : AppColors.textPrimary,
                                       ),
                                     ),
                                   ],
@@ -566,7 +573,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                                   Container(
                                     height: isSmallScreen ? 32 : 36,
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight,
+                                      color: isDark
+                                          ? const Color(0xFF2C2C2C)
+                                          : AppColors.backgroundLight,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
@@ -582,7 +591,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                                                 : const Color(0xFFFF9800),
                                             isSelected
                                                 ? const Color(0xFFFF9800)
-                                                : const Color(0xFFFF6B35).withValues(alpha: 0.7),
+                                                : const Color(
+                                                    0xFFFF6B35,
+                                                  ).withValues(alpha: 0.7),
                                           ],
                                         ),
                                         borderRadius: BorderRadius.circular(8),
@@ -609,7 +620,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                 return Container(
                   padding: EdgeInsets.all(isSmallScreen ? 18 : 24),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+                    color: isDark
+                        ? const Color(0xFF1E1E1E)
+                        : AppColors.backgroundWhite,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
@@ -630,57 +643,61 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                             style: TextStyle(
                               fontSize: isSmallScreen ? 16 : 18,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
                             ),
                           ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedView = 'questions';
-                            _showAnswer = false;
-                            _selectedQuestionIndex = null;
-                          });
-                        },
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isSmallScreen ? 12 : 16,
-                            vertical: isSmallScreen ? 8 : 10,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFFFF6B35),
-                                const Color(0xFFFF9800),
-                              ],
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedView = 'questions';
+                                _showAnswer = false;
+                                _selectedQuestionIndex = null;
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSmallScreen ? 12 : 16,
+                                vertical: isSmallScreen ? 8 : 10,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFFFF6B35),
+                                    const Color(0xFFFF9800),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Soruları Gör',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 12 : 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            'Soruları Gör',
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
+                        ],
+                      ),
+                      SizedBox(height: isSmallScreen ? 12 : 16),
+                      Text(
+                        '${_questions.where((q) => q.year == _selectedYear).length} soru bulundu',
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 13 : 14,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: isSmallScreen ? 12 : 16),
-                  Text(
-                    '${_questions.where((q) => q.year == _selectedYear).length} soru bulundu',
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 13 : 14,
-                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
+                );
+              },
+            ),
+          ],
           SizedBox(height: isSmallScreen ? 20 : 24),
         ],
       ),
@@ -722,7 +739,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
               vertical: isSmallScreen ? 10 : 12,
             ),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : AppColors.backgroundWhite,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -756,7 +775,8 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           child: _filteredQuestions.isEmpty
               ? Builder(
                   builder: (context) {
-                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -764,14 +784,18 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                           Icon(
                             Icons.quiz_outlined,
                             size: 64,
-                            color: isDark ? Colors.grey.shade600 : AppColors.textSecondary,
+                            color: isDark
+                                ? Colors.grey.shade600
+                                : AppColors.textSecondary,
                           ),
                           SizedBox(height: 16),
                           Text(
                             'Soru bulunamadı',
                             style: TextStyle(
                               fontSize: 16,
-                              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -817,18 +841,19 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  colors: [
-                    const Color(0xFFFF6B35),
-                    const Color(0xFFFF9800),
-                  ],
+                  colors: [const Color(0xFFFF6B35), const Color(0xFFFF9800)],
                 )
               : null,
-          color: isSelected ? null : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
+          color: isSelected
+              ? null
+              : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
+                : (isDark
+                      ? Colors.grey.withValues(alpha: 0.3)
+                      : AppColors.textSecondary.withValues(alpha: 0.2)),
             width: 1,
           ),
         ),
@@ -837,7 +862,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           style: TextStyle(
             fontSize: isSmallScreen ? 12 : 13,
             fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.white : AppColors.textPrimary),
           ),
         ),
       ),
@@ -864,9 +891,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
           color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundWhite,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? const Color(0xFFFF6B35)
-                : Colors.transparent,
+            color: isSelected ? const Color(0xFFFF6B35) : Colors.transparent,
             width: 2,
           ),
           boxShadow: [
@@ -950,8 +975,39 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      question.question,
+                    if (question.imageUrl != null)
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.only(
+                          bottom: isSmallScreen ? 12 : 16,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.black.withValues(alpha: 0.02),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            question.imageUrl!,
+                            fit: BoxFit.contain,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    FormattedText(
+                      text: question.question,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 15 : 17,
                         fontWeight: FontWeight.w600,
@@ -963,20 +1019,29 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                     ...question.options.asMap().entries.map((entry) {
                       final optionIndex = entry.key;
                       final option = entry.value;
-                      final isCorrect = optionIndex == question.correctAnswerIndex;
+                      final isCorrect =
+                          optionIndex == question.correctAnswerIndex;
                       final showCorrect = _showAnswer && isCorrect;
                       return Container(
-                        margin: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
+                        margin: EdgeInsets.only(
+                          bottom: isSmallScreen ? 10 : 12,
+                        ),
                         padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
                         decoration: BoxDecoration(
                           color: showCorrect
                               ? Colors.green.withValues(alpha: 0.1)
-                              : (isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight),
+                              : (isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : AppColors.backgroundLight),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: showCorrect
                                 ? Colors.green
-                                : (isDark ? Colors.grey.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
+                                : (isDark
+                                      ? Colors.grey.withValues(alpha: 0.3)
+                                      : AppColors.textSecondary.withValues(
+                                          alpha: 0.2,
+                                        )),
                             width: showCorrect ? 2 : 1,
                           ),
                         ),
@@ -990,11 +1055,13 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                               ),
                             if (showCorrect) SizedBox(width: 10),
                             Expanded(
-                              child: Text(
-                                option,
+                              child: FormattedText(
+                                text: option,
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 14 : 16,
-                                  color: isDark ? Colors.white : AppColors.textPrimary,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
                                   fontWeight: showCorrect
                                       ? FontWeight.bold
                                       : FontWeight.normal,
@@ -1014,7 +1081,9 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                         },
                         child: Container(
                           width: double.infinity,
-                          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 14 : 16),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isSmallScreen ? 14 : 16,
+                          ),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -1043,10 +1112,7 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                         decoration: BoxDecoration(
                           color: Colors.green.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.green,
-                            width: 2,
-                          ),
+                          border: Border.all(color: Colors.green, width: 2),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1072,12 +1138,16 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
                             SizedBox(height: isSmallScreen ? 10 : 12),
                             Builder(
                               builder: (context) {
-                                final isDark = Theme.of(context).brightness == Brightness.dark;
-                                return Text(
-                                  question.explanation,
+                                final isDark =
+                                    Theme.of(context).brightness ==
+                                    Brightness.dark;
+                                return FormattedText(
+                                  text: question.explanation,
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 14 : 16,
-                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
                                     height: 1.6,
                                   ),
                                 );
@@ -1097,4 +1167,3 @@ class _PastQuestionsPageState extends State<PastQuestionsPage> {
     );
   }
 }
-

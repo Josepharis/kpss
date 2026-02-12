@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -31,13 +32,9 @@ class _LoginPageState extends State<LoginPage>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     _animationController.forward();
   }
@@ -76,16 +73,10 @@ class _LoginPageState extends State<LoginPage>
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
           HapticFeedback.vibrate();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.message),
-              backgroundColor: Colors.red.shade400,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
+          PremiumSnackBar.show(
+            context,
+            message: result.message,
+            type: SnackBarType.error,
           );
         }
       }
@@ -158,7 +149,8 @@ class _LoginPageState extends State<LoginPage>
                                         offset: const Offset(0, 6),
                                       ),
                                       BoxShadow(
-                                        color: AppColors.primaryBlue.withOpacity(0.3),
+                                        color: AppColors.primaryBlue
+                                            .withOpacity(0.3),
                                         blurRadius: 25,
                                         spreadRadius: 3,
                                       ),
@@ -209,7 +201,8 @@ class _LoginPageState extends State<LoginPage>
                                   if (value == null || value.isEmpty) {
                                     return 'Lütfen e-posta adresinizi girin';
                                   }
-                                  if (!value.contains('@') || !value.contains('.')) {
+                                  if (!value.contains('@') ||
+                                      !value.contains('.')) {
                                     return 'Geçerli bir e-posta adresi girin';
                                   }
                                   return null;
@@ -263,7 +256,8 @@ class _LoginPageState extends State<LoginPage>
                                       vertical: 4,
                                     ),
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   child: Text(
                                     'Şifremi Unuttum',
@@ -294,7 +288,9 @@ class _LoginPageState extends State<LoginPage>
                                       offset: const Offset(0, 5),
                                     ),
                                     BoxShadow(
-                                      color: AppColors.primaryBlue.withOpacity(0.3),
+                                      color: AppColors.primaryBlue.withOpacity(
+                                        0.3,
+                                      ),
                                       blurRadius: 18,
                                       spreadRadius: 1,
                                     ),
@@ -313,15 +309,17 @@ class _LoginPageState extends State<LoginPage>
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2.5,
                                                 valueColor:
-                                                    AlwaysStoppedAnimation<Color>(
-                                                  AppColors.primaryBlue,
-                                                ),
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(AppColors.primaryBlue),
                                               ),
                                             )
                                           : Text(
                                               'Giriş Yap',
                                               style: TextStyle(
-                                                fontSize: isSmallScreen ? 17 : 18,
+                                                fontSize: isSmallScreen
+                                                    ? 17
+                                                    : 18,
                                                 fontWeight: FontWeight.bold,
                                                 color: AppColors.primaryBlue,
                                                 letterSpacing: 0.8,
@@ -346,7 +344,9 @@ class _LoginPageState extends State<LoginPage>
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      Navigator.of(context).pushNamed('/register');
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed('/register');
                                     },
                                     child: Text(
                                       'Kayıt Ol',

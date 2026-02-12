@@ -7,10 +7,7 @@ import '../widgets/info_card_widget.dart';
 class InfoCardsListPage extends StatelessWidget {
   final List<InfoCard> infoCards;
 
-  const InfoCardsListPage({
-    super.key,
-    required this.infoCards,
-  });
+  const InfoCardsListPage({super.key, required this.infoCards});
 
   @override
   Widget build(BuildContext context) {
@@ -25,11 +22,17 @@ class InfoCardsListPage extends StatelessWidget {
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : AppColors.backgroundLight,
         appBar: AppBar(
           backgroundColor: AppColors.gradientGreenStart,
           elevation: 0,
@@ -58,14 +61,18 @@ class InfoCardsListPage extends StatelessWidget {
                     Icon(
                       Icons.info_outline,
                       size: 64,
-                      color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                      color: isDark
+                          ? Colors.grey.shade600
+                          : Colors.grey.shade400,
                     ),
                     const SizedBox(height: 16),
                     Text(
                       'Henüz bilgi kartı eklenmemiş',
                       style: TextStyle(
                         fontSize: 16,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ),
                   ],

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/flash_card.dart';
 import '../../../core/services/progress_service.dart';
@@ -10,6 +11,7 @@ import '../../../core/services/storage_service.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/flash_card_cache_service.dart';
 import '../../../core/services/saved_cards_service.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../../main.dart';
 
 class FlashCardsPage extends StatefulWidget {
@@ -41,8 +43,8 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   bool _isFlipped = false;
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
-  bool _cacheLoaded = false; // Cache'den yüklendi mi?
-  Set<String> _savedCardIds = {}; // Kaydedilmiş kart ID'leri
+  bool _cacheLoaded = false;
+  Set<String> _savedCardIds = {};
 
   @override
   void initState() {
@@ -54,37 +56,21 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _flipController, curve: Curves.easeInOut),
     );
-    // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için - PDF gibi)
     _initializeFlashCards();
   }
 
-  /// Initialize flash cards - cache kontrolü tamamlanana kadar bekle (PDF gibi)
   Future<void> _initializeFlashCards() async {
-    // Önce cache kontrolü yap (await et - tamamlanmasını bekle)
     await _checkCacheImmediately();
-    
-    // Sonra diğer dosyaları yükle
     _loadFlashCards();
   }
-  
-  /// Check cache immediately (synchronous check for instant loading - PDF gibi)
-  /// Cache dizinindeki dosyaları direkt okuyarak Firebase Storage çağrısını atla
-  Future<void> _checkCacheImmediately() async {
-    debugPrint('🔍 Checking flash cards cache immediately for instant loading...');
-    
-    try {
-      setState(() {
-        _isLoading = true;
-      });
 
-      // Lesson name'i al
+  Future<void> _checkCacheImmediately() async {
+    try {
+      setState(() => _isLoading = true);
+
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
-      if (lesson == null) {
-        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
-        return;
-      }
-      
-      // Lesson name'i storage path'ine çevir
+      if (lesson == null) return;
+
       final lessonNameForPath = lesson.name
           .toLowerCase()
           .replaceAll(' ', '_')
@@ -94,168 +80,92 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
-      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: widget.lessonId,
         topicId: widget.topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
-      // Storage yolunu oluştur
       final storagePath = '$basePath/bilgikarti';
-      
-      // Önce cache'den dosya listesini kontrol et (Storage isteğini önlemek için)
+
       List<Map<String, String>> files = [];
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final cacheKey = 'flash_cards_files_${widget.topicId}';
-        final cacheTimeKey = 'flash_cards_files_time_${widget.topicId}';
-        final cachedJson = prefs.getString(cacheKey);
-        final cacheTime = prefs.getInt(cacheTimeKey);
-        
-        // Cache geçerlilik süresi: 7 gün
-        const cacheValidDuration = Duration(days: 7);
-        final now = DateTime.now().millisecondsSinceEpoch;
-        final isCacheValid = cacheTime != null && 
-                            (now - cacheTime) < cacheValidDuration.inMilliseconds;
-        
-        if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
-          try {
-            final List<dynamic> cachedList = jsonDecode(cachedJson);
-            files = cachedList
-                .map((json) => {
-                      'name': (json['name'] ?? '') as String,
-                      'fullPath': (json['fullPath'] ?? '') as String,
-                      'url': (json['url'] ?? '') as String,
-                    })
-                .cast<Map<String, String>>()
-                .toList();
-            debugPrint('✅ Loaded ${files.length} flash card files from cache (NO Storage request)');
-          } catch (e) {
-            debugPrint('⚠️ Error parsing flash cards files cache: $e');
-          }
-        }
-        
-        // Cache yoksa veya geçersizse Storage'dan çek
-        if (files.isEmpty) {
-          debugPrint('🌐 Loading flash card files from Storage (cache miss or expired)');
-          debugPrint('⚠️ WARNING: This will make Storage requests!');
-          files = await _storageService.listFilesWithPaths(storagePath);
-          debugPrint('📊 Found ${files.length} files in Storage');
-          
-          // Cache'e kaydet
-          try {
-            final filesJson = jsonEncode(files);
-            await prefs.setString(cacheKey, filesJson);
-            await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
-            debugPrint('✅ Saved ${files.length} flash card files to cache (valid for 7 days)');
-          } catch (e) {
-            debugPrint('⚠️ Error saving flash cards files to cache: $e');
-          }
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error getting files from Storage: $e');
-        // Hata durumunda eski yöntemi kullan (fallback)
-        for (int i = 1; i <= 20; i++) {
-          final filePath = '$storagePath/$i.csv';
-          if (await FlashCardCacheService.isCachedByPath(filePath)) {
-            files.add({
-              'name': '$i.csv',
-              'fullPath': filePath,
-              'url': '',
-            });
-          }
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'flash_cards_files_${widget.topicId}';
+      final cacheTimeKey = 'flash_cards_files_time_${widget.topicId}';
+      final cachedJson = prefs.getString(cacheKey);
+      final cacheTime = prefs.getInt(cacheTimeKey);
+
+      const cacheValidDuration = Duration(days: 7);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final isCacheValid =
+          cacheTime != null &&
+          (now - cacheTime) < cacheValidDuration.inMilliseconds;
+
+      if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
+        try {
+          final List<dynamic> cachedList = jsonDecode(cachedJson);
+          files = cachedList
+              .map(
+                (json) => {
+                  'name': (json['name'] ?? '') as String,
+                  'fullPath': (json['fullPath'] ?? '') as String,
+                  'url': (json['url'] ?? '') as String,
+                },
+              )
+              .cast<Map<String, String>>()
+              .toList();
+        } catch (_) {}
       }
-      
-      // Cache'deki dosyaları kontrol et (gerçek dosya isimleriyle)
+
+      if (files.isEmpty) {
+        files = await _storageService.listFilesWithPaths(storagePath);
+        try {
+          await prefs.setString(cacheKey, jsonEncode(files));
+          await prefs.setInt(
+            cacheTimeKey,
+            DateTime.now().millisecondsSinceEpoch,
+          );
+        } catch (_) {}
+      }
+
       final cachedFiles = <String>[];
       for (final file in files) {
-        final fullPath = file['fullPath']!;
-        if (await FlashCardCacheService.isCachedByPath(fullPath)) {
-          cachedFiles.add(fullPath);
-          debugPrint('✅ Cache hit for: $fullPath');
-        } else {
-          debugPrint('❌ Cache miss for: $fullPath');
+        if (await FlashCardCacheService.isCachedByPath(file['fullPath']!)) {
+          cachedFiles.add(file['fullPath']!);
         }
       }
-      
-      debugPrint('📊 Found ${cachedFiles.length} cached flash card files out of ${files.length} total');
-      
-      // Cache'den olanları paralel yükle ve HEMEN GÖSTER (anında açılış için)
+
       if (cachedFiles.isNotEmpty) {
-        debugPrint('📂 Loading ${cachedFiles.length} files from cache (parallel - instant)...');
         final cachedResults = await Future.wait(
-          cachedFiles.map((fullPath) async {
-            try {
-              final cards = await FlashCardCacheService.getCachedCardsByPath(fullPath);
-              debugPrint('  📊 Loaded ${cards.length} cards from cache file: $fullPath');
-              return cards;
-            } catch (e) {
-              debugPrint('⚠️ Error loading from cache: $e');
-              return <FlashCard>[];
-            }
-          }),
+          cachedFiles.map((p) => FlashCardCacheService.getCachedCardsByPath(p)),
         );
-        
         _cards = [];
-        for (int i = 0; i < cachedResults.length; i++) {
-          final cards = cachedResults[i];
+        for (var cards in cachedResults) {
           _cards.addAll(cards);
-          debugPrint('  ✅ Added ${cards.length} cards from file ${i + 1}/${cachedFiles.length}');
         }
-        debugPrint('✅ Loaded ${_cards.length} cards from cache total - INSTANT DISPLAY');
-        
-        // Cache'den yüklenenleri HEMEN göster (anında açılış - PDF gibi)
+
         if (mounted) {
           setState(() {
-            _isLoading = false; // Hemen göster
-            _cacheLoaded = true; // Cache'den yüklendi
+            _isLoading = false;
+            _cacheLoaded = true;
           });
-          // İlerlemeyi arka planda yükle (await etme - anında açılış için)
           _loadSavedProgress();
           _checkSavedCards();
         }
-        debugPrint('✅ Flash cards displayed instantly from cache');
-      } else {
-        debugPrint('❌ No cached flash cards found');
       }
-    } catch (e) {
-      debugPrint('⚠️ Error checking flash cards cache in initState: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadFlashCards() async {
-    // Eğer cache'den tüm dosyalar yüklendiyse, Firebase Storage'a hiç gitme (anında açılış için)
-    if (_cacheLoaded && _cards.isNotEmpty) {
-      debugPrint('📂 All files loaded from cache, skipping Firebase Storage operations for instant display');
-      return; // Cache'den yüklendiyse, Storage'a hiç gitme
-    }
-    
-    // Cache'de hiçbir şey yoksa, o zaman Storage'dan çek
-    if (_cards.isEmpty) {
-      debugPrint('📂 No cache found, loading from Firebase Storage...');
-    } else {
-      // Cache'de kısmen dosyalar varsa, eksikleri arka planda yükle (opsiyonel)
-      debugPrint('📂 Cache partially loaded, skipping Firebase Storage to minimize network calls');
-      return; // Cache'den kısmen yüklendiyse de Storage'a gitme, kullanıcı zaten cache'den yüklenenleri görebilir
-    }
-    
+    if (_cacheLoaded && _cards.isNotEmpty) return;
+
     try {
-      // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
-        debugPrint('⚠️ Lesson not found: ${widget.lessonId}');
-        if (_cards.isEmpty && mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (_cards.isEmpty && mounted) setState(() => _isLoading = false);
         return;
       }
-      
-      // Lesson name'i storage path'ine çevir
+
       final lessonNameForPath = lesson.name
           .toLowerCase()
           .replaceAll(' ', '_')
@@ -265,111 +175,59 @@ class _FlashCardsPageState extends State<FlashCardsPage>
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
-      // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: widget.lessonId,
         topicId: widget.topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
-      // Storage yolunu oluştur
       final storagePath = '$basePath/bilgikarti';
-      
-      // Storage'dan dosyaları listele
       final files = await _storageService.listFilesWithPaths(storagePath);
-      
-      // Cache kontrolü yap
+
       final cacheChecks = await Future.wait(
-        files.map((file) => FlashCardCacheService.isCachedByPath(file['fullPath']!)),
+        files.map(
+          (file) => FlashCardCacheService.isCachedByPath(file['fullPath']!),
+        ),
       );
-      
-      // İndirilecekleri bul (cache'de olmayanlar)
+
       final downloadFiles = <int, Map<String, String>>{};
       for (int i = 0; i < files.length; i++) {
         if (!cacheChecks[i]) {
           downloadFiles[i] = files[i];
         }
       }
-      
-      // Eğer cache'den yüklenmediyse, loading göster
-      if (_cards.isEmpty && mounted) {
-        setState(() {
-          _isLoading = true;
-        });
-      }
-      
-      // İndirilecekleri arka planda yükle (cache'le) - non-blocking
+
+      if (_cards.isEmpty && mounted) setState(() => _isLoading = true);
+
       if (downloadFiles.isNotEmpty) {
-        debugPrint('🌐 Downloading ${downloadFiles.length} files in background (will cache)...');
-        // Arka planda indir (kullanıcıyı bekletme)
         Future(() async {
           for (final entry in downloadFiles.entries) {
             final file = entry.value;
-            final url = file['url']!;
-            final fullPath = file['fullPath']!;
-            
             try {
-              debugPrint('🌐 Downloading file ($fullPath)');
-              final cards = await FlashCardCacheService.cacheFlashCardsByPath(url, fullPath);
+              final cards = await FlashCardCacheService.cacheFlashCardsByPath(
+                file['url']!,
+                file['fullPath']!,
+              );
               if (mounted && cards.isNotEmpty) {
                 setState(() {
                   _cards.addAll(cards);
-                  _isLoading = false; // Loading'i kapat
+                  _isLoading = false;
                 });
-                debugPrint('✅ Loaded ${cards.length} cards from download - added to list');
               }
-            } catch (e) {
-              debugPrint('⚠️ Error downloading flash card from $fullPath: $e');
-            }
+            } catch (_) {}
           }
-          
-          // Tüm indirmeler tamamlandığında loading'i kapat
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-          debugPrint('✅ Background download complete - total cards: ${_cards.length}');
+          if (mounted) setState(() => _isLoading = false);
         });
       } else {
-        // Eğer indirilecek dosya yoksa, loading'i kapat
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
-      
-      // Eğer hiç kart yüklenmediyse (ne cache'den ne de download'dan), hata mesajı göster
-      if (_cards.isEmpty && downloadFiles.isEmpty) {
-        debugPrint('⚠️ No flash cards found in cache or Storage');
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
-        // Mock data kullanma - boş liste bırak, kullanıcıya hata mesajı gösterilecek
-      }
-      
-      debugPrint('✅ Flash cards initialization complete: ${_cards.length} cards');
-      
-      // İlerlemeyi yükle (eğer daha önce yüklenmediyse)
+
       if (_cards.isNotEmpty) {
         _loadSavedProgress();
         _checkSavedCards();
       }
-    } catch (e) {
-      debugPrint('❌ Error loading flash cards: $e');
-      
-      // Hata durumunda mock data kullanma - boş liste bırak
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      
-      // Eğer cache'den yüklenen kartlar varsa, onları kullan
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
       if (_cards.isNotEmpty) {
         _loadSavedProgress();
         _checkSavedCards();
@@ -378,19 +236,15 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   }
 
   Future<void> _loadSavedProgress() async {
-    final savedCardIndex = await _progressService.getFlashCardProgress(widget.topicId);
-    if (savedCardIndex != null && savedCardIndex < _cards.length) {
-      setState(() {
-        _currentCardIndex = savedCardIndex;
-      });
-      debugPrint('✅ Resuming flash cards from card ${savedCardIndex + 1}');
+    final idx = await _progressService.getFlashCardProgress(widget.topicId);
+    if (idx != null && idx < _cards.length) {
+      if (mounted) setState(() => _currentCardIndex = idx);
     }
-    _saveProgress(); // Save initial progress
+    _saveProgress();
   }
 
   @override
   void dispose() {
-    // Save final progress before disposing
     _saveProgress();
     _flipController.dispose();
     super.dispose();
@@ -398,15 +252,12 @@ class _FlashCardsPageState extends State<FlashCardsPage>
 
   void _flipCard() {
     if (_flipController.isAnimating) return;
-
     if (_isFlipped) {
       _flipController.reverse();
     } else {
       _flipController.forward();
     }
-    setState(() {
-      _isFlipped = !_isFlipped;
-    });
+    setState(() => _isFlipped = !_isFlipped);
   }
 
   void _nextCard() {
@@ -419,7 +270,6 @@ class _FlashCardsPageState extends State<FlashCardsPage>
       _saveProgress();
       _checkCurrentCardSaved();
     } else {
-      // All cards completed
       _progressService.deleteFlashCardProgress(widget.topicId);
     }
   }
@@ -446,84 +296,71 @@ class _FlashCardsPageState extends State<FlashCardsPage>
     );
   }
 
-  // Kaydedilmiş kartları kontrol et
   Future<void> _checkSavedCards() async {
     if (_cards.isEmpty) return;
-    
     final savedIds = <String>{};
     for (var card in _cards) {
-      final isSaved = await SavedCardsService.isCardSaved(card.id, widget.topicId);
-      if (isSaved) {
+      if (await SavedCardsService.isCardSaved(card.id, widget.topicId)) {
         savedIds.add(card.id);
       }
     }
-    
-    if (mounted) {
-      setState(() {
-        _savedCardIds = savedIds;
-      });
-    }
+    if (mounted) setState(() => _savedCardIds = savedIds);
   }
 
-  // Mevcut kartın kaydedilip kaydedilmediğini kontrol et
   Future<void> _checkCurrentCardSaved() async {
     if (_cards.isEmpty || _currentCardIndex >= _cards.length) return;
-    
-    final currentCard = _cards[_currentCardIndex];
-    final isSaved = await SavedCardsService.isCardSaved(currentCard.id, widget.topicId);
-    
+    final card = _cards[_currentCardIndex];
+    final isSaved = await SavedCardsService.isCardSaved(
+      card.id,
+      widget.topicId,
+    );
     if (mounted) {
       setState(() {
-        if (isSaved) {
-          _savedCardIds.add(currentCard.id);
-        } else {
-          _savedCardIds.remove(currentCard.id);
-        }
+        if (isSaved)
+          _savedCardIds.add(card.id);
+        else
+          _savedCardIds.remove(card.id);
       });
     }
   }
 
-  // Kartı kaydet/kaldır
   Future<void> _toggleSaveCard() async {
     if (_cards.isEmpty || _currentCardIndex >= _cards.length) return;
-    
-    final currentCard = _cards[_currentCardIndex];
-    final isSaved = await SavedCardsService.isCardSaved(currentCard.id, widget.topicId);
+    final card = _cards[_currentCardIndex];
+    final isSaved = _savedCardIds.contains(card.id);
 
-    if (isSaved) {
-      // Kaldır
-      final success = await SavedCardsService.removeSavedCard(currentCard.id, widget.topicId);
-      if (mounted && success) {
-        setState(() {
-          _savedCardIds.remove(currentCard.id);
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kart kaydedilenlerden kaldırıldı.'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.orange,
+    setState(() {
+      if (isSaved)
+        _savedCardIds.remove(card.id);
+      else
+        _savedCardIds.add(card.id);
+    });
+
+    try {
+      if (isSaved) {
+        await SavedCardsService.removeSavedCard(card.id, widget.topicId);
+      } else {
+        await SavedCardsService.addSavedCard(
+          SavedCard.fromFlashCard(
+            card,
+            widget.topicId,
+            widget.topicName,
+            widget.lessonId,
           ),
         );
       }
-    } else {
-      // Kaydet
-      final savedCard = SavedCard.fromFlashCard(
-        currentCard,
-        widget.topicId,
-        widget.topicName,
-        widget.lessonId,
-      );
-      final success = await SavedCardsService.addSavedCard(savedCard);
-      if (mounted && success) {
+    } catch (_) {
+      if (mounted) {
         setState(() {
-          _savedCardIds.add(currentCard.id);
+          if (isSaved)
+            _savedCardIds.add(card.id);
+          else
+            _savedCardIds.remove(card.id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kart kaydedilenlere eklendi.'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.green,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'İşlem başarısız oldu.',
+          type: SnackBarType.error,
         );
       }
     }
@@ -532,633 +369,747 @@ class _FlashCardsPageState extends State<FlashCardsPage>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
-    final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final isSmallScreen = screenHeight < 700;
+
+    // Loading State
     if (_isLoading) {
-      return AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light.copyWith(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        ),
-        child: Scaffold(
-          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-          appBar: AppBar(
-            backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
-                size: isSmallScreen ? 18 : 20,
-              ),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-                // MainScreen'e refresh sinyali gönder
-                final mainScreen = MainScreen.of(context);
-                if (mainScreen != null) {
-                  mainScreen.refreshHomePage();
-                }
-              },
-            ),
-            title: Text(
-              widget.topicName,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 16 : 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          body: const Center(
-            child: CircularProgressIndicator(),
-          ),
+      return Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
+          children: [
+            _buildMeshBackground(isDark, screenWidth),
+            const Center(child: CircularProgressIndicator()),
+          ],
         ),
       );
     }
-    
+
+    // Empty State
     if (_cards.isEmpty) {
-      return AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light.copyWith(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        ),
-        child: Scaffold(
-          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-          appBar: AppBar(
-            backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
-                size: isSmallScreen ? 18 : 20,
-              ),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-                // MainScreen'e refresh sinyali gönder
-                final mainScreen = MainScreen.of(context);
-                if (mainScreen != null) {
-                  mainScreen.refreshHomePage();
-                }
-              },
-            ),
-            title: Text(
-              widget.topicName,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 16 : 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.style_outlined,
-                  size: 64,
-                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Bu konu için henüz bilgi kartı eklenmemiş',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+      return Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
+          children: [
+            _buildMeshBackground(isDark, screenWidth),
+            _buildCustomHeader(context, isDark, statusBarHeight),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.style_outlined,
+                    size: 64,
+                    color: isDark ? Colors.white24 : Colors.black12,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    'Bu konu için kart bulunamadı',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
-    
+
     final currentCard = _cards[_currentCardIndex];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark, // Android
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF141414)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.gradientRedStart,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-            size: isSmallScreen ? 18 : 20,
-          ),
-          onPressed: () async {
-            // Save progress before leaving
-            await _saveProgress();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('İlerlemeniz kaydediliyor...'),
-                  duration: Duration(seconds: 2),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Wait for message to be visible
-              await Future.delayed(const Duration(milliseconds: 2000));
-              if (mounted) {
-                Navigator.of(context).pop(true);
-                // MainScreen'e refresh sinyali gönder
-                final mainScreen = MainScreen.of(context);
-                if (mainScreen != null) {
-                  mainScreen.refreshHomePage();
-                }
-              }
-            }
-          },
-        ),
-        title: Text(
-          widget.topicName,
-          style: TextStyle(
-            fontSize: isSmallScreen ? 16 : 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: isTablet ? 20 : 16),
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmallScreen ? 10 : 12,
-              vertical: isSmallScreen ? 6 : 8,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '${_currentCardIndex + 1}/${_cards.length}',
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isVerySmallScreen = constraints.maxWidth < 360;
-          final screenHeight = constraints.maxHeight;
-          final screenWidth = constraints.maxWidth;
-          
-          // Dinamik font ve buton boyutları - ekran genişliğine göre
-          final double buttonFontSize;
-          final double buttonIconSize;
-          final double buttonHeight;
-          final double buttonHorizontalPadding;
-          final double buttonSpacing;
-          
-          if (screenWidth < 340) {
-            // Çok küçük ekranlar
-            buttonFontSize = 11.0;
-            buttonIconSize = 16.0;
-            buttonHeight = 40.0;
-            buttonHorizontalPadding = 8.0;
-            buttonSpacing = 6.0;
-          } else if (screenWidth < 380) {
-            // Küçük ekranlar
-            buttonFontSize = 12.0;
-            buttonIconSize = 17.0;
-            buttonHeight = 42.0;
-            buttonHorizontalPadding = 10.0;
-            buttonSpacing = 8.0;
-          } else if (screenWidth < 420) {
-            // Orta-küçük ekranlar
-            buttonFontSize = 13.0;
-            buttonIconSize = 18.0;
-            buttonHeight = 44.0;
-            buttonHorizontalPadding = 12.0;
-            buttonSpacing = 10.0;
-          } else if (isSmallScreen) {
-            // Küçük ekran yüksekliği
-            buttonFontSize = 14.0;
-            buttonIconSize = 18.0;
-            buttonHeight = 46.0;
-            buttonHorizontalPadding = 14.0;
-            buttonSpacing = 10.0;
-          } else {
-            // Normal ve büyük ekranlar
-            buttonFontSize = 15.0;
-            buttonIconSize = 20.0;
-            buttonHeight = 48.0;
-            buttonHorizontalPadding = 16.0;
-            buttonSpacing = 12.0;
-          }
-          
-          return Column(
-            children: [
-              // Flash Card - maksimum alan kullan
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 12 : 16,
-                    vertical: isSmallScreen ? 8 : 12,
-                  ),
-                  child: GestureDetector(
-                    onTap: _flipCard,
-                    child: AnimatedBuilder(
-                      animation: _flipAnimation,
-                      builder: (context, child) {
-                        final angle = _flipAnimation.value * 3.14159; // π
-                        final isFrontVisible = _flipAnimation.value < 0.5;
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
+          children: [
+            // 1. Mesh Background
+            _buildMeshBackground(isDark, screenWidth),
 
-                        return Transform(
-                          alignment: Alignment.center,
-                          transform: Matrix4.identity()
-                            ..setEntry(3, 2, 0.001)
-                            ..rotateY(angle),
-                          child: isFrontVisible
-                              ? _buildCardFront(currentCard, isSmallScreen, isVerySmallScreen, screenHeight)
-                              : Transform(
-                                  alignment: Alignment.center,
-                                  transform: Matrix4.identity()..rotateY(3.14159),
-                                  child: _buildCardBack(currentCard, isSmallScreen, isVerySmallScreen, screenHeight),
-                                ),
-                        );
-                      },
-                    ),
+            // 2. Main Content
+            Column(
+              children: [
+                SizedBox(height: statusBarHeight + 60), // Header space
+                // Card Area
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isVerySmall = constraints.maxWidth < 360;
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isSmallScreen ? 12 : 20,
+                          vertical: isSmallScreen ? 8 : 16,
+                        ),
+                        child: GestureDetector(
+                          onTap: _flipCard,
+                          child: AnimatedBuilder(
+                            animation: _flipAnimation,
+                            builder: (context, child) {
+                              final angle = _flipAnimation.value * 3.14159;
+                              final isFrontVisible = _flipAnimation.value < 0.5;
+                              return Transform(
+                                alignment: Alignment.center,
+                                transform: Matrix4.identity()
+                                  ..setEntry(3, 2, 0.001)
+                                  ..rotateY(angle),
+                                child: isFrontVisible
+                                    ? _buildCardFront(
+                                        currentCard,
+                                        isSmallScreen,
+                                        isVerySmall,
+                                      )
+                                    : Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.identity()
+                                          ..rotateY(3.14159),
+                                        child: _buildCardBack(
+                                          currentCard,
+                                          isSmallScreen,
+                                          isVerySmall,
+                                        ),
+                                      ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-              // Navigation buttons - ekran altında ama tam görünsün
-              Container(
-                padding: EdgeInsets.only(
-                  left: isTablet ? 20 : 12,
-                  right: isTablet ? 20 : 12,
-                  top: isSmallScreen ? 16 : 20,
-                  bottom: bottomPadding + (isSmallScreen ? 16 : 20),
+
+                // 3. Bottom Controls
+                _buildBottomControls(
+                  isDark,
+                  currentCard,
+                  bottomPadding,
+                  isSmallScreen,
                 ),
+              ],
+            ),
+
+            // 4. Custom Header
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildCustomHeader(context, isDark, statusBarHeight),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF010101) : const Color(0xFFF8FAFF),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF0D0221),
+                    const Color(0xFF010101),
+                    const Color(0xFF050505),
+                  ]
+                // Make light mode background slightly more vibrant/clean
+                : [const Color(0xFFEFF6FF), const Color(0xFFFFFFFF)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -screenWidth * 0.3,
+              right: -screenWidth * 0.3,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.5,
+                color: isDark
+                    ? const Color(0xFF7C3AED).withOpacity(0.15)
+                    : const Color(0xFF8B5CF6).withOpacity(0.1),
+              ),
+            ),
+            Positioned(
+              bottom: -screenWidth * 0.4,
+              left: -screenWidth * 0.4,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.6,
+                color: isDark
+                    ? const Color(0xFFDB2777).withOpacity(0.12)
+                    : const Color(0xFFEC4899).withOpacity(0.1),
+              ),
+            ),
+            Positioned(
+              top: 150,
+              left: -100,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.0,
+                color: isDark
+                    ? const Color(0xFF0D9488).withOpacity(0.1)
+                    : const Color(0xFF14B8A6).withOpacity(0.08),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 0.5,
+          colors: [color, color.withOpacity(0)],
+          stops: const [0.1, 1.0],
+        ),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+        child: Container(color: Colors.transparent),
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(
+    BuildContext context,
+    bool isDark,
+    double statusBarHeight,
+  ) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.only(
+            top: statusBarHeight + 10,
+            bottom: 12,
+            left: 20,
+            right: 20,
+          ),
+          color: (isDark ? Colors.black : Colors.white).withOpacity(0.05),
+          child: Row(
+            children: [
+              Container(
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundLight,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.white.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: isDark ? Colors.white : Colors.black87,
+                    size: 20,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () async {
+                    await _saveProgress();
+                    if (mounted) {
+                      Navigator.of(context).pop(true);
+                      MainScreen.of(context)?.refreshHomePage();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Kaydet butonu - dinamik boyutlarla
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _toggleSaveCard,
-                        icon: Icon(
-                          _savedCardIds.contains(currentCard.id)
-                              ? Icons.bookmark_rounded
-                              : Icons.bookmark_border_rounded,
-                          size: buttonIconSize + 2, // Biraz daha büyük
-                        ),
-                        label: Text(
-                          _savedCardIds.contains(currentCard.id)
-                              ? 'Kaydedildi'
-                              : 'Kaydet',
-                          style: TextStyle(
-                            fontSize: buttonFontSize + 1, // Biraz daha büyük
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _savedCardIds.contains(currentCard.id)
-                              ? Colors.green
-                              : AppColors.gradientRedStart,
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 16,
-                          ),
-                          minimumSize: Size(0, buttonHeight + 4), // Biraz daha yüksek
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 4,
-                        ),
+                    Text(
+                      'BİLGİ KARTI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                        color: isDark
+                            ? Colors.white54
+                            : AppColors.primaryBlue.withOpacity(0.8),
                       ),
                     ),
-                    SizedBox(height: isSmallScreen ? 8 : 10),
-                    // Navigation buttons - dinamik boyutlarla
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _previousCard,
-                            icon: Icon(
-                              Icons.arrow_back_rounded,
-                              size: buttonIconSize,
-                            ),
-                            label: Text(
-                              'Önceki',
-                              style: TextStyle(
-                                fontSize: buttonFontSize,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.visible,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: buttonHorizontalPadding,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size(double.infinity, buttonHeight),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: isDark ? Colors.grey.withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              elevation: 2,
-                            ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.topicName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_currentCardIndex + 1} / ${_cards.length}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardFront(FlashCard card, bool isSmallScreen, bool isVerySmall) {
+    final textLength = card.frontText.length;
+    double baseFontSize = isVerySmall ? 18 : (isSmallScreen ? 24 : 30);
+    if (textLength > 100) baseFontSize -= 4;
+    if (textLength > 200) baseFontSize -= 4;
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF43F5E),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFFF7E93),
+            const Color(0xFFF43F5E),
+            const Color(0xFFBE123C),
+          ],
+          stops: const [0.0, 0.4, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(36),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFBE123C).withOpacity(0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: -5,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Fully visible watermark - Top Right
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.help_outline_rounded,
+                size: 64,
+                color: Colors.white.withOpacity(0.2),
+              ),
+            ),
+          ),
+
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 3),
+
+              Expanded(
+                flex: 6,
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Text(
+                      card.frontText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: baseFontSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.3,
+                        letterSpacing: -0.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.15),
+                            offset: const Offset(0, 2),
+                            blurRadius: 4,
                           ),
-                        ),
-                        SizedBox(width: buttonSpacing),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _flipCard,
-                            icon: Icon(
-                              _isFlipped ? Icons.refresh_rounded : Icons.autorenew_rounded,
-                              size: buttonIconSize,
-                            ),
-                            label: Text(
-                              _isFlipped ? 'Çevir' : 'Göster',
-                              style: TextStyle(
-                                fontSize: buttonFontSize,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.visible,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.gradientRedStart,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: buttonHorizontalPadding,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size(double.infinity, buttonHeight),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: buttonSpacing),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _nextCard,
-                            icon: Icon(
-                              Icons.arrow_forward_rounded,
-                              size: buttonIconSize,
-                            ),
-                            label: Text(
-                              'Sonraki',
-                              style: TextStyle(
-                                fontSize: buttonFontSize,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.visible,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: buttonHorizontalPadding,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size(double.infinity, buttonHeight),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: isDark ? Colors.grey.withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              elevation: 2,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.white.withOpacity(0.25)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Cevabı Gör',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.touch_app_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
-          );
-        },
-      ),
-      ),
-    );
-  }
-
-  Widget _buildCardFront(FlashCard card, bool isSmallScreen, bool isVerySmallScreen, double screenHeight) {
-    // Dinamik font boyutu hesapla - metin uzunluğuna göre
-    // Kısa sorular için çok daha büyük font kullan
-    final textLength = card.frontText.length;
-    double baseFontSize;
-    
-    // Metin uzunluğuna göre font boyutunu dinamik olarak ayarla - makul seviye
-    if (textLength <= 30) {
-      // Çok kısa sorular için en büyük font
-      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
-    } else if (textLength <= 50) {
-      // Kısa sorular için büyük font
-      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
-    } else if (textLength <= 100) {
-      // Orta sorular için orta font
-      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
-    } else if (textLength <= 200) {
-      // Uzun sorular için küçük font
-      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
-    } else {
-      // Çok uzun sorular için en küçük font
-      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
-    }
-    
-    return Container(
-      margin: EdgeInsets.zero,
-      width: double.infinity,
-      height: double.infinity,
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.gradientRedStart,
-            AppColors.gradientRedEnd,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gradientRedStart.withValues(alpha: 0.4),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.help_outline_rounded,
-                size: isSmallScreen ? 44 : 52,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              // Metin tamamen görünsün - üç nokta yok, FittedBox kaldırıldı
-              Text(
-                card.frontText,
-                style: TextStyle(
-                  fontSize: baseFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
-              Text(
-                'Cevabı görmek için dokun',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  color: Colors.white70,
-                  fontStyle: FontStyle.italic,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
-  Widget _buildCardBack(FlashCard card, bool isSmallScreen, bool isVerySmallScreen, double screenHeight) {
-    // Dinamik font boyutu hesapla - metin uzunluğuna göre
-    // Kısa cevaplar için çok daha büyük font kullan
+  Widget _buildCardBack(FlashCard card, bool isSmallScreen, bool isVerySmall) {
     final textLength = card.backText.length;
-    double baseFontSize;
-    
-    // Metin uzunluğuna göre font boyutunu dinamik olarak ayarla - makul seviye
-    if (textLength <= 30) {
-      // Çok kısa cevaplar için en büyük font
-      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
-    } else if (textLength <= 50) {
-      // Kısa cevaplar için büyük font
-      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
-    } else if (textLength <= 100) {
-      // Orta cevaplar için orta font
-      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
-    } else if (textLength <= 200) {
-      // Uzun cevaplar için küçük font
-      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
-    } else {
-      // Çok uzun cevaplar için en küçük font
-      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
-    }
-    
+    double baseFontSize = isVerySmall ? 18 : (isSmallScreen ? 22 : 28);
+    if (textLength > 100) baseFontSize -= 4;
+    if (textLength > 200) baseFontSize -= 4;
+
     return Container(
-      margin: EdgeInsets.zero,
       width: double.infinity,
       height: double.infinity,
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
       decoration: BoxDecoration(
+        color: const Color(0xFF10B981),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.gradientGreenStart,
-            AppColors.gradientGreenEnd,
+            const Color(0xFF34D399),
+            const Color(0xFF10B981),
+            const Color(0xFF047857),
           ],
+          stops: const [0.0, 0.4, 1.0],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(36),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: AppColors.gradientGreenStart.withValues(alpha: 0.4),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF047857).withOpacity(0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: -5,
           ),
         ],
       ),
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
+      child: Stack(
+        children: [
+          // Fully visible watermark - Top Right
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_rounded,
+                size: 64,
+                color: Colors.white.withOpacity(0.2),
+              ),
+            ),
+          ),
+
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.check_circle_outline_rounded,
-                size: isSmallScreen ? 44 : 52,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              // Metin tamamen görünsün - üç nokta yok, FittedBox kaldırıldı
-              Text(
-                card.backText,
-                style: TextStyle(
-                  fontSize: baseFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  height: 1.4,
+              const Spacer(flex: 3),
+              Expanded(
+                flex: 6,
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Text(
+                      card.backText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: baseFontSize,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.4,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.15),
+                            offset: const Offset(0, 2),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
-              Text(
-                'Soruya dönmek için dokun',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  color: Colors.white70,
-                  fontStyle: FontStyle.italic,
+              const Spacer(flex: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.refresh_rounded,
+                      size: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Kartı çevir',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 10),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomControls(
+    bool isDark,
+    FlashCard currentCard,
+    double bottomPadding,
+    bool isSmallScreen,
+  ) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding + 20),
+      color: Colors.transparent,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildGlassButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: _previousCard,
+            isDark: isDark,
+            enabled: _currentCardIndex > 0,
+          ),
+
+          const Spacer(),
+
+          GestureDetector(
+            onTap: _toggleSaveCard,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                gradient: _savedCardIds.contains(currentCard.id)
+                    ? LinearGradient(
+                        colors: [
+                          AppColors.gradientBlueStart,
+                          AppColors.gradientBlueEnd,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: _savedCardIds.contains(currentCard.id)
+                    ? null
+                    : (isDark ? Colors.white.withOpacity(0.1) : Colors.white),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: _savedCardIds.contains(currentCard.id)
+                        ? AppColors.gradientBlueStart.withOpacity(0.3)
+                        : Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: _savedCardIds.contains(currentCard.id)
+                    ? null
+                    : Border.all(color: Colors.grey.withOpacity(0.1), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _savedCardIds.contains(currentCard.id)
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    color: _savedCardIds.contains(currentCard.id)
+                        ? Colors.white
+                        : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _savedCardIds.contains(currentCard.id)
+                        ? 'Kaydedildi'
+                        : 'Kaydet',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: _savedCardIds.contains(currentCard.id)
+                          ? Colors.white
+                          : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const Spacer(),
+
+          _buildGlassButton(
+            icon: Icons.arrow_forward_rounded,
+            onTap: _nextCard,
+            isDark: isDark,
+            enabled: _currentCardIndex < _cards.length - 1,
+            isPrimary: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+    bool enabled = true,
+    bool isPrimary = false,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.3,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
+            boxShadow: [
+              if (enabled)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+            border: isPrimary
+                ? Border.all(
+                    color: AppColors.primaryBlue.withOpacity(0.2),
+                    width: 1.5,
+                  )
+                : Border.all(color: Colors.grey.withOpacity(0.1), width: 1),
+          ),
+          child: Icon(
+            icon,
+            color: isPrimary
+                ? AppColors.primaryBlue
+                : (isDark ? Colors.white : const Color(0xFF1E293B)),
+            size: 24,
           ),
         ),
       ),
     );
   }
 }
-

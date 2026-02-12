@@ -18,11 +18,11 @@ class ProgressService {
   String? get _userId => _auth.currentUser?.uid;
 
   /// Collection reference for user progress
-  CollectionReference get _progressCollection => 
+  CollectionReference get _progressCollection =>
       _firestore.collection('userProgress');
 
   /// Get user progress document reference
-  DocumentReference get _userProgressDoc => 
+  DocumentReference get _userProgressDoc =>
       _progressCollection.doc(_userId ?? '');
 
   /// Save video progress
@@ -66,7 +66,9 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      debugPrint('✅ Video progress saved: $videoTitle - ${currentMinute}m/${totalMinutes}m');
+      debugPrint(
+        '✅ Video progress saved: $videoTitle - ${currentMinute}m/${totalMinutes}m',
+      );
       return true;
     } catch (e) {
       debugPrint('❌ Error saving video progress: $e');
@@ -115,7 +117,9 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      debugPrint('✅ Podcast progress saved: $podcastTitle - ${currentMinute}m/${totalMinutes}m');
+      debugPrint(
+        '✅ Podcast progress saved: $podcastTitle - ${currentMinute}m/${totalMinutes}m',
+      );
       return true;
     } catch (e) {
       debugPrint('❌ Error saving podcast progress: $e');
@@ -131,6 +135,7 @@ class ProgressService {
     required int currentQuestionIndex,
     required int totalQuestions,
     int? score, // Puan (opsiyonel)
+    List<int?>? answers, // Verilen cevaplar
   }) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot save progress');
@@ -140,17 +145,14 @@ class ProgressService {
 
     try {
       final progress = (currentQuestionIndex + 1) / totalQuestions;
-      debugPrint('💾 Saving test progress: $topicName - Question ${currentQuestionIndex + 1}/$totalQuestions (${(progress * 100).toStringAsFixed(1)}%)');
+      debugPrint(
+        '💾 Saving test progress: $topicName - Question ${currentQuestionIndex + 1}/$totalQuestions (${(progress * 100).toStringAsFixed(1)}%)',
+      );
       debugPrint('💾 User ID: $_userId');
       debugPrint('💾 Topic ID: $topicId, Lesson ID: $lessonId');
 
-      // Only save if test is not completed
-      if (progress >= 1.0) {
-        // Test completed, remove from ongoing
-        debugPrint('✅ Test completed, removing from ongoing tests');
-        await _userProgressDoc.collection('tests').doc(topicId).delete();
-        return true;
-      }
+      // Note: Premium test completion deletion is handled in TestsPage
+      // when saveTestResult is called. We only save progress here.
 
       final data = {
         'topicId': topicId,
@@ -160,29 +162,31 @@ class ProgressService {
         'totalQuestions': totalQuestions,
         'progress': progress,
         'lastUpdated': FieldValue.serverTimestamp(),
+        if (answers != null) 'answers': answers,
       };
-      
+
       // Puan varsa ekle
       if (score != null) {
         data['score'] = score;
       }
 
       final docRef = _userProgressDoc.collection('tests').doc(topicId);
-      await docRef.set(
-        data,
-        SetOptions(merge: true),
-      );
+      await docRef.set(data, SetOptions(merge: true));
 
       // Verify it was saved
       final savedDoc = await docRef.get();
       if (savedDoc.exists) {
-        debugPrint('✅ Test progress saved successfully: $topicName - ${currentQuestionIndex + 1}/$totalQuestions${score != null ? ' (score: $score)' : ''}');
+        debugPrint(
+          '✅ Test progress saved successfully: $topicName - ${currentQuestionIndex + 1}/$totalQuestions${score != null ? ' (score: $score)' : ''}',
+        );
         // Update lesson progress in background (non-blocking)
         _updateLessonProgress(lessonId);
       } else {
-        debugPrint('❌ Failed to save test progress - document does not exist after save');
+        debugPrint(
+          '❌ Failed to save test progress - document does not exist after save',
+        );
       }
-      
+
       return true;
     } catch (e, stackTrace) {
       debugPrint('❌ Error saving test progress: $e');
@@ -224,7 +228,9 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      debugPrint('✅ Flash card progress saved: $topicName - ${currentCardIndex + 1}/$totalCards');
+      debugPrint(
+        '✅ Flash card progress saved: $topicName - ${currentCardIndex + 1}/$totalCards',
+      );
       return true;
     } catch (e) {
       debugPrint('❌ Error saving flash card progress: $e');
@@ -237,7 +243,10 @@ class ProgressService {
     if (_userId == null) return null;
 
     try {
-      final doc = await _userProgressDoc.collection('videos').doc(videoId).get();
+      final doc = await _userProgressDoc
+          .collection('videos')
+          .doc(videoId)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['currentPosition'] != null) {
@@ -256,7 +265,10 @@ class ProgressService {
     if (_userId == null) return null;
 
     try {
-      final doc = await _userProgressDoc.collection('podcasts').doc(podcastId).get();
+      final doc = await _userProgressDoc
+          .collection('podcasts')
+          .doc(podcastId)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['currentPosition'] != null) {
@@ -271,23 +283,33 @@ class ProgressService {
   }
 
   /// Get test progress
-  Future<int?> getTestProgress(String topicId) async {
+  Future<Map<String, dynamic>?> getTestProgress(String topicId) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot get test progress');
       return null;
     }
 
     try {
-      debugPrint('🔍 Getting test progress for topic: $topicId, user: $_userId');
+      debugPrint(
+        '🔍 Getting test progress for topic: $topicId, user: $_userId',
+      );
       final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['currentQuestionIndex'] != null) {
           final index = data['currentQuestionIndex'] as int;
-          debugPrint('✅ Found test progress for topic $topicId: question index $index');
-          return index;
+          debugPrint(
+            '✅ Found test progress for topic $topicId: question index $index',
+          );
+          return {
+            'index': index,
+            'score': data['score'] ?? 0,
+            'answers': data['answers'] as List<dynamic>?,
+          };
         } else {
-          debugPrint('⚠️ Test progress document exists but has no currentQuestionIndex');
+          debugPrint(
+            '⚠️ Test progress document exists but has no currentQuestionIndex',
+          );
         }
       } else {
         debugPrint('⚪ No test progress found for topic: $topicId');
@@ -324,7 +346,10 @@ class ProgressService {
     if (_userId == null) return null;
 
     try {
-      final doc = await _userProgressDoc.collection('testResults').doc(topicId).get();
+      final doc = await _userProgressDoc
+          .collection('testResults')
+          .doc(topicId)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
@@ -347,7 +372,10 @@ class ProgressService {
     if (_userId == null) return null;
 
     try {
-      final doc = await _userProgressDoc.collection('flashCards').doc(topicId).get();
+      final doc = await _userProgressDoc
+          .collection('flashCards')
+          .doc(topicId)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['currentCardIndex'] != null) {
@@ -366,29 +394,30 @@ class ProgressService {
     if (_userId == null) return [];
 
     try {
-      final snapshot = await _userProgressDoc.collection('videos')
+      final snapshot = await _userProgressDoc
+          .collection('videos')
           .orderBy('lastUpdated', descending: true)
           .limit(10)
           .get();
 
       final videos = <OngoingVideo>[];
-      
+
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final videoId = data['videoId'] ?? doc.id;
         final topicId = data['topicId'] ?? '';
         final lessonId = data['lessonId'] ?? '';
-        
+
         // Video URL'ini progress data'dan al (eğer kaydedilmişse)
         String videoUrl = data['videoUrl'] ?? '';
-        
+
         // Eğer videoUrl boşsa, storage'dan yükle (yavaş ama gerekli)
         if (videoUrl.isEmpty && topicId.isNotEmpty && lessonId.isNotEmpty) {
           try {
             // StorageService kullanarak video URL'ini yükle
             final storageService = StorageService();
             final lessonsService = LessonsService();
-            
+
             final lesson = await lessonsService.getLessonById(lessonId);
             if (lesson != null) {
               final lessonNameForPath = lesson.name
@@ -400,15 +429,18 @@ class ProgressService {
                   .replaceAll('ş', 's')
                   .replaceAll('ö', 'o')
                   .replaceAll('ç', 'c');
-              
+
               final topicFolderName = topicId.startsWith('${lessonId}_')
                   ? topicId.substring('${lessonId}_'.length)
                   : '';
-              
+
               if (topicFolderName.isNotEmpty) {
-                String storagePath = 'dersler/$lessonNameForPath/konular/$topicFolderName/video';
-                final videoUrls = await storageService.listVideoFiles(storagePath);
-                
+                String storagePath =
+                    'dersler/$lessonNameForPath/konular/$topicFolderName/video';
+                final videoUrls = await storageService.listVideoFiles(
+                  storagePath,
+                );
+
                 // Video ID'den index çıkar (video_${topicId}_$index formatından)
                 if (videoId.contains('_')) {
                   final parts = videoId.split('_');
@@ -420,7 +452,7 @@ class ProgressService {
                     }
                   }
                 }
-                
+
                 // Eğer hala boşsa, ilk videoyu al
                 if (videoUrl.isEmpty && videoUrls.isNotEmpty) {
                   videoUrl = videoUrls[0];
@@ -431,21 +463,23 @@ class ProgressService {
             debugPrint('⚠️ Error loading video URL for $videoId: $e');
           }
         }
-        
-        videos.add(OngoingVideo(
-          id: videoId,
-          title: data['videoTitle'] ?? 'Video',
-          topic: data['topicName'] ?? '',
-          currentMinute: data['currentMinute'] ?? 0,
-          totalMinutes: data['totalMinutes'] ?? 1,
-          progressColor: 'red',
-          icon: 'play',
-          topicId: topicId,
-          lessonId: lessonId,
-          videoUrl: videoUrl,
-        ));
+
+        videos.add(
+          OngoingVideo(
+            id: videoId,
+            title: data['videoTitle'] ?? 'Video',
+            topic: data['topicName'] ?? '',
+            currentMinute: data['currentMinute'] ?? 0,
+            totalMinutes: data['totalMinutes'] ?? 1,
+            progressColor: 'red',
+            icon: 'play',
+            topicId: topicId,
+            lessonId: lessonId,
+            videoUrl: videoUrl,
+          ),
+        );
       }
-      
+
       return videos;
     } catch (e) {
       debugPrint('❌ Error getting ongoing videos: $e');
@@ -458,7 +492,8 @@ class ProgressService {
     if (_userId == null) return [];
 
     try {
-      final snapshot = await _userProgressDoc.collection('podcasts')
+      final snapshot = await _userProgressDoc
+          .collection('podcasts')
           .orderBy('lastUpdated', descending: true)
           .limit(10)
           .get();
@@ -489,7 +524,8 @@ class ProgressService {
     if (_userId == null) return [];
 
     try {
-      final snapshot = await _userProgressDoc.collection('tests')
+      final snapshot = await _userProgressDoc
+          .collection('tests')
           .orderBy('lastUpdated', descending: true)
           .limit(10)
           .get();
@@ -516,30 +552,42 @@ class ProgressService {
   }
 
   /// Delete video progress (when video is completed)
-  Future<void> deleteVideoProgress(String videoId) async {
+  Future<void> deleteVideoProgress(String videoId, [String? lessonId]) async {
     if (_userId == null) return;
     try {
       await _userProgressDoc.collection('videos').doc(videoId).delete();
+      if (lessonId != null) {
+        _updateLessonProgress(lessonId);
+      }
     } catch (e) {
       debugPrint('❌ Error deleting video progress: $e');
     }
   }
 
   /// Delete podcast progress (when podcast is completed)
-  Future<void> deletePodcastProgress(String podcastId) async {
+  Future<void> deletePodcastProgress(
+    String podcastId, [
+    String? lessonId,
+  ]) async {
     if (_userId == null) return;
     try {
       await _userProgressDoc.collection('podcasts').doc(podcastId).delete();
+      if (lessonId != null) {
+        _updateLessonProgress(lessonId);
+      }
     } catch (e) {
       debugPrint('❌ Error deleting podcast progress: $e');
     }
   }
 
   /// Delete test progress (when test is completed)
-  Future<void> deleteTestProgress(String topicId) async {
+  Future<void> deleteTestProgress(String topicId, [String? lessonId]) async {
     if (_userId == null) return;
     try {
       await _userProgressDoc.collection('tests').doc(topicId).delete();
+      if (lessonId != null) {
+        _updateLessonProgress(lessonId);
+      }
     } catch (e) {
       debugPrint('❌ Error deleting test progress: $e');
     }
@@ -550,7 +598,8 @@ class ProgressService {
     if (_userId == null) return [];
 
     try {
-      final snapshot = await _userProgressDoc.collection('flashCards')
+      final snapshot = await _userProgressDoc
+          .collection('flashCards')
           .orderBy('lastUpdated', descending: true)
           .limit(10)
           .get();
@@ -578,7 +627,7 @@ class ProgressService {
   /// Get user total score
   Future<int> getUserTotalScore() async {
     if (_userId == null) return 0;
-    
+
     try {
       final doc = await _userProgressDoc.get();
       if (doc.exists) {
@@ -604,7 +653,7 @@ class ProgressService {
     try {
       final currentScore = await getUserTotalScore();
       final newScore = currentScore + scoreToAdd;
-      
+
       await _userProgressDoc.set({
         'totalScore': newScore,
         'lastScoreUpdate': FieldValue.serverTimestamp(),
@@ -619,10 +668,16 @@ class ProgressService {
   }
 
   /// Delete flash card progress (when completed)
-  Future<void> deleteFlashCardProgress(String topicId) async {
+  Future<void> deleteFlashCardProgress(
+    String topicId, [
+    String? lessonId,
+  ]) async {
     if (_userId == null) return;
     try {
       await _userProgressDoc.collection('flashCards').doc(topicId).delete();
+      if (lessonId != null) {
+        _updateLessonProgress(lessonId);
+      }
     } catch (e) {
       debugPrint('❌ Error deleting flash card progress: $e');
     }
@@ -643,16 +698,16 @@ class ProgressService {
       // Get total score (each correct answer = 10 points)
       final totalScore = await getUserTotalScore();
       final correctAnswers = totalScore ~/ 10;
-      
+
       // Get all completed tests from test results collection
       int totalSolved = 0;
       int totalWrong = 0;
-      
+
       try {
         final resultsSnapshot = await _userProgressDoc
             .collection('testResults')
             .get();
-        
+
         for (var doc in resultsSnapshot.docs) {
           final data = doc.data();
           final total = data['totalQuestions'] as int? ?? 0;
@@ -663,14 +718,14 @@ class ProgressService {
       } catch (e) {
         debugPrint('⚠️ Error reading test results: $e');
       }
-      
+
       // If no test results found, use score-based calculation
       if (totalSolved == 0 && correctAnswers > 0) {
         // Estimate: assume average 50% success rate for remaining questions
         totalSolved = correctAnswers * 2; // Rough estimate
         totalWrong = totalSolved - correctAnswers;
       }
-      
+
       return {
         'solvedQuestions': totalSolved,
         'correctAnswers': correctAnswers,
@@ -715,7 +770,9 @@ class ProgressService {
         'completedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      debugPrint('✅ Test result saved: $topicName - $correctAnswers/$totalQuestions');
+      debugPrint(
+        '✅ Test result saved: $topicName - $correctAnswers/$totalQuestions',
+      );
       // Update lesson progress in background
       _updateLessonProgress(lessonId);
       return true;
@@ -728,20 +785,20 @@ class ProgressService {
   /// Update lesson progress (called when test progress changes)
   Future<void> _updateLessonProgress(String lessonId) async {
     if (_userId == null) return;
-    
+
     try {
       // Get all topics for this lesson
       final lessonsService = LessonsService();
       final topics = await lessonsService.getTopicsByLessonId(lessonId);
       if (topics.isEmpty) return;
-      
+
       int totalSolvedQuestions = 0;
       int totalQuestions = 0;
-      
+
       // Check all topics for progress
       for (var topic in topics) {
         int topicQuestionCount = topic.averageQuestionCount;
-        
+
         // Get from cache if available
         if (topicQuestionCount == 0) {
           try {
@@ -755,10 +812,10 @@ class ProgressService {
             // Skip if no cache
           }
         }
-        
+
         if (topicQuestionCount > 0) {
           totalQuestions += topicQuestionCount;
-          
+
           // Check test result first
           final testResult = await getTestResult(topic.id);
           if (testResult != null) {
@@ -766,19 +823,19 @@ class ProgressService {
           } else {
             // Check ongoing test
             final testProgress = await getTestProgress(topic.id);
-            if (testProgress != null) {
-              totalSolvedQuestions += (testProgress + 1);
+            if (testProgress != null && testProgress['index'] != null) {
+              totalSolvedQuestions += (testProgress['index'] as int) + 1;
             }
           }
         }
       }
-      
+
       // Calculate and save lesson progress
       double progress = 0.0;
       if (totalQuestions > 0) {
         progress = (totalSolvedQuestions / totalQuestions).clamp(0.0, 1.0);
       }
-      
+
       await _userProgressDoc.collection('lessons').doc(lessonId).set({
         'lessonId': lessonId,
         'progress': progress,
@@ -786,7 +843,6 @@ class ProgressService {
         'totalQuestions': totalQuestions,
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      
     } catch (e) {
       debugPrint('⚠️ Error updating lesson progress: $e');
     }
@@ -795,9 +851,12 @@ class ProgressService {
   /// Get lesson progress (from cache)
   Future<double?> getLessonProgress(String lessonId) async {
     if (_userId == null) return null;
-    
+
     try {
-      final doc = await _userProgressDoc.collection('lessons').doc(lessonId).get();
+      final doc = await _userProgressDoc
+          .collection('lessons')
+          .doc(lessonId)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data['progress'] != null) {
@@ -815,20 +874,17 @@ class ProgressService {
     if (_userId == null) {
       return Stream.value(null);
     }
-    
-    return _userProgressDoc
-        .collection('lessons')
-        .doc(lessonId)
-        .snapshots()
-        .map((snapshot) {
-          if (snapshot.exists) {
-            final data = snapshot.data();
-            if (data != null && data['progress'] != null) {
-              return (data['progress'] as num).toDouble();
-            }
+
+    return _userProgressDoc.collection('lessons').doc(lessonId).snapshots().map(
+      (snapshot) {
+        if (snapshot.exists) {
+          final data = snapshot.data();
+          if (data != null && data['progress'] != null) {
+            return (data['progress'] as num).toDouble();
           }
-          return null;
-        });
+        }
+        return null;
+      },
+    );
   }
 }
-

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/formatted_text.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 
 enum _ViewMode { list, single }
 
@@ -17,7 +19,8 @@ class WeaknessTopicDetailPage extends StatefulWidget {
   });
 
   @override
-  State<WeaknessTopicDetailPage> createState() => _WeaknessTopicDetailPageState();
+  State<WeaknessTopicDetailPage> createState() =>
+      _WeaknessTopicDetailPageState();
 }
 
 class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
@@ -65,23 +68,17 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
     );
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Soru eksiklerden kaldırıldı.'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: 'Soru eksiklerden kaldırıldı.',
+        type: SnackBarType.success,
       );
       _loadWeaknesses();
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Soru kaldırılırken bir hata oluştu.'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: 'Soru kaldırılırken bir hata oluştu.',
+        type: SnackBarType.error,
       );
     }
   }
@@ -119,7 +116,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
     final color = _getColor();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       body: SafeArea(
         top: false,
         child: Column(
@@ -146,7 +145,12 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.fromLTRB(isTablet ? 16 : 12, topPadding + 8, isTablet ? 16 : 12, 12),
+                padding: EdgeInsets.fromLTRB(
+                  isTablet ? 16 : 12,
+                  topPadding + 8,
+                  isTablet ? 16 : 12,
+                  12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -160,7 +164,11 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                             borderRadius: BorderRadius.circular(10),
                             child: Padding(
                               padding: const EdgeInsets.all(8),
-                              child: Icon(Icons.arrow_back_ios_new_rounded, size: isSmallScreen ? 18 : 20, color: Colors.white),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: isSmallScreen ? 18 : 20,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -200,7 +208,11 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                             borderRadius: BorderRadius.circular(10),
                             child: Padding(
                               padding: const EdgeInsets.all(8),
-                              child: Icon(Icons.refresh_rounded, size: isSmallScreen ? 20 : 22, color: Colors.white),
+                              child: Icon(
+                                Icons.refresh_rounded,
+                                size: isSmallScreen ? 20 : 22,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -218,10 +230,10 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
               child: _isLoading
                   ? _buildLoader(isDark)
                   : _weaknesses.isEmpty
-                      ? _buildEmptyState(isDark)
-                      : _viewMode == _ViewMode.list
-                          ? _buildListView(isDark, isTablet, isSmallScreen)
-                          : _buildSingleQuestionView(isDark, isSmallScreen),
+                  ? _buildEmptyState(isDark)
+                  : _viewMode == _ViewMode.list
+                  ? _buildListView(isDark, isTablet, isSmallScreen)
+                  : _buildSingleQuestionView(isDark, isSmallScreen),
             ),
           ],
         ),
@@ -265,13 +277,17 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: (isDark ? Colors.white10 : const Color(0xFF10B981).withValues(alpha: 0.08)),
+                color: (isDark
+                    ? Colors.white10
+                    : const Color(0xFF10B981).withValues(alpha: 0.08)),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.check_circle_outline_rounded,
                 size: 44,
-                color: isDark ? Colors.white38 : const Color(0xFF10B981).withValues(alpha: 0.6),
+                color: isDark
+                    ? Colors.white38
+                    : const Color(0xFF10B981).withValues(alpha: 0.6),
               ),
             ),
             const SizedBox(height: 16),
@@ -305,7 +321,10 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -356,7 +375,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
               Icon(
                 icon,
                 size: 16,
-                color: isSelected ? _getColor() : Colors.white.withValues(alpha: 0.9),
+                color: isSelected
+                    ? _getColor()
+                    : Colors.white.withValues(alpha: 0.9),
               ),
               const SizedBox(width: 6),
               Text(
@@ -380,7 +401,12 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
       color: AppColors.primaryBlue,
       backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
       child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(isTablet ? 20 : 16, 12, isTablet ? 20 : 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          isTablet ? 20 : 16,
+          12,
+          isTablet ? 20 : 16,
+          24,
+        ),
         itemCount: _weaknesses.length,
         itemBuilder: (context, index) {
           final weakness = _weaknesses[index];
@@ -417,9 +443,14 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white12 : AppColors.primaryBlue.withValues(alpha: 0.1),
+                  color: isDark
+                      ? Colors.white12
+                      : AppColors.primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -464,7 +495,12 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
     final color = _getColor();
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 6, bottom: 6 + bottomPadding),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 6,
+        bottom: 6 + bottomPadding,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -473,9 +509,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
               child: InkWell(
                 onTap: canGoPrev
                     ? () => _pageController.previousPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                        )
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
+                      )
                     : null,
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
@@ -484,13 +520,21 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: canGoPrev
-                          ? (isDark ? Colors.white24 : AppColors.primaryBlue.withValues(alpha: 0.4))
-                          : (isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.2)),
+                          ? (isDark
+                                ? Colors.white24
+                                : AppColors.primaryBlue.withValues(alpha: 0.4))
+                          : (isDark
+                                ? Colors.white10
+                                : Colors.grey.withValues(alpha: 0.2)),
                       width: 1,
                     ),
                     color: canGoPrev
-                        ? (isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.primaryBlue.withValues(alpha: 0.06))
-                        : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.withValues(alpha: 0.08)),
+                        ? (isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : AppColors.primaryBlue.withValues(alpha: 0.06))
+                        : (isDark
+                              ? Colors.white.withValues(alpha: 0.03)
+                              : Colors.grey.withValues(alpha: 0.08)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -509,7 +553,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: canGoPrev
-                              ? (isDark ? Colors.white70 : AppColors.primaryBlue)
+                              ? (isDark
+                                    ? Colors.white70
+                                    : AppColors.primaryBlue)
                               : (isDark ? Colors.white38 : AppColors.textLight),
                         ),
                       ),
@@ -526,9 +572,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
               child: InkWell(
                 onTap: canGoNext
                     ? () => _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                        )
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
+                      )
                     : null,
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
@@ -538,12 +584,16 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                     border: Border.all(
                       color: canGoNext
                           ? color.withValues(alpha: 0.7)
-                          : (isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.2)),
+                          : (isDark
+                                ? Colors.white10
+                                : Colors.grey.withValues(alpha: 0.2)),
                       width: 1,
                     ),
                     color: canGoNext
                         ? color.withValues(alpha: 0.12)
-                        : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.withValues(alpha: 0.08)),
+                        : (isDark
+                              ? Colors.white.withValues(alpha: 0.03)
+                              : Colors.grey.withValues(alpha: 0.08)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -590,7 +640,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
         color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.04),
           width: 1,
         ),
         boxShadow: [
@@ -604,12 +656,41 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (weakness.imageUrl != null)
+            Container(
+              width: double.infinity,
+              margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.02),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  weakness.imageUrl!,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
+            ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  weakness.question,
+                child: FormattedText(
+                  text: weakness.question,
                   style: TextStyle(
                     fontSize: isSmallScreen ? 15 : 16,
                     fontWeight: FontWeight.w700,
@@ -628,7 +709,11 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                     borderRadius: BorderRadius.circular(10),
                     child: Padding(
                       padding: const EdgeInsets.all(8),
-                      child: Icon(Icons.close_rounded, size: isSmallScreen ? 18 : 20, color: Colors.red),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: isSmallScreen ? 18 : 20,
+                        color: Colors.red,
+                      ),
                     ),
                   ),
                 ),
@@ -643,16 +728,25 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
-              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 14 : 16, vertical: isSmallScreen ? 12 : 14),
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 14 : 16,
+                vertical: isSmallScreen ? 12 : 14,
+              ),
               decoration: BoxDecoration(
                 color: isCorrect
-                    ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.08)
-                    : (isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF8F9FA)),
+                    ? const Color(
+                        0xFF10B981,
+                      ).withValues(alpha: isDark ? 0.2 : 0.08)
+                    : (isDark
+                          ? const Color(0xFF2C2C2C)
+                          : const Color(0xFFF8F9FA)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isCorrect
                       ? const Color(0xFF10B981).withValues(alpha: 0.5)
-                      : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
+                      : (isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06)),
                   width: isCorrect ? 1.5 : 1,
                 ),
               ),
@@ -665,18 +759,24 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                         color: const Color(0xFF10B981).withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check_rounded, size: 18, color: Color(0xFF10B981)),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 18,
+                        color: Color(0xFF10B981),
+                      ),
                     ),
                   if (isCorrect) const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      option,
+                    child: FormattedText(
+                      text: option,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 14 : 15,
                         color: isCorrect
                             ? const Color(0xFF059669)
                             : (isDark ? Colors.white : AppColors.textPrimary),
-                        fontWeight: isCorrect ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isCorrect
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         height: 1.4,
                       ),
                     ),
@@ -689,7 +789,9 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
           Container(
             padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.15 : 0.08),
+              color: const Color(
+                0xFFF59E0B,
+              ).withValues(alpha: isDark ? 0.15 : 0.08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
@@ -705,12 +807,16 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                     color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.lightbulb_outline_rounded, size: 20, color: Color(0xFFD97706)),
+                  child: const Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 20,
+                    color: Color(0xFFD97706),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    weakness.explanation,
+                  child: FormattedText(
+                    text: weakness.explanation,
                     style: TextStyle(
                       fontSize: isSmallScreen ? 13 : 14,
                       color: isDark ? Colors.white : AppColors.textPrimary,
@@ -736,17 +842,25 @@ class _WeaknessTopicDetailPageState extends State<WeaknessTopicDetailPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      weakness.isFromWrongAnswer ? Icons.error_outline_rounded : Icons.bookmark_rounded,
+                      weakness.isFromWrongAnswer
+                          ? Icons.error_outline_rounded
+                          : Icons.bookmark_rounded,
                       size: 14,
-                      color: weakness.isFromWrongAnswer ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                      color: weakness.isFromWrongAnswer
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF10B981),
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      weakness.isFromWrongAnswer ? 'Yanlış cevaplanan' : 'Kaydedilen soru',
+                      weakness.isFromWrongAnswer
+                          ? 'Yanlış cevaplanan'
+                          : 'Kaydedilen soru',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: weakness.isFromWrongAnswer ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                        color: weakness.isFromWrongAnswer
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF10B981),
                       ),
                     ),
                   ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/pdf_download_service.dart';
 import '../../../core/services/lessons_service.dart';
@@ -55,30 +56,35 @@ class _PdfsPageState extends State<PdfsPage> {
       final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
       final cachedJson = prefs.getString(cacheKey);
       final cacheTime = prefs.getInt(cacheTimeKey);
-      
+
       // Cache geçerlilik süresi: 7 gün (PDF listesi çok sık değişmez)
       const cacheValidDuration = Duration(days: 7);
       final now = DateTime.now().millisecondsSinceEpoch;
-      final isCacheValid = cacheTime != null && 
-                          (now - cacheTime) < cacheValidDuration.inMilliseconds;
-      
+      final isCacheValid =
+          cacheTime != null &&
+          (now - cacheTime) < cacheValidDuration.inMilliseconds;
+
       if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
         try {
           final List<dynamic> cachedList = jsonDecode(cachedJson);
           final cachedPdfs = cachedList
-              .map((json) => {
-                    'name': (json['name'] ?? '') as String,
-                    'pdfUrl': (json['pdfUrl'] ?? '') as String,
-                  })
+              .map(
+                (json) => {
+                  'name': (json['name'] ?? '') as String,
+                  'pdfUrl': (json['pdfUrl'] ?? '') as String,
+                },
+              )
               .cast<Map<String, String>>()
               .toList();
-          
+
           if (cachedPdfs.isNotEmpty && mounted) {
             setState(() {
               _pdfs = cachedPdfs;
               _isLoading = false;
             });
-            print('✅ Loaded ${_pdfs.length} PDFs from cache (NO Storage request)');
+            print(
+              '✅ Loaded ${_pdfs.length} PDFs from cache (NO Storage request)',
+            );
             _checkDownloadedPdfs();
             // Cache geçerliyse Storage'dan ÇEKME - hiç istek atma
             return;
@@ -87,12 +93,16 @@ class _PdfsPageState extends State<PdfsPage> {
           print('⚠️ Error parsing PDFs cache: $e');
         }
       } else if (cachedJson != null && cachedJson.isNotEmpty && !isCacheValid) {
-        final daysOld = cacheTime != null ? ((now - cacheTime) / 86400000).toStringAsFixed(1) : "unknown";
-        print('⚠️ PDF cache expired ($daysOld days old), will refresh from Storage');
+        final daysOld = cacheTime != null
+            ? ((now - cacheTime) / 86400000).toStringAsFixed(1)
+            : "unknown";
+        print(
+          '⚠️ PDF cache expired ($daysOld days old), will refresh from Storage',
+        );
       } else {
         print('⚠️ No PDF cache found, will load from Storage');
       }
-      
+
       // Cache yok veya geçersizse Storage'dan yükle (flag'i _loadPdfs() kendisi yönetir)
       if (mounted) {
         _loadPdfs();
@@ -107,11 +117,13 @@ class _PdfsPageState extends State<PdfsPage> {
       }
     }
   }
-  
+
   Future<void> _checkDownloadedPdfs() async {
     for (final pdf in _pdfs) {
       if (pdf['pdfUrl'] != null && pdf['pdfUrl']!.isNotEmpty) {
-        final isDownloaded = await _downloadService.isPdfDownloaded(pdf['pdfUrl']!);
+        final isDownloaded = await _downloadService.isPdfDownloaded(
+          pdf['pdfUrl']!,
+        );
         if (mounted) {
           setState(() {
             _downloadedPdfs[pdf['pdfUrl']!] = isDownloaded;
@@ -128,7 +140,7 @@ class _PdfsPageState extends State<PdfsPage> {
       return;
     }
     _isLoadingFromStorage = true;
-    
+
     try {
       // Cache kontrolü - eğer cache geçerliyse hiç Storage'dan çekme
       try {
@@ -137,12 +149,13 @@ class _PdfsPageState extends State<PdfsPage> {
         final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
         final cachedJson = prefs.getString(cacheKey);
         final cacheTime = prefs.getInt(cacheTimeKey);
-        
+
         const cacheValidDuration = Duration(days: 7);
         final now = DateTime.now().millisecondsSinceEpoch;
-        final isCacheValid = cacheTime != null && 
-                            (now - cacheTime) < cacheValidDuration.inMilliseconds;
-        
+        final isCacheValid =
+            cacheTime != null &&
+            (now - cacheTime) < cacheValidDuration.inMilliseconds;
+
         if (cachedJson != null && cachedJson.isNotEmpty && isCacheValid) {
           print('✅ Cache is valid, skipping Storage request');
           return;
@@ -150,14 +163,16 @@ class _PdfsPageState extends State<PdfsPage> {
       } catch (e) {
         // Cache kontrolü başarısız, devam et
       }
-      
+
       setState(() {
         _isLoading = true;
       });
-      
-      print('🌐 Loading PDFs from Storage for topic: ${widget.topic.name} (cache miss or expired)');
+
+      print(
+        '🌐 Loading PDFs from Storage for topic: ${widget.topic.name} (cache miss or expired)',
+      );
       print('⚠️ WARNING: This will make Storage requests and use MB!');
-      
+
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
@@ -165,10 +180,7 @@ class _PdfsPageState extends State<PdfsPage> {
         // Fallback: sadece topic.pdfUrl'i kullan
         _pdfs = [];
         if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty) {
-          _pdfs.add({
-            'name': 'Konu Anlatımı',
-            'pdfUrl': widget.topic.pdfUrl!,
-          });
+          _pdfs.add({'name': 'Konu Anlatımı', 'pdfUrl': widget.topic.pdfUrl!});
         }
         setState(() {
           _isLoading = false;
@@ -176,7 +188,7 @@ class _PdfsPageState extends State<PdfsPage> {
         _checkDownloadedPdfs();
         return;
       }
-      
+
       // Lesson name'i storage path'ine çevir
       final lessonNameForPath = lesson.name
           .toLowerCase()
@@ -187,23 +199,23 @@ class _PdfsPageState extends State<PdfsPage> {
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
+
       // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: widget.lessonId,
         topicId: widget.topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
+
       // Storage path'lerini oluştur (konu, konu_anlatimi, pdf klasörleri)
       final konuAnlatimiPath = '$basePath/konu';
       final konuAnlatimiPathAlt = '$basePath/konu_anlatimi';
       final pdfPath = '$basePath/pdf';
-      
+
       // Tüm PDF'leri topla
       final List<String> allPdfUrls = [];
       final List<String> pdfNames = [];
-      
+
       // Helper function: Extract file name from file info
       String extractFileName(Map<String, String> fileInfo) {
         // Önce 'name' field'ını kullan (en doğrusu)
@@ -227,32 +239,34 @@ class _PdfsPageState extends State<PdfsPage> {
             }
           }
         }
-        
+
         // Decode URL encoding
         try {
           fileName = Uri.decodeComponent(fileName);
         } catch (e) {
           // Decode edilemezse direkt kullan
         }
-        
+
         // Uzantıyı kaldır ve formatla
         fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
-        
+
         return fileName.isNotEmpty ? fileName : 'PDF';
       }
-      
+
       // 1. konu/ klasöründen PDF'leri al (öncelikli)
       // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
         print('📡 Making Storage request to list files in: $konuAnlatimiPath');
-        final konuFiles = await _storageService.listFilesWithPaths(konuAnlatimiPath);
+        final konuFiles = await _storageService.listFilesWithPaths(
+          konuAnlatimiPath,
+        );
         print('📄 Found ${konuFiles.length} files in konu/ folder');
         for (final fileInfo in konuFiles) {
           final url = fileInfo['url'] ?? '';
           final name = fileInfo['name'] ?? '';
           final urlLower = url.toLowerCase();
           final nameLower = name.toLowerCase();
-          
+
           // PDF kontrolü yap
           if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
             // Zaten eklenmişse atla (URL'ye göre)
@@ -267,19 +281,25 @@ class _PdfsPageState extends State<PdfsPage> {
       } catch (e) {
         print('⚠️ Error loading from konu/ folder: $e');
       }
-      
+
       // 2. konu_anlatimi/ klasöründen PDF'leri al
       // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
-        print('📡 Making Storage request to list files in: $konuAnlatimiPathAlt');
-        final konuAnlatimiFiles = await _storageService.listFilesWithPaths(konuAnlatimiPathAlt);
-        print('📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder');
+        print(
+          '📡 Making Storage request to list files in: $konuAnlatimiPathAlt',
+        );
+        final konuAnlatimiFiles = await _storageService.listFilesWithPaths(
+          konuAnlatimiPathAlt,
+        );
+        print(
+          '📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder',
+        );
         for (final fileInfo in konuAnlatimiFiles) {
           final url = fileInfo['url'] ?? '';
           final name = fileInfo['name'] ?? '';
           final urlLower = url.toLowerCase();
           final nameLower = name.toLowerCase();
-          
+
           // PDF kontrolü yap
           if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
             // Zaten eklenmişse atla (URL'ye göre)
@@ -294,7 +314,7 @@ class _PdfsPageState extends State<PdfsPage> {
       } catch (e) {
         print('⚠️ Error loading from konu_anlatimi/ folder: $e');
       }
-      
+
       // 3. pdf/ klasöründen PDF'leri al
       // ⚠️ DİKKAT: Bu Storage'dan dosya listesi çekiyor - sadece gerektiğinde çağrılmalı
       try {
@@ -306,7 +326,7 @@ class _PdfsPageState extends State<PdfsPage> {
           final name = fileInfo['name'] ?? '';
           final urlLower = url.toLowerCase();
           final nameLower = name.toLowerCase();
-          
+
           // PDF kontrolü yap
           if (urlLower.contains('.pdf') || nameLower.endsWith('.pdf')) {
             // Zaten eklenmişse atla (URL'ye göre)
@@ -321,51 +341,54 @@ class _PdfsPageState extends State<PdfsPage> {
       } catch (e) {
         print('⚠️ Error loading from pdf/ folder: $e');
       }
-      
+
       // PDF listesini oluştur
       _pdfs = [];
-      print('📊 Processing PDFs: ${allPdfUrls.length} URLs found, ${pdfNames.length} names');
-      
+      print(
+        '📊 Processing PDFs: ${allPdfUrls.length} URLs found, ${pdfNames.length} names',
+      );
+
       if (allPdfUrls.isNotEmpty) {
         for (int i = 0; i < allPdfUrls.length; i++) {
           final pdfUrl = allPdfUrls[i];
           print('  🔍 Checking PDF ${i + 1}: $pdfUrl');
-          
+
           // PDF URL'inin geçerli olduğunu kontrol et
-          if (pdfUrl.isNotEmpty && (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://'))) {
-            final pdfName = i < pdfNames.length && pdfNames[i].isNotEmpty 
-                ? pdfNames[i] 
+          if (pdfUrl.isNotEmpty &&
+              (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://'))) {
+            final pdfName = i < pdfNames.length && pdfNames[i].isNotEmpty
+                ? pdfNames[i]
                 : 'PDF ${i + 1}';
-            _pdfs.add({
-              'name': pdfName,
-              'pdfUrl': pdfUrl,
-            });
+            _pdfs.add({'name': pdfName, 'pdfUrl': pdfUrl});
             print('  ✅ Added PDF ${i + 1}: $pdfName');
             print('     URL: $pdfUrl');
           } else {
-            print('  ⚠️ Invalid PDF URL skipped: $pdfUrl (empty: ${pdfUrl.isEmpty}, starts with http: ${pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')})');
+            print(
+              '  ⚠️ Invalid PDF URL skipped: $pdfUrl (empty: ${pdfUrl.isEmpty}, starts with http: ${pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')})',
+            );
           }
         }
-        print('✅ Loaded ${_pdfs.length} PDF files from Storage (total found: ${allPdfUrls.length})');
+        print(
+          '✅ Loaded ${_pdfs.length} PDF files from Storage (total found: ${allPdfUrls.length})',
+        );
       } else {
         print('⚠️ No PDF URLs found in allPdfUrls list');
         // Fallback: topic.pdfUrl'i kullan
         if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty) {
-          _pdfs.add({
-            'name': 'Konu Anlatımı',
-            'pdfUrl': widget.topic.pdfUrl!,
-          });
-          print('⚠️ No PDFs found in Storage, using topic.pdfUrl: ${widget.topic.pdfUrl}');
+          _pdfs.add({'name': 'Konu Anlatımı', 'pdfUrl': widget.topic.pdfUrl!});
+          print(
+            '⚠️ No PDFs found in Storage, using topic.pdfUrl: ${widget.topic.pdfUrl}',
+          );
         } else {
           print('⚠️ No PDFs found for this topic (topic.pdfUrl is also null)');
         }
       }
-      
+
       print('📋 Final PDF list: ${_pdfs.length} PDFs');
       for (int i = 0; i < _pdfs.length; i++) {
         print('  PDF ${i + 1}: ${_pdfs[i]['name']} - ${_pdfs[i]['pdfUrl']}');
       }
-      
+
       // Cache'e kaydet (hızlı erişim için)
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -378,16 +401,16 @@ class _PdfsPageState extends State<PdfsPage> {
       } catch (e) {
         print('⚠️ Error saving PDFs to cache: $e');
       }
-      
+
       setState(() {
         _isLoading = false;
       });
-      
+
       // Check downloaded status
       _checkDownloadedPdfs();
     } catch (e) {
       print('❌ Error loading PDFs: $e');
-      
+
       setState(() {
         _isLoading = false;
         _pdfs = [];
@@ -406,7 +429,9 @@ class _PdfsPageState extends State<PdfsPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
@@ -418,10 +443,7 @@ class _PdfsPageState extends State<PdfsPage> {
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFFF9800),
-                      const Color(0xFFFF6B35),
-                    ],
+                    colors: [const Color(0xFFFF9800), const Color(0xFFFF6B35)],
                   ),
             color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
@@ -510,49 +532,46 @@ class _PdfsPageState extends State<PdfsPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : _pdfs.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.picture_as_pdf_outlined,
-                        size: 64,
-                        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'PDF bulunamadı',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Debug: _pdfs.length = ${_pdfs.length}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.picture_as_pdf_outlined,
+                    size: 64,
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                   ),
-                )
-              : ListView.builder(
-                  padding: EdgeInsets.all(isTablet ? 20 : 16),
-                  itemCount: _pdfs.length,
-                  itemBuilder: (context, index) {
-                    print('📋 Building PDF card ${index + 1}/${_pdfs.length}');
-                    final pdf = _pdfs[index];
-                    print('   PDF data: $pdf');
-                    return _buildPdfCard(pdf, isSmallScreen);
-                  },
-                ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'PDF bulunamadı',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Debug: _pdfs.length = ${_pdfs.length}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(isTablet ? 20 : 16),
+              itemCount: _pdfs.length,
+              itemBuilder: (context, index) {
+                print('📋 Building PDF card ${index + 1}/${_pdfs.length}');
+                final pdf = _pdfs[index];
+                print('   PDF data: $pdf');
+                return _buildPdfCard(pdf, isSmallScreen);
+              },
+            ),
     );
   }
 
@@ -562,20 +581,18 @@ class _PdfsPageState extends State<PdfsPage> {
     final pdfUrl = pdf['pdfUrl'] ?? '';
     final pdfName = pdf['name'] ?? 'Unknown';
     final isDownloaded = _downloadedPdfs[pdfUrl] ?? false;
-    
+
     print('   PDF Name: $pdfName');
     print('   PDF URL: $pdfUrl');
     print('   Is Downloaded: $isDownloaded');
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Card(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
       elevation: 2,
       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () async {
           print('🖱️🖱️🖱️ PDF CARD TAPPED! 🖱️🖱️🖱️');
@@ -587,21 +604,19 @@ class _PdfsPageState extends State<PdfsPage> {
           print('   URL: $pdfUrl');
           print('   URL is null: ${pdfUrl == null}');
           print('   URL is empty: ${pdfUrl?.isEmpty ?? true}');
-          
+
           if (pdfUrl == null || pdfUrl.isEmpty) {
             print('❌ PDF URL is null or empty!');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('PDF URL bulunamadı.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 2),
-              ),
+            PremiumSnackBar.show(
+              context,
+              message: 'PDF URL bulunamadı.',
+              type: SnackBarType.error,
             );
             return;
           }
-          
+
           print('✅ PDF URL is valid, navigating to viewer...');
-          
+
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
@@ -648,10 +663,7 @@ class _PdfsPageState extends State<PdfsPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFFF9800),
-                      const Color(0xFFFF6B35),
-                    ],
+                    colors: [const Color(0xFFFF9800), const Color(0xFFFF6B35)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -707,7 +719,9 @@ class _PdfsPageState extends State<PdfsPage> {
                             'PDF Dosyası',
                             style: TextStyle(
                               fontSize: isSmallScreen ? 12 : 13,
-                              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : AppColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -747,7 +761,8 @@ class _PdfsPageState extends State<PdfsPage> {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () => _handleDelete(pdfUrl, pdf['name'] ?? 'Konu Anlatımı'),
+                    onTap: () =>
+                        _handleDelete(pdfUrl, pdf['name'] ?? 'Konu Anlatımı'),
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       padding: EdgeInsets.all(8),
@@ -775,7 +790,7 @@ class _PdfsPageState extends State<PdfsPage> {
       ),
     );
   }
-  
+
   Future<void> _handleDelete(String pdfUrl, String pdfName) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -794,21 +809,19 @@ class _PdfsPageState extends State<PdfsPage> {
         ],
       ),
     );
-    
+
     if (confirm == true) {
       final deleted = await _downloadService.deletePdf(pdfUrl);
       if (deleted && mounted) {
         setState(() {
           _downloadedPdfs[pdfUrl] = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF silindi. Tekrar açıldığında otomatik indirilecek.'),
-            backgroundColor: Colors.green,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'PDF başarıyla silindi.',
+          type: SnackBarType.success,
         );
       }
     }
   }
 }
-

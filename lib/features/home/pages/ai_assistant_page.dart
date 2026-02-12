@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/ai_material.dart';
 import '../../../core/models/ai_question.dart';
 import '../../../core/models/lesson.dart';
@@ -126,13 +127,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    PremiumSnackBar.show(context, message: message, type: SnackBarType.error);
   }
 
   Future<void> _saveExampleQuestionsToTopic() async {
@@ -159,7 +154,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             'Hak ve özgürlükler olağan dönemlerde de kanunla sınırlandırılabilir. Bu nedenle “sadece OHAL’de” ifadesi yanlıştır.',
       ),
       AiQuestion(
-        question: '"${topic.name}" ile ilgili aşağıdaki ifadelerden hangisi doğrudur?',
+        question:
+            '"${topic.name}" ile ilgili aşağıdaki ifadelerden hangisi doğrudur?',
         options: const [
           'Sadece idari düzenlemelerle sınırlandırılabilir.',
           'Sınırlama ancak kanunla yapılabilir.',
@@ -172,7 +168,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             'Temel hak ve özgürlükler Anayasa’da belirtilen sebeplerle ve yalnızca kanunla sınırlandırılabilir; ölçülülük gözetilir.',
       ),
       AiQuestion(
-        question: '"${topic.name}" konusu için en uygun çalışma sırası aşağıdakilerden hangisidir?',
+        question:
+            '"${topic.name}" konusu için en uygun çalışma sırası aşağıdakilerden hangisidir?',
         options: const [
           'Sadece test çözmek',
           'Özet → örnek soru → yanlış analizi',
@@ -185,7 +182,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             'Kısa özet + uygulama (soru) + yanlış analizi kombinasyonu kalıcılığı artırır.',
       ),
       AiQuestion(
-        question: 'Aşağıdakilerden hangisi ölçülülük ilkesinin unsurlarındandır?',
+        question:
+            'Aşağıdakilerden hangisi ölçülülük ilkesinin unsurlarındandır?',
         options: const [
           'Eşitlik',
           'Gerekli olma',
@@ -198,7 +196,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             'Ölçülülük; elverişlilik, gereklilik ve orantılılık unsurlarını kapsar.',
       ),
       AiQuestion(
-        question: '"${topic.name}" çalışırken en sık yapılan hata aşağıdakilerden hangisidir?',
+        question:
+            '"${topic.name}" çalışırken en sık yapılan hata aşağıdakilerden hangisidir?',
         options: const [
           'Kavramları karıştırmak',
           'Kısa tekrarlar yapmak',
@@ -214,12 +213,10 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
 
     await AiContentService.instance.saveQuestions(topic.id, questions);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('AI soruları konuya kaydedildi.'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
+    PremiumSnackBar.show(
+      context,
+      message: 'AI soruları konuya kaydedildi.',
+      type: SnackBarType.success,
     );
   }
 
@@ -247,7 +244,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       ..writeln('3) Hızlı Tekrar')
       ..writeln('- 5 dakikalık mini özet + 10 soru + yanlış analizi.')
       ..writeln('')
-      ..writeln('Not: Bu metin demo olarak kaydedilmiştir; gerçek AI üretimi bağlandığında otomatik olarak güncellenebilir.');
+      ..writeln(
+        'Not: Bu metin demo olarak kaydedilmiştir; gerçek AI üretimi bağlandığında otomatik olarak güncellenebilir.',
+      );
 
     final material = AiMaterial(
       title: title,
@@ -257,12 +256,10 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
 
     await AiContentService.instance.saveMaterial(topic.id, material);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('AI konu metni kaydedildi.'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
+    PremiumSnackBar.show(
+      context,
+      message: 'AI konu metni kaydedildi.',
+      type: SnackBarType.success,
     );
   }
 
@@ -651,7 +648,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             Container(
               padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : AppColors.backgroundBeige,
+                color: isDark
+                    ? const Color(0xFF1E1E1E)
+                    : AppColors.backgroundBeige,
                 border: Border(
                   top: BorderSide(
                     color: isDark
@@ -683,7 +682,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                         style: TextStyle(
                           fontSize: isSmallScreen ? 15 : 16,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white70 : AppColors.textPrimary,
+                          color: isDark
+                              ? Colors.white70
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -695,12 +696,11 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                       onPressed: () async {
                         await _saveExampleProgram();
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Program kaydedildi! (Programım sekmesine eklendi)'),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                          ),
+                        PremiumSnackBar.show(
+                          context,
+                          message:
+                              'Program kaydedildi! (Programım sekmesine eklendi)',
+                          type: SnackBarType.success,
                         );
                         Navigator.pop(context);
                       },
@@ -749,11 +749,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   ) {
     return Column(
       children: [
-        Icon(
-          icon,
-          size: isSmallScreen ? 20 : 22,
-          color: AppColors.primaryBlue,
-        ),
+        Icon(icon, size: isSmallScreen ? 20 : 22, color: AppColors.primaryBlue),
         SizedBox(height: isSmallScreen ? 6 : 8),
         Text(
           value,
@@ -778,7 +774,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   Widget _buildWeeklyCalendar(bool isSmallScreen, bool isDark) {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    
+
     final weekDays = [
       {
         'name': 'Pazartesi',
@@ -786,9 +782,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.day,
         'month': weekStart.month,
         'tasks': [
-          {'time': '09:00 - 10:00', 'subject': 'Vatandaşlık – Temel Haklar', 'type': 'konu', 'duration': '60 dk'},
-          {'time': '10:15 - 10:35', 'subject': 'Vatandaşlık Test', 'type': 'test', 'duration': '20 soru'},
-          {'time': '14:00 - 14:30', 'subject': 'Türkçe – Paragraf', 'type': 'test', 'duration': '30 dk'},
+          {
+            'time': '09:00 - 10:00',
+            'subject': 'Vatandaşlık – Temel Haklar',
+            'type': 'konu',
+            'duration': '60 dk',
+          },
+          {
+            'time': '10:15 - 10:35',
+            'subject': 'Vatandaşlık Test',
+            'type': 'test',
+            'duration': '20 soru',
+          },
+          {
+            'time': '14:00 - 14:30',
+            'subject': 'Türkçe – Paragraf',
+            'type': 'test',
+            'duration': '30 dk',
+          },
         ],
       },
       {
@@ -797,9 +808,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 1)).day,
         'month': weekStart.add(const Duration(days: 1)).month,
         'tasks': [
-          {'time': '09:00 - 09:45', 'subject': 'Tarih – İÖ Türk Tarihi', 'type': 'konu', 'duration': '45 dk'},
-          {'time': '10:00 - 10:20', 'subject': 'Tarih Test', 'type': 'test', 'duration': '15 soru'},
-          {'time': '14:00 - 14:30', 'subject': 'Matematik – Problemler', 'type': 'test', 'duration': '30 dk'},
+          {
+            'time': '09:00 - 09:45',
+            'subject': 'Tarih – İÖ Türk Tarihi',
+            'type': 'konu',
+            'duration': '45 dk',
+          },
+          {
+            'time': '10:00 - 10:20',
+            'subject': 'Tarih Test',
+            'type': 'test',
+            'duration': '15 soru',
+          },
+          {
+            'time': '14:00 - 14:30',
+            'subject': 'Matematik – Problemler',
+            'type': 'test',
+            'duration': '30 dk',
+          },
         ],
       },
       {
@@ -808,9 +834,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 2)).day,
         'month': weekStart.add(const Duration(days: 2)).month,
         'tasks': [
-          {'time': '09:00 - 09:45', 'subject': 'Coğrafya – Yer Şekilleri', 'type': 'video', 'duration': '45 dk'},
-          {'time': '10:00 - 10:20', 'subject': 'Coğrafya Test', 'type': 'test', 'duration': '15 soru'},
-          {'time': '14:00 - 14:15', 'subject': 'Vatandaşlık Tekrar', 'type': 'test', 'duration': '10 soru'},
+          {
+            'time': '09:00 - 09:45',
+            'subject': 'Coğrafya – Yer Şekilleri',
+            'type': 'video',
+            'duration': '45 dk',
+          },
+          {
+            'time': '10:00 - 10:20',
+            'subject': 'Coğrafya Test',
+            'type': 'test',
+            'duration': '15 soru',
+          },
+          {
+            'time': '14:00 - 14:15',
+            'subject': 'Vatandaşlık Tekrar',
+            'type': 'test',
+            'duration': '10 soru',
+          },
         ],
       },
       {
@@ -819,9 +860,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 3)).day,
         'month': weekStart.add(const Duration(days: 3)).month,
         'tasks': [
-          {'time': '09:00 - 09:30', 'subject': 'Genel Tekrar', 'type': 'konu', 'duration': '30 dk'},
-          {'time': '10:00 - 10:30', 'subject': 'Türkçe – Dil Bilgisi', 'type': 'test', 'duration': '30 dk'},
-          {'time': '14:00 - 14:20', 'subject': 'Vatandaşlık – Haklar', 'type': 'konu', 'duration': '20 dk'},
+          {
+            'time': '09:00 - 09:30',
+            'subject': 'Genel Tekrar',
+            'type': 'konu',
+            'duration': '30 dk',
+          },
+          {
+            'time': '10:00 - 10:30',
+            'subject': 'Türkçe – Dil Bilgisi',
+            'type': 'test',
+            'duration': '30 dk',
+          },
+          {
+            'time': '14:00 - 14:20',
+            'subject': 'Vatandaşlık – Haklar',
+            'type': 'konu',
+            'duration': '20 dk',
+          },
         ],
       },
       {
@@ -830,9 +886,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 4)).day,
         'month': weekStart.add(const Duration(days: 4)).month,
         'tasks': [
-          {'time': '09:00 - 09:40', 'subject': 'Matematik – Problemler', 'type': 'konu', 'duration': '40 dk'},
-          {'time': '10:00 - 10:30', 'subject': 'Tarih Karışık Test', 'type': 'test', 'duration': '25 soru'},
-          {'time': '14:00 - 14:20', 'subject': 'Paragraf – Hız', 'type': 'test', 'duration': '20 dk'},
+          {
+            'time': '09:00 - 09:40',
+            'subject': 'Matematik – Problemler',
+            'type': 'konu',
+            'duration': '40 dk',
+          },
+          {
+            'time': '10:00 - 10:30',
+            'subject': 'Tarih Karışık Test',
+            'type': 'test',
+            'duration': '25 soru',
+          },
+          {
+            'time': '14:00 - 14:20',
+            'subject': 'Paragraf – Hız',
+            'type': 'test',
+            'duration': '20 dk',
+          },
         ],
       },
       {
@@ -841,9 +912,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 5)).day,
         'month': weekStart.add(const Duration(days: 5)).month,
         'tasks': [
-          {'time': '09:00 - 10:30', 'subject': 'Deneme – Genel Kültür', 'type': 'deneme', 'duration': '1 adet'},
-          {'time': '11:00 - 11:40', 'subject': 'Deneme Analizi', 'type': 'analiz', 'duration': '40 dk'},
-          {'time': '14:00 - 14:20', 'subject': 'Zayıf Konular', 'type': 'konu', 'duration': '20 dk'},
+          {
+            'time': '09:00 - 10:30',
+            'subject': 'Deneme – Genel Kültür',
+            'type': 'deneme',
+            'duration': '1 adet',
+          },
+          {
+            'time': '11:00 - 11:40',
+            'subject': 'Deneme Analizi',
+            'type': 'analiz',
+            'duration': '40 dk',
+          },
+          {
+            'time': '14:00 - 14:20',
+            'subject': 'Zayıf Konular',
+            'type': 'konu',
+            'duration': '20 dk',
+          },
         ],
       },
       {
@@ -852,9 +938,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         'dayNumber': weekStart.add(const Duration(days: 6)).day,
         'month': weekStart.add(const Duration(days: 6)).month,
         'tasks': [
-          {'time': '09:00 - 09:45', 'subject': 'Hafif Tekrar', 'type': 'konu', 'duration': '45 dk'},
-          {'time': '10:00 - 10:20', 'subject': 'Karışık Test', 'type': 'test', 'duration': '10-15 soru'},
-          {'time': '14:00 - 14:10', 'subject': 'Hedef Belirleme', 'type': 'planlama', 'duration': '10 dk'},
+          {
+            'time': '09:00 - 09:45',
+            'subject': 'Hafif Tekrar',
+            'type': 'konu',
+            'duration': '45 dk',
+          },
+          {
+            'time': '10:00 - 10:20',
+            'subject': 'Karışık Test',
+            'type': 'test',
+            'duration': '10-15 soru',
+          },
+          {
+            'time': '14:00 - 14:10',
+            'subject': 'Hedef Belirleme',
+            'type': 'planlama',
+            'duration': '10 dk',
+          },
         ],
       },
     ];
@@ -872,7 +973,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       'Eylül',
       'Ekim',
       'Kasım',
-      'Aralık'
+      'Aralık',
     ];
 
     return Column(
@@ -883,7 +984,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         final dayName = day['name'] as String;
         final dayShort = day['short'] as String;
         final tasks = day['tasks'] as List<Map<String, String>>;
-        
+
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -978,7 +1079,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                             style: TextStyle(
                               fontSize: isSmallScreen ? 15 : 17,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -987,7 +1090,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                             style: TextStyle(
                               fontSize: isSmallScreen ? 11 : 12,
                               fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white60 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.white60
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -999,10 +1104,14 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                         vertical: isSmallScreen ? 4 : 5,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.gradientTealStart.withValues(alpha: 0.15),
+                        color: AppColors.gradientTealStart.withValues(
+                          alpha: 0.15,
+                        ),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: AppColors.gradientTealStart.withValues(alpha: 0.3),
+                          color: AppColors.gradientTealStart.withValues(
+                            alpha: 0.3,
+                          ),
                           width: 1,
                         ),
                       ),
@@ -1038,7 +1147,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                     final subject = task['subject'] as String;
                     final type = task['type'] as String;
                     final duration = task['duration'] as String;
-                    
+
                     return _buildTaskTimelineItem(
                       isSmallScreen,
                       isDark,
@@ -1067,7 +1176,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   ) {
     IconData icon;
     Color color;
-    
+
     switch (type) {
       case 'konu':
         icon = Icons.menu_book_rounded;
@@ -1113,10 +1222,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: color.withValues(alpha: 0.3),
-                width: 1,
-              ),
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
             ),
             child: Text(
               time.split(' - ')[0],
@@ -1136,11 +1242,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              size: isSmallScreen ? 16 : 18,
-              color: color,
-            ),
+            child: Icon(icon, size: isSmallScreen ? 16 : 18, color: color),
           ),
           const SizedBox(width: 10),
           // Content
@@ -1169,7 +1271,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                       duration,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 11 : 12,
-                        color: isDark ? Colors.white60 : AppColors.textSecondary,
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1195,11 +1299,17 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : AppColors.backgroundLight,
         body: Column(
           children: [
             // Gradient Header
@@ -1275,7 +1385,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                                   borderRadius: BorderRadius.circular(14),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.1),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       blurRadius: 4,
                                       offset: const Offset(0, 2),
                                     ),
@@ -1355,7 +1467,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                       // Generate Button
                       _buildGenerateButton(isSmallScreen, isDark),
                       SizedBox(height: isSmallScreen ? 20 : 24),
-                      if (_generatedFeature != null && _generatedFeature != 'program')
+                      if (_generatedFeature != null &&
+                          _generatedFeature != 'program')
                         _buildExampleOutput(isSmallScreen, isDark, isTablet),
                     ],
                   ],
@@ -1375,13 +1488,15 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         final orientation = MediaQuery.of(context).orientation;
 
         // Tablet yatayda kartlar çok büyümesin: yüksekliği sabitle.
-        final double mainAxisExtent = (orientation == Orientation.landscape && width >= 600)
+        final double mainAxisExtent =
+            (orientation == Orientation.landscape && width >= 600)
             ? (isSmallScreen ? 145 : 155)
             : (isSmallScreen ? 150 : 165);
         // Kartların yatayda aşırı genişlemesini engelle: maxCrossAxisExtent ile otomatik kolon sayısı.
         // Böylece telefon landscape'de de kartlar "çok büyük" görünmez.
-        final double maxCrossAxisExtent =
-            (orientation == Orientation.landscape ? 230.0 : 280.0);
+        final double maxCrossAxisExtent = (orientation == Orientation.landscape
+            ? 230.0
+            : 280.0);
 
         final items = <Widget>[
           _buildFeatureCard(
@@ -1412,10 +1527,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             title: 'Program Oluştur',
             subtitle: 'Kişiselleştirilmiş çalışma planı',
             icon: Icons.calendar_today_rounded,
-            gradient: [
-              AppColors.gradientTealStart,
-              AppColors.gradientTealEnd,
-            ],
+            gradient: [AppColors.gradientTealStart, AppColors.gradientTealEnd],
             isSmallScreen: isSmallScreen,
             isSelected: _selectedFeature == 'program',
             onTap: () => _handleFeatureTap('program'),
@@ -1424,10 +1536,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             title: 'Eksiklik Analizi',
             subtitle: 'Eksik konuları tespit et',
             icon: Icons.analytics_rounded,
-            gradient: [
-              AppColors.primaryBlue,
-              AppColors.primaryDarkBlue,
-            ],
+            gradient: [AppColors.primaryBlue, AppColors.primaryDarkBlue],
             isSmallScreen: isSmallScreen,
             isSelected: _selectedFeature == 'gap',
             onTap: () => _handleFeatureTap('gap'),
@@ -1610,7 +1719,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey.withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
@@ -1672,82 +1783,88 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         _isLoadingLessons
             ? const Center(child: CircularProgressIndicator())
             : _lessons.isEmpty
-                ? Center(
-                    child: Text(
-                      'Henüz ders eklenmemiş',
-                      style: TextStyle(
-                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+            ? Center(
+                child: Text(
+                  'Henüz ders eklenmemiş',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : AppColors.textSecondary,
+                  ),
+                ),
+              )
+            : SizedBox(
+                height: isSmallScreen ? 50 : 60,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _lessons.length,
+                  itemBuilder: (context, index) {
+                    final lesson = _lessons[index];
+                    final isSelected = _selectedLesson?.id == lesson.id;
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        right: index < _lessons.length - 1 ? 8 : 0,
                       ),
-                    ),
-                  )
-                : SizedBox(
-                    height: isSmallScreen ? 50 : 60,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _lessons.length,
-                      itemBuilder: (context, index) {
-                        final lesson = _lessons[index];
-                        final isSelected = _selectedLesson?.id == lesson.id;
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            right: index < _lessons.length - 1 ? 8 : 0,
+                      child: GestureDetector(
+                        onTap: () => _handleLessonSelect(lesson),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 16 : 20,
+                            vertical: isSmallScreen ? 10 : 12,
                           ),
-                          child: GestureDetector(
-                            onTap: () => _handleLessonSelect(lesson),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isSmallScreen ? 16 : 20,
-                                vertical: isSmallScreen ? 10 : 12,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: isSelected
-                                    ? LinearGradient(
-                                        colors: [
-                                          AppColors.primaryBlue,
-                                          AppColors.primaryDarkBlue,
-                                        ],
-                                      )
-                                    : null,
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? LinearGradient(
+                                    colors: [
+                                      AppColors.primaryBlue,
+                                      AppColors.primaryDarkBlue,
+                                    ],
+                                  )
+                                : null,
+                            color: isSelected
+                                ? null
+                                : (isDark
+                                      ? const Color(0xFF1E1E1E)
+                                      : Colors.white),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.transparent
+                                  : (isDark
+                                        ? Colors.white.withValues(alpha: 0.1)
+                                        : Colors.grey.withValues(alpha: 0.3)),
+                              width: isSelected ? 0 : 1.5,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.primaryBlue.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              lesson.name,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 14 : 15,
+                                fontWeight: FontWeight.w600,
                                 color: isSelected
-                                    ? null
-                                    : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.transparent
-                                      : (isDark
-                                          ? Colors.white.withValues(alpha: 0.1)
-                                          : Colors.grey.withValues(alpha: 0.3)),
-                                  width: isSelected ? 0 : 1.5,
-                                ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.primaryBlue.withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  lesson.name,
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 14 : 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : (isDark ? Colors.white70 : AppColors.textPrimary),
-                                  ),
-                                ),
+                                    ? Colors.white
+                                    : (isDark
+                                          ? Colors.white70
+                                          : AppColors.textPrimary),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
         // Topic Selection (if lesson selected)
         if (_selectedLesson != null) ...[
           SizedBox(height: isSmallScreen ? 16 : 20),
@@ -1767,7 +1884,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                     child: Text(
                       'Konu yükleniyor...',
                       style: TextStyle(
-                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -1795,20 +1914,23 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                               : null,
                           color: isSelected
                               ? null
-                              : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
+                              : (isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : Colors.white),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
                                 ? Colors.transparent
                                 : (isDark
-                                    ? Colors.white.withValues(alpha: 0.1)
-                                    : Colors.grey.withValues(alpha: 0.3)),
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : Colors.grey.withValues(alpha: 0.3)),
                             width: isSelected ? 0 : 1.5,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: AppColors.gradientPurpleStart.withValues(alpha: 0.3),
+                                    color: AppColors.gradientPurpleStart
+                                        .withValues(alpha: 0.3),
                                     blurRadius: 6,
                                     offset: const Offset(0, 3),
                                   ),
@@ -1822,7 +1944,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                             fontWeight: FontWeight.w600,
                             color: isSelected
                                 ? Colors.white
-                                : (isDark ? Colors.white70 : AppColors.textPrimary),
+                                : (isDark
+                                      ? Colors.white70
+                                      : AppColors.textPrimary),
                           ),
                         ),
                       ),
@@ -1835,7 +1959,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   }
 
   Widget _buildGenerateButton(bool isSmallScreen, bool isDark) {
-    final canGenerate = _selectedFeature == 'program' ||
+    final canGenerate =
+        _selectedFeature == 'program' ||
         (_selectedFeature == 'question' && _selectedTopic != null) ||
         (_selectedFeature == 'material' && _selectedTopic != null) ||
         (_selectedFeature == 'gap' && _selectedLesson != null);
@@ -1847,9 +1972,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: canGenerate ? AppColors.primaryBlue : Colors.grey,
           foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(
-            vertical: isSmallScreen ? 16 : 18,
-          ),
+          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 16 : 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1859,19 +1982,16 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.auto_awesome_rounded,
-              size: isSmallScreen ? 20 : 24,
-            ),
+            Icon(Icons.auto_awesome_rounded, size: isSmallScreen ? 20 : 24),
             SizedBox(width: isSmallScreen ? 8 : 12),
             Text(
               _selectedFeature == 'question'
                   ? 'Örnek Soruları Göster'
                   : _selectedFeature == 'material'
-                      ? 'Örnek Çalışma Metnini Göster'
-                      : _selectedFeature == 'program'
-                          ? 'Örnek Programı Göster'
-                          : 'Örnek Eksiklik Analizini Göster',
+                  ? 'Örnek Çalışma Metnini Göster'
+                  : _selectedFeature == 'program'
+                  ? 'Örnek Programı Göster'
+                  : 'Örnek Eksiklik Analizini Göster',
               style: TextStyle(
                 fontSize: isSmallScreen ? 16 : 18,
                 fontWeight: FontWeight.bold,
@@ -1913,11 +2033,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               accent,
             ),
             const SizedBox(height: 14),
-            _buildSectionHeader(
-              isSmallScreen,
-              isDark,
-              'Örnek Soru',
-            ),
+            _buildSectionHeader(isSmallScreen, isDark, 'Örnek Soru'),
             const SizedBox(height: 4),
             Text(
               'Aşağıdakilerden hangisi temel hak ve hürriyetlerin ortak özelliklerinden biri değildir?',
@@ -1928,9 +2044,19 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               ),
             ),
             const SizedBox(height: 10),
-            _buildOptionRow(isSmallScreen, isDark, 'A', 'Devredilemez olmaları'),
+            _buildOptionRow(
+              isSmallScreen,
+              isDark,
+              'A',
+              'Devredilemez olmaları',
+            ),
             _buildOptionRow(isSmallScreen, isDark, 'B', 'Dokunulamaz olmaları'),
-            _buildOptionRow(isSmallScreen, isDark, 'C', 'Vazgeçilemez olmaları'),
+            _buildOptionRow(
+              isSmallScreen,
+              isDark,
+              'C',
+              'Vazgeçilemez olmaları',
+            ),
             _buildOptionRow(
               isSmallScreen,
               isDark,
@@ -1938,13 +2064,14 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               'Sadece olağanüstü hâllerde kısıtlanabilmeleri',
               isCorrect: true,
             ),
-            _buildOptionRow(isSmallScreen, isDark, 'E', 'Anayasa ile güvence altına alınmış olmaları'),
-            const SizedBox(height: 10),
-            _buildSectionHeader(
+            _buildOptionRow(
               isSmallScreen,
               isDark,
-              'Çözüm ve Açıklama',
+              'E',
+              'Anayasa ile güvence altına alınmış olmaları',
             ),
+            const SizedBox(height: 10),
+            _buildSectionHeader(isSmallScreen, isDark, 'Çözüm ve Açıklama'),
             const SizedBox(height: 4),
             Text(
               'Temel hak ve hürriyetler olağan dönemlerde de kanunla sınırlandırılabilir. '
@@ -2053,11 +2180,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               accent,
             ),
             const SizedBox(height: 14),
-            _buildSectionHeader(
-              isSmallScreen,
-              isDark,
-              '1) Derin Eksik Alan',
-            ),
+            _buildSectionHeader(isSmallScreen, isDark, '1) Derin Eksik Alan'),
             const SizedBox(height: 4),
             Text(
               '$topicName\n'
@@ -2103,7 +2226,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : accent.withValues(alpha: 0.25),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : accent.withValues(alpha: 0.25),
         ),
         boxShadow: [
           BoxShadow(
@@ -2124,11 +2249,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                   color: accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  icon,
-                  color: accent,
-                  size: isSmallScreen ? 18 : 20,
-                ),
+                child: Icon(icon, color: accent, size: isSmallScreen ? 18 : 20),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2156,7 +2277,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
           ],
           const SizedBox(height: 12),
           content,
-          if ((_generatedFeature == 'question' || _generatedFeature == 'material') && _selectedTopic != null) ...[
+          if ((_generatedFeature == 'question' ||
+                  _generatedFeature == 'material') &&
+              _selectedTopic != null) ...[
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -2178,7 +2301,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                 ),
                 icon: const Icon(Icons.save_rounded),
                 label: Text(
-                  _generatedFeature == 'question' ? 'Soruları Konuya Kaydet' : 'Metni Konuya Kaydet',
+                  _generatedFeature == 'question'
+                      ? 'Soruları Konuya Kaydet'
+                      : 'Metni Konuya Kaydet',
                   style: TextStyle(
                     fontSize: isSmallScreen ? 14 : 15,
                     fontWeight: FontWeight.bold,
@@ -2296,7 +2421,9 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     String text, {
     bool isCorrect = false,
   }) {
-    final baseColor = isCorrect ? AppColors.gradientGreenStart : (isDark ? Colors.white70 : AppColors.textSecondary);
+    final baseColor = isCorrect
+        ? AppColors.gradientGreenStart
+        : (isDark ? Colors.white70 : AppColors.textSecondary);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -2309,10 +2436,14 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: isCorrect ? AppColors.gradientGreenStart : baseColor.withValues(alpha: 0.7),
+                color: isCorrect
+                    ? AppColors.gradientGreenStart
+                    : baseColor.withValues(alpha: 0.7),
                 width: 1.5,
               ),
-              color: isCorrect ? AppColors.gradientGreenStart.withValues(alpha: 0.12) : Colors.transparent,
+              color: isCorrect
+                  ? AppColors.gradientGreenStart.withValues(alpha: 0.12)
+                  : Colors.transparent,
             ),
             child: Center(
               child: Text(
@@ -2426,5 +2557,4 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       ],
     );
   }
-
 }

@@ -25,11 +25,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
   Future<void> _navigateToDetail(Lesson lesson) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => LessonDetailPage(
-          lesson: lesson,
-        ),
-      ),
+      MaterialPageRoute(builder: (context) => LessonDetailPage(lesson: lesson)),
     );
     // Stream will automatically update when progress changes
   }
@@ -52,9 +48,13 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
       return lessons;
     }
     return lessons
-        .where((lesson) =>
-            lesson.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            lesson.description.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .where(
+          (lesson) =>
+              lesson.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              lesson.description.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              ),
+        )
         .toList();
   }
 
@@ -86,16 +86,26 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
     final orientation = MediaQuery.of(context).orientation;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final headerColor1 = isDark ? const Color(0xFF1E1E1E) : const Color(0xFF8B5CF6);
-    final headerColor2 = isDark ? const Color(0xFF1A1A1A) : const Color(0xFF7C3AED);
-    final headerColor3 = isDark ? const Color(0xFF121212) : const Color(0xFF6D28D9);
-    
+    final headerColor1 = isDark
+        ? const Color(0xFF1E1E1E)
+        : const Color(0xFF8B5CF6);
+    final headerColor2 = isDark
+        ? const Color(0xFF1A1A1A)
+        : const Color(0xFF7C3AED);
+    final headerColor3 = isDark
+        ? const Color(0xFF121212)
+        : const Color(0xFF6D28D9);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(
@@ -112,18 +122,14 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    headerColor1,
-                    headerColor2,
-                    headerColor3,
-                  ],
+                  colors: [headerColor1, headerColor2, headerColor3],
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFF8B5CF6).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
-      ),
+                  ),
                 ],
               ),
               child: Column(
@@ -148,9 +154,9 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
                               'Dersler',
                               style: TextStyle(
@@ -164,7 +170,9 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                             StreamBuilder<List<Lesson>>(
                               stream: _lessonsService.streamAllLessons(),
                               builder: (context, snapshot) {
-                                final count = snapshot.hasData ? snapshot.data!.length : 0;
+                                final count = snapshot.hasData
+                                    ? snapshot.data!.length
+                                    : 0;
                                 return Text(
                                   '$count ders • Tüm konular',
                                   style: TextStyle(
@@ -208,7 +216,9 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                           _searchQuery = value;
                         });
                       },
-                      cursorColor: isDark ? Colors.white : const Color(0xFF1E293B),
+                      cursorColor: isDark
+                          ? Colors.white
+                          : const Color(0xFF1E293B),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -218,15 +228,22 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                         hintText: 'Ders ara...',
                         hintStyle: TextStyle(
                           fontSize: 14,
-                          color: isDark ? Colors.white.withOpacity(0.65) : Colors.grey.shade500,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.65)
+                              : Colors.grey.shade500,
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: isDark ? Colors.white.withOpacity(0.65) : Colors.grey.shade400,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.65)
+                              : Colors.grey.shade400,
                           size: 20,
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -239,9 +256,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                 stream: _lessonsService.streamAllLessons(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (snapshot.hasError) {
@@ -300,12 +315,18 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
 
                   final allLessons = _filterLessons(snapshot.data!);
                   final genelKultur = _filterLessons(
-                      allLessons.where((l) => l.category == 'genel_kultur').toList());
+                    allLessons
+                        .where((l) => l.category == 'genel_kultur')
+                        .toList(),
+                  );
                   final genelYetenek = _filterLessons(
-                      allLessons.where((l) => l.category == 'genel_yetenek').toList());
+                    allLessons
+                        .where((l) => l.category == 'genel_yetenek')
+                        .toList(),
+                  );
 
                   return ListView(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
                     children: [
                       if (genelKultur.isNotEmpty)
                         _buildCategorySection(
@@ -396,13 +417,16 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
               SizedBox(width: isSmallScreen ? 8 : 10),
               Builder(
                 builder: (context) {
-                  final isDark = Theme.of(context).brightness == Brightness.dark;
-                  final textColor = isDark ? Colors.white : AppColors.textPrimary;
-                  
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
+                  final textColor = isDark
+                      ? Colors.white
+                      : AppColors.textPrimary;
+
                   return Text(
                     title,
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 15 : 17,
+                      fontSize: isSmallScreen ? 14 : 16,
                       fontWeight: FontWeight.w800,
                       color: textColor,
                       letterSpacing: 0.3,
@@ -413,32 +437,35 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: isSmallScreen ? 4 : 6),
         LayoutBuilder(
           builder: (context, constraints) {
             final availableWidth = constraints.maxWidth;
 
-            // Hedef: kart genişliği ~160-210px bandında kalsın (telefon landscape dahil).
+            // Hedef: kart genişliği ~145-190px bandında kalsın (telefon landscape dahil).
             // Bu sayede yatay modda kartlar "çok büyük" görünmez.
             final isLandscape = orientation == Orientation.landscape;
-            final spacing = isSmallScreen ? 8.0 : 10.0;
-            final targetCardWidth = isTablet ? 200.0 : (isLandscape ? 170.0 : 180.0);
+            final spacing = isSmallScreen ? 10.0 : 14.0;
+            final targetCardWidth = isTablet
+                ? 210.0
+                : (isLandscape ? 160.0 : 170.0);
 
             var crossAxisCount = (availableWidth / targetCardWidth).floor();
-            final minCount = 3;
+            final minCount = 2;
             final maxCount = isTablet ? 6 : 5;
             crossAxisCount = crossAxisCount.clamp(minCount, maxCount);
 
-            // Kartların yüksekliğini landscape'de biraz küçült (daha kompakt görünüm).
+            // Ultra-Premium Compact Grid Layout
             final double mainAxisExtent = isTablet
-                ? (isLandscape ? 155 : 175)
-                : (isLandscape ? 150 : (isSmallScreen ? 160 : 170));
+                ? (isLandscape ? 145 : 160)
+                : (isLandscape ? 125 : (isSmallScreen ? 125 : 135));
 
-            // Çok geniş ekranlarda (özellikle tablet landscape) kart enini daha da sınırlamak için
-            // crossAxisCount'u gerekirse 1 artır.
+            // Kart genişliği kontrolü
             final approxCardWidth =
-                (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
-            if (approxCardWidth > (isTablet ? 230 : 220) && crossAxisCount < maxCount) {
+                (availableWidth - spacing * (crossAxisCount - 1)) /
+                crossAxisCount;
+            if (approxCardWidth > (isTablet ? 230 : 210) &&
+                crossAxisCount < maxCount) {
               crossAxisCount = math.min(maxCount, crossAxisCount + 1);
             }
 
@@ -462,12 +489,17 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
 
                     if (snapshot.hasData && snapshot.data != null) {
                       progress = snapshot.data!;
-                    } else if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                    } else if (snapshot.connectionState ==
+                            ConnectionState.waiting ||
+                        !snapshot.hasData) {
                       return FutureBuilder<double?>(
                         future: _progressService.getLessonProgress(lesson.id),
                         builder: (context, cacheSnapshot) {
                           final cachedProgress =
-                              cacheSnapshot.hasData && cacheSnapshot.data != null ? cacheSnapshot.data! : 0.0;
+                              cacheSnapshot.hasData &&
+                                  cacheSnapshot.data != null
+                              ? cacheSnapshot.data!
+                              : 0.0;
                           return LessonCard(
                             lesson: lesson,
                             progress: cachedProgress,

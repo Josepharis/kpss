@@ -8,6 +8,8 @@ import '../../../core/services/lessons_service.dart';
 import '../../../core/services/saved_cards_service.dart';
 import 'weakness_lesson_detail_page.dart';
 import 'saved_card_lesson_detail_page.dart';
+import 'all_saved_cards_page.dart';
+import 'all_saved_questions_page.dart';
 
 enum _SavedContentType { questions, cards }
 
@@ -18,7 +20,8 @@ class WeaknessesPage extends StatefulWidget {
   State<WeaknessesPage> createState() => _WeaknessesPageState();
 }
 
-class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProviderStateMixin {
+class _WeaknessesPageState extends State<WeaknessesPage>
+    with SingleTickerProviderStateMixin {
   Map<String, List<WeaknessQuestion>> _groupedByLesson = {};
   Map<String, List<SavedCard>> _savedCardsGroupedByLesson = {};
   List<Lesson> _allLessons = [];
@@ -30,6 +33,11 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {});
+      }
+    });
     _loadData();
   }
 
@@ -69,18 +77,29 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
   }
 
   List<Lesson> _getLessonsWithWeaknesses() {
-    return _allLessons.where((l) =>
-        _groupedByLesson.containsKey(l.id) && _groupedByLesson[l.id]!.isNotEmpty).toList();
+    return _allLessons
+        .where(
+          (l) =>
+              _groupedByLesson.containsKey(l.id) &&
+              _groupedByLesson[l.id]!.isNotEmpty,
+        )
+        .toList();
   }
 
   List<Lesson> _getLessonsWithSavedCards() {
-    return _allLessons.where((l) =>
-        _savedCardsGroupedByLesson.containsKey(l.id) &&
-        _savedCardsGroupedByLesson[l.id]!.isNotEmpty).toList();
+    return _allLessons
+        .where(
+          (l) =>
+              _savedCardsGroupedByLesson.containsKey(l.id) &&
+              _savedCardsGroupedByLesson[l.id]!.isNotEmpty,
+        )
+        .toList();
   }
 
-  int _getWeaknessCountForLesson(String id) => _groupedByLesson[id]?.length ?? 0;
-  int _getSavedCardCountForLesson(String id) => _savedCardsGroupedByLesson[id]?.length ?? 0;
+  int _getWeaknessCountForLesson(String id) =>
+      _groupedByLesson[id]?.length ?? 0;
+  int _getSavedCardCountForLesson(String id) =>
+      _savedCardsGroupedByLesson[id]?.length ?? 0;
 
   int _getTopicCountForLesson(String id) {
     final w = _groupedByLesson[id];
@@ -126,23 +145,41 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topPadding = MediaQuery.of(context).padding.top;
-    final totalQuestions = _groupedByLesson.values.fold<int>(0, (s, l) => s + l.length);
-    final totalCards = _savedCardsGroupedByLesson.values.fold<int>(0, (s, l) => s + l.length);
+    final totalQuestions = _groupedByLesson.values.fold<int>(
+      0,
+      (s, l) => s + l.length,
+    );
+    final totalCards = _savedCardsGroupedByLesson.values.fold<int>(
+      0,
+      (s, l) => s + l.length,
+    );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF0D0D0D)
+            : const Color(0xFFF8F9FA),
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+        backgroundColor: isDark
+            ? const Color(0xFF0D0D0D)
+            : const Color(0xFFF8F9FA),
         body: SafeArea(
           top: false,
           child: Column(
             children: [
-              _buildHeader(context, isDark, topPadding, totalQuestions, totalCards),
+              _buildHeader(
+                context,
+                isDark,
+                topPadding,
+                totalQuestions,
+                totalCards,
+              ),
               _buildTabBar(context, isDark),
               Expanded(
                 child: _isLoading
@@ -205,18 +242,7 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
                     letterSpacing: -0.3,
                   ),
                 ),
-                Material(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: _loadData,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(Icons.refresh_rounded, size: 20, color: Colors.white.withValues(alpha: 0.9)),
-                    ),
-                  ),
-                ),
+                // Refresh button removed
               ],
             ),
             const SizedBox(height: 10),
@@ -234,6 +260,102 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
                   count: totalCards,
                   label: 'Kart',
                   color: const Color(0xFF10B981),
+                ),
+                const Spacer(),
+                AnimatedBuilder(
+                  animation: _tabController.animation!,
+                  builder: (context, _) {
+                    final index = _tabController.animation!.value.round();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (index == 0)
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const AllSavedQuestionsPage(),
+                                  ),
+                                ).then((_) => _loadData());
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.quiz_rounded,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Soruları Birleştir',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (index == 1)
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const AllSavedCardsPage(),
+                                  ),
+                                ).then((_) => _loadData());
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.auto_awesome_motion_rounded,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Kartları Birleştir',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -254,7 +376,10 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -319,8 +444,9 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
             borderRadius: BorderRadius.circular(9),
             boxShadow: [
               BoxShadow(
-                color: (isDark ? const Color(0xFF2563EB) : AppColors.primaryBlue)
-                    .withValues(alpha: 0.35),
+                color:
+                    (isDark ? const Color(0xFF2563EB) : AppColors.primaryBlue)
+                        .withValues(alpha: 0.35),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -329,7 +455,9 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: isDark ? Colors.white54 : AppColors.textSecondary,
+          unselectedLabelColor: isDark
+              ? Colors.white54
+              : AppColors.textSecondary,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 13,
@@ -380,7 +508,8 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
         isDark: isDark,
         icon: Icons.quiz_outlined,
         title: 'Henüz kaydedilmiş soru yok',
-        subtitle: 'Test çözerken yanlış yaptığınız veya manuel eklediğiniz sorular burada görünecek.',
+        subtitle:
+            'Test çözerken yanlış yaptığınız veya manuel eklediğiniz sorular burada görünecek.',
       );
     }
     return RefreshIndicator(
@@ -405,7 +534,8 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => WeaknessLessonDetailPage(lesson: lesson),
+                  builder: (context) =>
+                      WeaknessLessonDetailPage(lesson: lesson),
                 ),
               ),
             ),
@@ -422,7 +552,8 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
         isDark: isDark,
         icon: Icons.style_outlined,
         title: 'Henüz kaydedilmiş bilgi kartı yok',
-        subtitle: 'Bilgi kartları sayfasında kaydet butonuna bastığınız kartlar burada listelenir.',
+        subtitle:
+            'Bilgi kartları sayfasında kaydet butonuna bastığınız kartlar burada listelenir.',
       );
     }
     return RefreshIndicator(
@@ -447,7 +578,8 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SavedCardLessonDetailPage(lesson: lesson),
+                  builder: (context) =>
+                      SavedCardLessonDetailPage(lesson: lesson),
                 ),
               ),
             ),
@@ -472,13 +604,17 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: (isDark ? Colors.white10 : AppColors.primaryBlue.withValues(alpha: 0.08)),
+                color: (isDark
+                    ? Colors.white10
+                    : AppColors.primaryBlue.withValues(alpha: 0.08)),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
                 size: 44,
-                color: isDark ? Colors.white38 : AppColors.primaryBlue.withValues(alpha: 0.6),
+                color: isDark
+                    ? Colors.white38
+                    : AppColors.primaryBlue.withValues(alpha: 0.6),
               ),
             ),
             const SizedBox(height: 16),
@@ -530,7 +666,9 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
             color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
               width: 1,
             ),
             boxShadow: [
@@ -590,9 +728,13 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
                         const SizedBox(width: 6),
                         _buildMiniBadge(
                           isDark: isDark,
-                          icon: isQuestions ? Icons.quiz_rounded : Icons.style_rounded,
+                          icon: isQuestions
+                              ? Icons.quiz_rounded
+                              : Icons.style_rounded,
                           text: '$count ${isQuestions ? 'soru' : 'kart'}',
-                          accentColor: isQuestions ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                          accentColor: isQuestions
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
                         ),
                       ],
                     ),
@@ -620,14 +762,24 @@ class _WeaknessesPageState extends State<WeaknessesPage> with SingleTickerProvid
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: (accentColor ?? (isDark ? Colors.white12 : AppColors.backgroundBeige))
-            .withValues(alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1)),
+        color:
+            (accentColor ??
+                    (isDark ? Colors.white12 : AppColors.backgroundBeige))
+                .withValues(
+                  alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1),
+                ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: accentColor ?? (isDark ? Colors.white54 : AppColors.textSecondary)),
+          Icon(
+            icon,
+            size: 10,
+            color:
+                accentColor ??
+                (isDark ? Colors.white54 : AppColors.textSecondary),
+          ),
           const SizedBox(width: 3),
           Text(
             text,

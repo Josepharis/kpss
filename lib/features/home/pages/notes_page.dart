@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 
 class NoteData {
   final String id;
@@ -80,39 +81,40 @@ class _NotesPageState extends State<NotesPage> {
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
-                children: [
-                  Colors.black,
-                  Colors.red,
-                  Colors.blue,
-                  Colors.green,
-                  Colors.orange,
-                  Colors.purple,
-                  Colors.pink,
-                  Colors.teal,
-                ].map((color) {
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _textColor = color;
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _textColor == color
-                              ? Colors.black
-                              : Colors.grey.withValues(alpha: 0.3),
-                          width: _textColor == color ? 3 : 1,
+                children:
+                    [
+                      Colors.black,
+                      Colors.red,
+                      Colors.blue,
+                      Colors.green,
+                      Colors.orange,
+                      Colors.purple,
+                      Colors.pink,
+                      Colors.teal,
+                    ].map((color) {
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _textColor = color;
+                          });
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _textColor == color
+                                  ? Colors.black
+                                  : Colors.grey.withValues(alpha: 0.3),
+                              width: _textColor == color ? 3 : 1,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               ),
               const SizedBox(height: 24),
               const Text('Vurgulama Rengi'),
@@ -120,37 +122,38 @@ class _NotesPageState extends State<NotesPage> {
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
-                children: [
-                  Colors.yellow,
-                  Colors.orange,
-                  Colors.pink,
-                  Colors.lightBlue,
-                  Colors.lightGreen,
-                  Colors.purpleAccent,
-                ].map((color) {
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _highlightColor = color;
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _highlightColor == color
-                              ? Colors.black
-                              : Colors.grey.withValues(alpha: 0.3),
-                          width: _highlightColor == color ? 3 : 1,
+                children:
+                    [
+                      Colors.yellow,
+                      Colors.orange,
+                      Colors.pink,
+                      Colors.lightBlue,
+                      Colors.lightGreen,
+                      Colors.purpleAccent,
+                    ].map((color) {
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _highlightColor = color;
+                          });
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _highlightColor == color
+                                  ? Colors.black
+                                  : Colors.grey.withValues(alpha: 0.3),
+                              width: _highlightColor == color ? 3 : 1,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               ),
             ],
           ),
@@ -167,12 +170,54 @@ class _NotesPageState extends State<NotesPage> {
 
   void _showEmojiPickerDialog() {
     final emojis = [
-      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂',
-      '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
-      '😘', '😗', '😚', '😙', '😋', '😛', '😜', '🤪',
-      '📝', '📌', '📍', '✅', '❌', '⭐', '🔥', '💡',
-      '📚', '📖', '📋', '📄', '📊', '📈', '📉', '🎯',
-      '💪', '🎓', '🏆', '🎖️', '⭐', '🌟', '✨', '💫',
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😆',
+      '😅',
+      '🤣',
+      '😂',
+      '🙂',
+      '🙃',
+      '😉',
+      '😊',
+      '😇',
+      '🥰',
+      '😍',
+      '🤩',
+      '😘',
+      '😗',
+      '😚',
+      '😙',
+      '😋',
+      '😛',
+      '😜',
+      '🤪',
+      '📝',
+      '📌',
+      '📍',
+      '✅',
+      '❌',
+      '⭐',
+      '🔥',
+      '💡',
+      '📚',
+      '📖',
+      '📋',
+      '📄',
+      '📊',
+      '📈',
+      '📉',
+      '🎯',
+      '💪',
+      '🎓',
+      '🏆',
+      '🎖️',
+      '⭐',
+      '🌟',
+      '✨',
+      '💫',
     ];
 
     showDialog(
@@ -234,11 +279,7 @@ class _NotesPageState extends State<NotesPage> {
   void _insertIcon(String icon) {
     final text = _noteController.text;
     final selection = _noteController.selection;
-    final newText = text.replaceRange(
-      selection.start,
-      selection.end,
-      icon,
-    );
+    final newText = text.replaceRange(selection.start, selection.end, icon);
     _noteController.text = newText;
     _noteController.selection = TextSelection.collapsed(
       offset: selection.start + icon.length,
@@ -264,18 +305,10 @@ class _NotesPageState extends State<NotesPage> {
         _textColor = AppColors.textPrimary;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Not kaydedildi'),
-            ],
-          ),
-          backgroundColor: AppColors.gradientGreenStart,
-          duration: const Duration(seconds: 1),
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: 'Not kaydedildi',
+        type: SnackBarType.success,
       );
     }
   }
@@ -284,12 +317,9 @@ class _NotesPageState extends State<NotesPage> {
     // Basit formatting - gerçek uygulamada daha gelişmiş parsing gerekir
     final spans = <TextSpan>[];
     final parts = text.split(RegExp(r'(\*\*.*?\*\*|_.*?_|~~.*?~~)'));
-    
+
     for (var part in parts) {
-      TextStyle style = TextStyle(
-        color: _textColor,
-        fontSize: 16,
-      );
+      TextStyle style = TextStyle(color: _textColor, fontSize: 16);
 
       if (part.startsWith('**') && part.endsWith('**')) {
         part = part.substring(2, part.length - 2);
@@ -299,9 +329,7 @@ class _NotesPageState extends State<NotesPage> {
         style = style.copyWith(fontStyle: FontStyle.italic);
       } else if (part.startsWith('~~') && part.endsWith('~~')) {
         part = part.substring(2, part.length - 2);
-        style = style.copyWith(
-          decoration: TextDecoration.lineThrough,
-        );
+        style = style.copyWith(decoration: TextDecoration.lineThrough);
       }
 
       spans.add(TextSpan(text: part, style: style));
@@ -328,10 +356,7 @@ class _NotesPageState extends State<NotesPage> {
               });
               Navigator.pop(context);
             },
-            child: const Text(
-              'Sil',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -346,7 +371,9 @@ class _NotesPageState extends State<NotesPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 80 : 90),
         child: Container(
@@ -600,10 +627,7 @@ class _NotesPageState extends State<NotesPage> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.white,
-                  Colors.grey.withValues(alpha: 0.02),
-                ],
+                colors: [Colors.white, Colors.grey.withValues(alpha: 0.02)],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
@@ -658,9 +682,12 @@ class _NotesPageState extends State<NotesPage> {
                   controller: _noteController,
                   maxLines: 6,
                   decoration: InputDecoration(
-                    hintText: 'Notunuzu buraya yazın...\n\nİpuçları:\n• **kalın** için **metin**\n• _italik_ için _metin_\n• ~~üstü çizili~~ için ~~metin~~',
+                    hintText:
+                        'Notunuzu buraya yazın...\n\nİpuçları:\n• **kalın** için **metin**\n• _italik_ için _metin_\n• ~~üstü çizili~~ için ~~metin~~',
                     hintStyle: TextStyle(
-                      color: isDark ? Colors.grey.shade500 : AppColors.textSecondary,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : AppColors.textSecondary,
                       fontSize: isSmallScreen ? 13 : 14,
                       height: 1.5,
                     ),
@@ -669,7 +696,9 @@ class _NotesPageState extends State<NotesPage> {
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: isDark ? const Color(0xFF2C2C2C) : AppColors.backgroundLight,
+                    fillColor: isDark
+                        ? const Color(0xFF2C2C2C)
+                        : AppColors.backgroundLight,
                     contentPadding: EdgeInsets.all(isSmallScreen ? 16 : 20),
                   ),
                   style: TextStyle(
@@ -734,8 +763,12 @@ class _NotesPageState extends State<NotesPage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                AppColors.gradientGreenStart.withValues(alpha: 0.1),
-                                AppColors.gradientGreenEnd.withValues(alpha: 0.05),
+                                AppColors.gradientGreenStart.withValues(
+                                  alpha: 0.1,
+                                ),
+                                AppColors.gradientGreenEnd.withValues(
+                                  alpha: 0.05,
+                                ),
                               ],
                             ),
                             shape: BoxShape.circle,
@@ -751,7 +784,9 @@ class _NotesPageState extends State<NotesPage> {
                           'Henüz not eklenmedi',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 16 : 18,
-                            color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -760,7 +795,11 @@ class _NotesPageState extends State<NotesPage> {
                           'İlk notunuzu ekleyerek başlayın',
                           style: TextStyle(
                             fontSize: isSmallScreen ? 13 : 14,
-                            color: isDark ? Colors.grey.shade500 : AppColors.textSecondary.withValues(alpha: 0.7),
+                            color: isDark
+                                ? Colors.grey.shade500
+                                : AppColors.textSecondary.withValues(
+                                    alpha: 0.7,
+                                  ),
                           ),
                         ),
                       ],
@@ -785,17 +824,23 @@ class _NotesPageState extends State<NotesPage> {
                             end: Alignment.bottomRight,
                             colors: [
                               isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                              isDark ? const Color(0xFF1A1A1A) : Colors.grey.withValues(alpha: 0.02),
+                              isDark
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.grey.withValues(alpha: 0.02),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: AppColors.gradientGreenStart.withValues(alpha: 0.2),
+                            color: AppColors.gradientGreenStart.withValues(
+                              alpha: 0.2,
+                            ),
                             width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.gradientGreenStart.withValues(alpha: 0.1),
+                              color: AppColors.gradientGreenStart.withValues(
+                                alpha: 0.1,
+                              ),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -839,7 +884,9 @@ class _NotesPageState extends State<NotesPage> {
                                   PopupMenuButton(
                                     icon: Icon(
                                       Icons.more_vert_rounded,
-                                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : AppColors.textSecondary,
                                       size: isSmallScreen ? 20 : 22,
                                     ),
                                     itemBuilder: (context) => [
@@ -886,7 +933,9 @@ class _NotesPageState extends State<NotesPage> {
                                     '${note.createdAt.day}/${note.createdAt.month}/${note.createdAt.year} ${note.createdAt.hour.toString().padLeft(2, '0')}:${note.createdAt.minute.toString().padLeft(2, '0')}',
                                     style: TextStyle(
                                       fontSize: isSmallScreen ? 11 : 12,
-                                      color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : AppColors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -934,9 +983,11 @@ class _NotesPageState extends State<NotesPage> {
           child: Icon(
             icon,
             size: isSmallScreen ? 20 : 22,
-            color: color ?? (isActive
-                ? AppColors.gradientGreenStart
-                : (isDark ? Colors.white : AppColors.textPrimary)),
+            color:
+                color ??
+                (isActive
+                    ? AppColors.gradientGreenStart
+                    : (isDark ? Colors.white : AppColors.textPrimary)),
           ),
         ),
       ),

@@ -8,6 +8,7 @@ import '../../../core/models/video.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/video_download_service.dart';
 import '../../../core/services/storage_cleanup_service.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final Video video;
@@ -49,7 +50,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       final screenWidth = MediaQuery.of(context).size.width;
       final screenHeight = MediaQuery.of(context).size.height;
       _isTablet = screenWidth > 600 || screenHeight > 600;
-      
+
       // Tablet ise tüm orientation'lara izin ver, küçük ekranlarda sadece portrait
       if (_isTablet) {
         SystemChrome.setPreferredOrientations([
@@ -74,115 +75,131 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Future<void> _initializeVideo() async {
     // Önce cache kontrolü yap (await et - tamamlanmasını bekle)
     await _checkCacheImmediately();
-    
+
     // Sonra video controller'ı initialize et
     _initializeVideoController();
   }
-  
+
   /// Check cache immediately (synchronous check for instant loading - PDF gibi)
   Future<void> _checkCacheImmediately() async {
     print('🔍 Checking video cache immediately for instant loading...');
-    
+
     try {
       // Önce local'de kontrol et (cache kontrolü - hızlı)
-      final localPath = await _downloadService.getLocalFilePath(widget.video.videoUrl);
-      
+      final localPath = await _downloadService.getLocalFilePath(
+        widget.video.videoUrl,
+      );
+
       if (localPath != null && await File(localPath).exists()) {
         // Local dosya var - hemen controller oluştur (instant - cache'den)
         print('📁 Video is downloaded (instant check): $localPath');
         _controller = VideoPlayerController.file(File(localPath));
         // Update last access time
         await _cleanupService.updateLastAccessTime(widget.video.videoUrl);
-        
+
         // Controller'ı initialize et (await et - tamamlanmasını bekle)
         _controller!.addListener(_videoListener);
         await _controller!.initialize();
-        
+
         if (mounted) {
           setState(() {
             _isInitialized = true;
             _totalDuration = _controller!.value.duration;
           });
-          
+
           // Load saved progress and seek to that position
-          final savedProgress = await _progressService.getVideoProgress(widget.video.id);
+          final savedProgress = await _progressService.getVideoProgress(
+            widget.video.id,
+          );
           if (savedProgress != null && savedProgress.inSeconds > 5) {
             // Only resume if saved position is more than 5 seconds
             await _controller!.seekTo(savedProgress);
-            print('✅ Resuming video from saved position: ${savedProgress.inMinutes}m');
+            print(
+              '✅ Resuming video from saved position: ${savedProgress.inMinutes}m',
+            );
           }
-          
+
           _startHideControlsTimer();
           _startProgressSaveTimer();
         }
         print('✅ Video loaded from download (instant): $localPath');
         return;
       }
-      
+
       print('❌ Video is not downloaded, will use streaming mode');
     } catch (e) {
       print('⚠️ Error checking video cache in initState: $e');
     }
   }
-  
+
   /// Initialize video controller (for non-cached videos)
   Future<void> _initializeVideoController() async {
     // Eğer controller zaten oluşturulduysa (cache'den), tekrar oluşturma
     if (_controller != null && _isInitialized) {
       return;
     }
-    
+
     try {
       // İndirilmemiş - streaming ile oynat (hızlı, tam indirme yok)
-      print('🌐 Video not downloaded, using streaming mode (fast, no full download)...');
+      print(
+        '🌐 Video not downloaded, using streaming mode (fast, no full download)...',
+      );
       _controller = VideoPlayerController.networkUrl(
         Uri.parse(widget.video.videoUrl),
       );
 
       _controller!.addListener(_videoListener);
       await _controller!.initialize();
-      
+
       if (mounted) {
         setState(() {
           _isInitialized = true;
           _totalDuration = _controller!.value.duration;
         });
-        
+
         // Load saved progress and seek to that position
-        final savedProgress = await _progressService.getVideoProgress(widget.video.id);
+        final savedProgress = await _progressService.getVideoProgress(
+          widget.video.id,
+        );
         if (savedProgress != null && savedProgress.inSeconds > 5) {
           // Only resume if saved position is more than 5 seconds
           await _controller!.seekTo(savedProgress);
-          print('✅ Resuming video from saved position: ${savedProgress.inMinutes}m');
+          print(
+            '✅ Resuming video from saved position: ${savedProgress.inMinutes}m',
+          );
         }
-        
+
         _startHideControlsTimer();
         _startProgressSaveTimer();
       }
-      
+
       // Arka planda indir (cache için - non-blocking)
-      _downloadService.downloadVideo(
-        videoUrl: widget.video.videoUrl,
-        videoId: widget.video.id,
-        onProgress: (progress) {
-          print('📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%');
-        },
-      ).then((downloadedPath) {
-        if (downloadedPath != null) {
-          print('✅ Video cached in background: $downloadedPath');
-          // Next time will use cache
-        }
-      }).catchError((e) {
-        print('⚠️ Background download failed: $e');
-      });
+      _downloadService
+          .downloadVideo(
+            videoUrl: widget.video.videoUrl,
+            videoId: widget.video.id,
+            onProgress: (progress) {
+              print(
+                '📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%',
+              );
+            },
+          )
+          .then((downloadedPath) {
+            if (downloadedPath != null) {
+              print('✅ Video cached in background: $downloadedPath');
+              // Next time will use cache
+            }
+          })
+          .catchError((e) {
+            print('⚠️ Background download failed: $e');
+          });
     } catch (e) {
       print('❌ Error initializing video: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Video yüklenirken bir hata oluştu: $e'),
-            backgroundColor: Colors.red,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Video yüklenirken bir hata oluştu: $e',
+          type: SnackBarType.error,
         );
       }
     }
@@ -190,7 +207,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   void _videoListener() {
     if (!mounted) return;
-    
+
     setState(() {
       _isPlaying = _controller!.value.isPlaying;
       _isBuffering = _controller!.value.isBuffering;
@@ -214,7 +231,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _progressSaveTimer?.cancel();
     // Save progress every 5 seconds
     _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_controller != null && _isInitialized && _totalDuration.inSeconds > 0) {
+      if (_controller != null &&
+          _isInitialized &&
+          _totalDuration.inSeconds > 0) {
         _saveProgress();
       }
     });
@@ -222,7 +241,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _saveProgress() async {
     if (_controller == null || !_isInitialized) return;
-    
+
     await _progressService.saveVideoProgress(
       videoId: widget.video.id,
       videoTitle: widget.video.title,
@@ -236,12 +255,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   void _togglePlayPause() {
     if (_controller == null || !_isInitialized) return;
-    
+
     setState(() {
       _showControls = true;
     });
     _startHideControlsTimer();
-    
+
     if (_controller!.value.isPlaying) {
       _controller!.pause();
     } else {
@@ -252,7 +271,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void _seekForward() {
     if (_controller == null || !_isInitialized) return;
     final newPosition = _currentPosition + const Duration(seconds: 10);
-    _controller!.seekTo(newPosition > _totalDuration ? _totalDuration : newPosition);
+    _controller!.seekTo(
+      newPosition > _totalDuration ? _totalDuration : newPosition,
+    );
     setState(() {
       _showControls = true;
     });
@@ -285,7 +306,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       _showControls = true;
     });
     _startHideControlsTimer();
-    
+
     if (_isFullscreen) {
       // Landscape mode ve tam ekran
       await SystemChrome.setPreferredOrientations([
@@ -327,7 +348,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
@@ -338,18 +359,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void dispose() {
     _hideControlsTimer?.cancel();
     _progressSaveTimer?.cancel();
-    
+
     // Save final progress before disposing
     if (_controller != null && _isInitialized) {
       _saveProgress();
     }
-    
+
     _controller?.removeListener(_videoListener);
     _controller?.dispose();
-    
+
     // Reset orientation and system UI (async işlem, dispose'dan sonra çalışır)
     _resetOrientation();
-    
+
     super.dispose();
   }
 
@@ -385,7 +406,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isSmallScreen = screenHeight < 700;
-    
+
     // Ekran boyutunu güncelle (orientation değiştiğinde de doğru çalışması için)
     final currentIsTablet = screenWidth > 600 || screenHeight > 600;
     if (currentIsTablet != _isTablet) {
@@ -416,19 +437,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       ),
                     )
                   : const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
+                      child: CircularProgressIndicator(color: Colors.white),
                     ),
             ),
-            
+
             // Controls Overlay
             if (_showControls && _isInitialized)
               _buildControlsOverlay(isSmallScreen),
-            
+
             // Top Bar
-            if (_showControls)
-              _buildTopBar(isSmallScreen),
+            if (_showControls) _buildTopBar(isSmallScreen),
           ],
         ),
       ),
@@ -449,10 +467,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.7),
-              Colors.transparent,
-            ],
+            colors: [Colors.black.withValues(alpha: 0.7), Colors.transparent],
           ),
         ),
         child: Row(
@@ -460,26 +475,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             Material(
               color: Colors.transparent,
               child: InkWell(
-                      onTap: () async {
-                        // Save progress before leaving
-                        if (_controller != null && _isInitialized) {
-                          await _saveProgress();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('İlerlemeniz kaydediliyor...'),
-                                duration: Duration(seconds: 2),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            // Wait for message to be visible
-                            await Future.delayed(const Duration(milliseconds: 2000));
-                          }
-                        }
-                        if (mounted) {
-                          Navigator.of(context).pop(true); // Return true to indicate refresh needed
-                        }
-                      },
+                onTap: () async {
+                  // Save progress before leaving
+                  if (_controller != null && _isInitialized) {
+                    await _saveProgress();
+                    if (mounted) {
+                      PremiumSnackBar.show(
+                        context,
+                        message: 'İlerlemeniz kaydediliyor...',
+                        type: SnackBarType.success,
+                      );
+                      // Wait for message to be visible
+                      await Future.delayed(const Duration(milliseconds: 2000));
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.of(
+                      context,
+                    ).pop(true); // Return true to indicate refresh needed
+                  }
+                },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
@@ -562,10 +577,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           gradient: LinearGradient(
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.8),
-              Colors.transparent,
-            ],
+            colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
           ),
         ),
         child: Column(
@@ -574,7 +586,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             // Progress Bar
             _buildProgressBar(),
             SizedBox(height: isSmallScreen ? 8 : 12),
-            
+
             // Control Buttons Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -589,19 +601,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       onTap: _seekBackward,
                       isSmallScreen: isSmallScreen,
                     ),
-                    
+
                     SizedBox(width: isSmallScreen ? 4 : 6),
-                    
+
                     // Play/Pause
                     _buildControlButton(
-                      icon: _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                      icon: _isPlaying
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
                       onTap: _togglePlayPause,
                       isSmallScreen: isSmallScreen,
                       isPrimary: true,
                     ),
-                    
+
                     SizedBox(width: isSmallScreen ? 4 : 6),
-                    
+
                     // Forward 10s
                     _buildControlButton(
                       icon: Icons.forward_10,
@@ -610,16 +624,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                     ),
                   ],
                 ),
-                
+
                 // Right side controls
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Speed Control
                     _buildSpeedButton(isSmallScreen),
-                    
+
                     SizedBox(width: isSmallScreen ? 4 : 6),
-                    
+
                     // Time Display
                     Container(
                       padding: EdgeInsets.symmetric(
@@ -641,7 +655,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    
                   ],
                 ),
               ],
@@ -662,9 +675,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         return GestureDetector(
           onTapDown: (details) {
             if (_controller == null || !_isInitialized) return;
-            final tappedPosition = details.localPosition.dx / constraints.maxWidth;
+            final tappedPosition =
+                details.localPosition.dx / constraints.maxWidth;
             final newPosition = Duration(
-              milliseconds: (tappedPosition * _totalDuration.inMilliseconds).round(),
+              milliseconds: (tappedPosition * _totalDuration.inMilliseconds)
+                  .round(),
             );
             _controller!.seekTo(newPosition);
             setState(() {
@@ -731,7 +746,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           child: Icon(
             icon,
             color: Colors.white,
-            size: isPrimary ? (isSmallScreen ? 32 : 40) : (isSmallScreen ? 20 : 24),
+            size: isPrimary
+                ? (isSmallScreen ? 32 : 40)
+                : (isSmallScreen ? 20 : 24),
           ),
         ),
       ),
@@ -759,9 +776,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         ),
       ),
       color: Colors.black.withValues(alpha: 0.9),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: _changePlaybackSpeed,
       itemBuilder: (context) => [
         _buildSpeedMenuItem(0.5),
@@ -783,19 +798,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           Text(
             '${speed}x',
             style: TextStyle(
-              color: _playbackSpeed == speed ? const Color(0xFFE74C3C) : Colors.white,
-              fontWeight: _playbackSpeed == speed ? FontWeight.bold : FontWeight.normal,
+              color: _playbackSpeed == speed
+                  ? const Color(0xFFE74C3C)
+                  : Colors.white,
+              fontWeight: _playbackSpeed == speed
+                  ? FontWeight.bold
+                  : FontWeight.normal,
             ),
           ),
           if (_playbackSpeed == speed)
-            Icon(
-              Icons.check,
-              color: const Color(0xFFE74C3C),
-              size: 18,
-            ),
+            Icon(Icons.check, color: const Color(0xFFE74C3C), size: 18),
         ],
       ),
     );
   }
 }
-

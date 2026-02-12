@@ -16,13 +16,21 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final barColor = isDark ? const Color(0xFF2D2D2D) : AppColors.backgroundWhite;
-    final backgroundColor = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryLightBlue.withValues(alpha: 0.08);
+    final barColor = isDark
+        ? const Color(0xFF2D2D2D)
+        : AppColors.backgroundWhite;
+    final backgroundColor = isDark
+        ? const Color(0xFF1A1A1A)
+        : AppColors.primaryLightBlue.withValues(alpha: 0.08);
     final inactiveColor = isDark ? Colors.white54 : AppColors.navInactive;
     final labelColor = isDark ? Colors.white70 : AppColors.textPrimary;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallPhone = screenWidth < 380;
+    final isMediumPhone = screenWidth < 420;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.only(bottom: isSmallPhone ? 10 : 20),
       child: CurvedNavigationBar(
         index: currentIndex,
         color: barColor,
@@ -30,88 +38,88 @@ class CustomBottomNavBar extends StatelessWidget {
         buttonBackgroundColor: barColor,
         animationCurve: Curves.easeInOutCubic,
         animationDuration: const Duration(milliseconds: 300),
-        height: 62,
+        height: isSmallPhone ? 58 : 64,
         onTap: onTap,
-      items: [
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.home_rounded,
-            size: 26,
-            color: currentIndex == 0 ? AppColors.navActive : inactiveColor,
+        items: [
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.home_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 0 ? AppColors.navActive : inactiveColor,
+            ),
+            label: 'Ana Sayfa',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 0 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 0 ? AppColors.navActive : labelColor,
+            ),
           ),
-          label: 'Ana Sayfa',
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: currentIndex == 0 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 0 ? AppColors.navActive : labelColor,
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.menu_book_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 1 ? AppColors.navActive : inactiveColor,
+            ),
+            label: 'Dersler',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 1 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 1 ? AppColors.navActive : labelColor,
+            ),
           ),
-        ),
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.menu_book_rounded,
-            size: 26,
-            color: currentIndex == 1 ? AppColors.navActive : inactiveColor,
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.bookmark_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 2 ? AppColors.navActive : inactiveColor,
+            ),
+            label: isMediumPhone ? 'Kaydedilen' : 'Kaydedilenler',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 2 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 2 ? AppColors.navActive : labelColor,
+            ),
           ),
-          label: 'Dersler',
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: currentIndex == 1 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 1 ? AppColors.navActive : labelColor,
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.school_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 3 ? AppColors.navActive : inactiveColor,
+            ),
+            label: 'Çalışma',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 3 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 3 ? AppColors.navActive : labelColor,
+            ),
           ),
-        ),
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.bookmark_rounded,
-            size: 26,
-            color: currentIndex == 2 ? AppColors.navActive : inactiveColor,
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 4 ? AppColors.navActive : inactiveColor,
+            ),
+            label: 'AI',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 4 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 4 ? AppColors.navActive : labelColor,
+            ),
           ),
-          label: 'Kaydedilenler',
-          labelStyle: TextStyle(
-            fontSize: 10,
-            fontWeight: currentIndex == 2 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 2 ? AppColors.navActive : labelColor,
+          CurvedNavigationBarItem(
+            child: Icon(
+              Icons.person_rounded,
+              size: isSmallPhone ? 22 : 24,
+              color: currentIndex == 5 ? AppColors.navActive : inactiveColor,
+            ),
+            label: 'Profil',
+            labelStyle: TextStyle(
+              fontSize: isSmallPhone ? 9 : 10,
+              fontWeight: currentIndex == 5 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 5 ? AppColors.navActive : labelColor,
+            ),
           ),
-        ),
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.school_rounded,
-            size: 26,
-            color: currentIndex == 3 ? AppColors.navActive : inactiveColor,
-          ),
-          label: 'Çalışma',
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: currentIndex == 3 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 3 ? AppColors.navActive : labelColor,
-          ),
-        ),
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            size: 26,
-            color: currentIndex == 4 ? AppColors.navActive : inactiveColor,
-          ),
-          label: 'AI',
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: currentIndex == 4 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 4 ? AppColors.navActive : labelColor,
-          ),
-        ),
-        CurvedNavigationBarItem(
-          child: Icon(
-            Icons.person_rounded,
-            size: 26,
-            color: currentIndex == 5 ? AppColors.navActive : inactiveColor,
-          ),
-          label: 'Profil',
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: currentIndex == 5 ? FontWeight.w600 : FontWeight.w500,
-            color: currentIndex == 5 ? AppColors.navActive : labelColor,
-          ),
-        ),
-      ],
+        ],
       ),
     );
   }

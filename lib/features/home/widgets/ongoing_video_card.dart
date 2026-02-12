@@ -136,11 +136,11 @@ class OngoingVideoCard extends StatelessWidget {
                         child: Text(
                           video.topic,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontSize: isSmallScreen ? 8 : 9,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             letterSpacing: -0.2,
-                            height: 1.1,
+                            height: 1.05,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -258,11 +258,6 @@ class OngoingVideoCard extends StatelessWidget {
   }
 
   IconData _getIcon() {
-    final title = video.topic.toLowerCase();
-    if (title.contains('matematik')) return Icons.play_lesson_rounded;
-    if (title.contains('türkçe')) return Icons.video_library_rounded;
-    if (title.contains('tarih')) return Icons.history_edu_rounded;
-    if (title.contains('coğrafya')) return Icons.explore_rounded;
-    return Icons.play_circle_fill_rounded;
+    return Icons.assignment_rounded;
   }
 }

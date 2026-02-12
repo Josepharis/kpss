@@ -6,10 +6,11 @@ class WeaknessQuestion {
   final List<String> options;
   final int correctAnswerIndex;
   final String explanation;
-  final String lessonId; // Ders ID
-  final String topicName; // Konu adı
+  final String lessonId;
+  final String topicName;
   final DateTime addedAt;
-  final bool isFromWrongAnswer; // Yanlış cevaplanan soru mu yoksa manuel eklenen mi
+  final bool isFromWrongAnswer;
+  final String? imageUrl;
 
   WeaknessQuestion({
     required this.id,
@@ -21,9 +22,9 @@ class WeaknessQuestion {
     required this.topicName,
     required this.addedAt,
     this.isFromWrongAnswer = false,
+    this.imageUrl,
   });
 
-  // JSON'a dönüştürme
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -35,10 +36,10 @@ class WeaknessQuestion {
       'topicName': topicName,
       'addedAt': addedAt.toIso8601String(),
       'isFromWrongAnswer': isFromWrongAnswer,
+      if (imageUrl != null) 'imageUrl': imageUrl,
     };
   }
 
-  // JSON'dan oluşturma
   factory WeaknessQuestion.fromJson(Map<String, dynamic> json) {
     return WeaknessQuestion(
       id: json['id'] as String,
@@ -46,14 +47,14 @@ class WeaknessQuestion {
       options: List<String>.from(json['options'] as List),
       correctAnswerIndex: json['correctAnswerIndex'] as int,
       explanation: json['explanation'] as String,
-      lessonId: json['lessonId'] as String? ?? '', // Eski veriler için backward compatibility
+      lessonId: json['lessonId'] as String? ?? '',
       topicName: json['topicName'] as String,
       addedAt: DateTime.parse(json['addedAt'] as String),
       isFromWrongAnswer: json['isFromWrongAnswer'] as bool? ?? false,
+      imageUrl: json['imageUrl'] as String?,
     );
   }
 
-  // TestQuestion'dan WeaknessQuestion'a dönüştürme
   factory WeaknessQuestion.fromTestQuestion({
     required TestQuestion testQuestion,
     required String lessonId,
@@ -70,7 +71,7 @@ class WeaknessQuestion {
       topicName: topicName,
       addedAt: DateTime.now(),
       isFromWrongAnswer: isFromWrongAnswer,
+      imageUrl: testQuestion.imageUrl,
     );
   }
 }
-

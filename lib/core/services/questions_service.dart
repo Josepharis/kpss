@@ -13,49 +13,75 @@ class QuestionsService {
   final LessonsService _lessonsService = LessonsService();
 
   // Collection reference
-  CollectionReference get _questionsCollection => _firestore.collection('questions');
+  CollectionReference get _questionsCollection =>
+      _firestore.collection('questions');
 
   /// Get all questions for a topic
   /// First tries cache, then Storage, then Firestore
-  Future<List<TestQuestion>> getQuestionsByTopicId(String topicId, {String? lessonId}) async {
+  Future<List<TestQuestion>> getQuestionsByTopicId(
+    String topicId, {
+    String? lessonId,
+  }) async {
     try {
       // Önce cache'den kontrol et (hızlı açılış için)
       final cachedQuestions = await _loadQuestionsFromCache(topicId);
       if (cachedQuestions.isNotEmpty) {
-        debugPrint('✅ Loaded ${cachedQuestions.length} questions from cache');
-        // Arka planda güncelle (non-blocking)
-        if (lessonId != null) {
-          _updateQuestionsInBackground(topicId, lessonId);
+        // Coğrafya ise ve görseller eksikse cache'i geçersiz kılıp güncel veriyi çekmeye zorla
+        final isGeography =
+            topicId.toLowerCase().contains('cografya') ||
+            (lessonId?.toLowerCase().contains('cografya') ?? false);
+        final hasImagesInCache = cachedQuestions.any((q) => q.imageUrl != null);
+
+        if (isGeography && !hasImagesInCache) {
+          debugPrint(
+            '🔄 Coğrafya soruları için görseller eksik, cache atlanıyor...',
+          );
+        } else {
+          debugPrint('✅ Loaded ${cachedQuestions.length} questions from cache');
+          // Arka planda güncelle (non-blocking)
+          if (lessonId != null) {
+            _updateQuestionsInBackground(topicId, lessonId);
+          }
+          return cachedQuestions;
         }
-        return cachedQuestions;
       }
-      
+
       // Cache'de yoksa, Storage'dan veya Firestore'dan çek
       if (lessonId != null) {
-        final storageQuestions = await _loadQuestionsFromStorage(topicId, lessonId);
+        final storageQuestions = await _loadQuestionsFromStorage(
+          topicId,
+          lessonId,
+        );
         if (storageQuestions.isNotEmpty) {
-          debugPrint('✅ Loaded ${storageQuestions.length} questions from Storage');
+          debugPrint(
+            '✅ Loaded ${storageQuestions.length} questions from Storage',
+          );
           // Cache'e kaydet
           await _saveQuestionsToCache(topicId, storageQuestions);
           return storageQuestions;
         }
       }
-      
+
       // Fallback to Firestore
       final snapshot = await _questionsCollection
           .where('topicId', isEqualTo: topicId)
           .get();
       final questions = snapshot.docs
-          .map((doc) => TestQuestion.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .map(
+            (doc) => TestQuestion.fromMap(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            ),
+          )
           .toList();
       // Sort by order on client side
       questions.sort((a, b) => a.order.compareTo(b.order));
-      
+
       // Cache'e kaydet
       if (questions.isNotEmpty) {
         await _saveQuestionsToCache(topicId, questions);
       }
-      
+
       return questions;
     } catch (e) {
       debugPrint('Error fetching questions: $e');
@@ -69,11 +95,16 @@ class QuestionsService {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'questions_$topicId';
       final cachedJson = prefs.getString(cacheKey);
-      
+
       if (cachedJson != null && cachedJson.isNotEmpty) {
         final List<dynamic> cachedList = jsonDecode(cachedJson);
         final questions = cachedList
-            .map((json) => TestQuestion.fromMap(json as Map<String, dynamic>, json['id'] ?? ''))
+            .map(
+              (json) => TestQuestion.fromMap(
+                json as Map<String, dynamic>,
+                json['id'] ?? '',
+              ),
+            )
             .toList();
         debugPrint('✅ Loaded ${questions.length} questions from cache');
         return questions;
@@ -85,18 +116,21 @@ class QuestionsService {
   }
 
   /// Save questions to local cache
-  Future<void> _saveQuestionsToCache(String topicId, List<TestQuestion> questions) async {
+  Future<void> _saveQuestionsToCache(
+    String topicId,
+    List<TestQuestion> questions,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'questions_$topicId';
       final jsonList = questions.map((q) => q.toMap()..['id'] = q.id).toList();
       final jsonString = jsonEncode(jsonList);
       await prefs.setString(cacheKey, jsonString);
-      
+
       // Soru sayısını da ayrı bir key ile kaydet (hızlı erişim için)
       final countKey = 'questions_count_$topicId';
       await prefs.setInt(countKey, questions.length);
-      
+
       debugPrint('✅ Saved ${questions.length} questions to cache');
     } catch (e) {
       debugPrint('⚠️ Error saving questions to cache: $e');
@@ -112,13 +146,15 @@ class QuestionsService {
       final cachedQuestions = await _loadQuestionsFromCache(topicId);
       if (cachedQuestions.isNotEmpty) {
         // Cache'de sorular var, Storage'dan çekme (gereksiz istek önleme)
-        debugPrint('✅ Questions already in cache, skipping background Storage request');
+        debugPrint(
+          '✅ Questions already in cache, skipping background Storage request',
+        );
         return;
       }
     } catch (e) {
       // Cache kontrolü başarısız, devam et
     }
-    
+
     // Cache yoksa arka planda güncelle, sayfa açılışını engelleme
     // NOT: Uygulama arka plandayken bu işlem çalışmaz (Storage kullanımını önlemek için)
     Future.microtask(() async {
@@ -127,13 +163,20 @@ class QuestionsService {
         // Bu kontrol için WidgetsBinding.instance.lifecycleState kullanılabilir
         // Ama bu servis katmanında olduğu için, sadece cache kontrolü yeterli
         // Uygulama arka plandayken zaten bu metod çağrılmaz (sayfa açık değilse)
-        
-        debugPrint('🌐 Loading questions from Storage in background (cache miss)');
+
+        debugPrint(
+          '🌐 Loading questions from Storage in background (cache miss)',
+        );
         debugPrint('⚠️ WARNING: This will make Storage requests!');
-        final storageQuestions = await _loadQuestionsFromStorage(topicId, lessonId);
+        final storageQuestions = await _loadQuestionsFromStorage(
+          topicId,
+          lessonId,
+        );
         if (storageQuestions.isNotEmpty) {
           await _saveQuestionsToCache(topicId, storageQuestions);
-          debugPrint('✅ Background update: ${storageQuestions.length} questions cached');
+          debugPrint(
+            '✅ Background update: ${storageQuestions.length} questions cached',
+          );
         }
       } catch (e) {
         debugPrint('⚠️ Error in background question update: $e');
@@ -142,7 +185,10 @@ class QuestionsService {
   }
 
   /// Load questions from Storage (soru folder)
-  Future<List<TestQuestion>> _loadQuestionsFromStorage(String topicId, String lessonId) async {
+  Future<List<TestQuestion>> _loadQuestionsFromStorage(
+    String topicId,
+    String lessonId,
+  ) async {
     try {
       // Get lesson to construct path
       final lesson = await _lessonsService.getLessonById(lessonId);
@@ -150,7 +196,7 @@ class QuestionsService {
         debugPrint('⚠️ Lesson not found: $lessonId');
         return [];
       }
-      
+
       // Convert lesson name to path format
       final lessonNameForPath = lesson.name
           .toLowerCase()
@@ -161,27 +207,58 @@ class QuestionsService {
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
+
       // Get topic base path
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: lessonId,
         topicId: topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
+
       // Check for soru folder
       final soruPath = '$basePath/soru';
-      
+
       // List JSON files in soru folder
       final jsonUrls = await _storageService.listJsonFiles(soruPath);
-      
+
       if (jsonUrls.isEmpty) {
         return [];
       }
-      
+
+      // Coğrafya dersi için görselleri kontrol et
+      Map<String, String> imageUrls = {};
+      final isGeography = lesson.name
+          .toLowerCase()
+          .replaceAll('ğ', 'g')
+          .contains('cografya');
+
+      if (isGeography) {
+        final gorselPath = '$soruPath/gorsel';
+        debugPrint('🔍 Görsel klasörü kontrol ediliyor: $gorselPath');
+        try {
+          final imageFiles = await _storageService.listFilesWithPaths(
+            gorselPath,
+          );
+          debugPrint('📸 Klasörde ${imageFiles.length} adet görsel bulundu.');
+          for (final file in imageFiles) {
+            // "1.jpg" veya "1.PNG" -> "1" (küçük harf duyarlı eşleşme için)
+            final rawName = file['name'];
+            if (rawName == null) continue;
+
+            final fileName = rawName.toLowerCase().split('.').first;
+            if (file['url'] != null) {
+              imageUrls[fileName] = file['url']!;
+              debugPrint('🔗 Görsel bulundu: $fileName');
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ Görseller yüklenirken hata oluştu: $e');
+        }
+      }
+
       // Parse all JSON files and combine questions
       final List<TestQuestion> allQuestions = [];
-      
+
       for (final jsonUrl in jsonUrls) {
         try {
           // Extract storage path from URL or use URL directly
@@ -198,20 +275,36 @@ class QuestionsService {
               storagePath = _storageService.getPathFromUrl(jsonUrl);
             }
           } catch (e) {
-            debugPrint('⚠️ Could not extract path from URL, trying direct download: $e');
+            debugPrint(
+              '⚠️ Could not extract path from URL, trying direct download: $e',
+            );
             // Try to download directly from URL
-            final jsonData = await _storageService.downloadAndParseJsonFromUrl(jsonUrl);
+            final jsonData = await _storageService.downloadAndParseJsonFromUrl(
+              jsonUrl,
+            );
             if (jsonData != null) {
-              final questions = _parseJsonQuestions(jsonData, topicId, lessonId);
+              final questions = _parseJsonQuestions(
+                jsonData,
+                topicId,
+                lessonId,
+                imageUrls: imageUrls,
+              );
               allQuestions.addAll(questions);
               continue;
             }
           }
-          
+
           if (storagePath != null) {
-            final jsonData = await _storageService.downloadAndParseJson(storagePath);
+            final jsonData = await _storageService.downloadAndParseJson(
+              storagePath,
+            );
             if (jsonData != null) {
-              final questions = _parseJsonQuestions(jsonData, topicId, lessonId);
+              final questions = _parseJsonQuestions(
+                jsonData,
+                topicId,
+                lessonId,
+                imageUrls: imageUrls,
+              );
               allQuestions.addAll(questions);
             }
           }
@@ -219,7 +312,7 @@ class QuestionsService {
           // Error parsing JSON file
         }
       }
-      
+
       // Sort by order (id)
       allQuestions.sort((a, b) {
         // Extract numeric id from question id
@@ -227,7 +320,7 @@ class QuestionsService {
         final bId = int.tryParse(b.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
         return aId.compareTo(bId);
       });
-      
+
       return allQuestions;
     } catch (e) {
       return [];
@@ -238,49 +331,50 @@ class QuestionsService {
   List<TestQuestion> _parseJsonQuestions(
     Map<String, dynamic> jsonData,
     String topicId,
-    String lessonId,
-  ) {
+    String lessonId, {
+    Map<String, String>? imageUrls,
+  }) {
     try {
       final List<TestQuestion> questions = [];
-      
+
       // Get questions array
       final questionsList = jsonData['questions'] as List<dynamic>?;
       if (questionsList == null) {
         return [];
       }
-      
+
       for (final questionData in questionsList) {
         try {
           final questionMap = questionData as Map<String, dynamic>;
-          
+
           // Extract question fields
           final id = questionMap['id']?.toString() ?? '';
           final questionText = questionMap['question']?.toString() ?? '';
           final correctAnswer = questionMap['correctAnswer']?.toString() ?? 'A';
           final explanation = questionMap['explanation']?.toString() ?? '';
           final difficulty = questionMap['difficulty']?.toString() ?? 'easy';
-          
+
           // Extract options (ve varsa altı çizili kelime: underlinedWord)
           final optionsList = questionMap['options'] as List<dynamic>? ?? [];
           final List<String> options = [];
           final List<String> underlinedWords = [];
           int correctAnswerIndex = 0;
-          
+
           for (int i = 0; i < optionsList.length; i++) {
             final optionMap = optionsList[i] as Map<String, dynamic>;
             final optionText = optionMap['text']?.toString() ?? '';
             final optionKey = optionMap['key']?.toString() ?? '';
             final underlined = optionMap['underlinedWord']?.toString().trim();
-            
+
             options.add(optionText);
             underlinedWords.add(underlined ?? '');
-            
+
             // Find correct answer index
             if (optionKey.toUpperCase() == correctAnswer.toUpperCase()) {
               correctAnswerIndex = i;
             }
           }
-          
+
           // Calculate time limit based on difficulty
           int timeLimitSeconds = 60; // default
           switch (difficulty.toLowerCase()) {
@@ -294,10 +388,12 @@ class QuestionsService {
               timeLimitSeconds = 90;
               break;
           }
-          
+
           // underlinedWords en az bir seçenekte doluysa kullan
           final hasAnyUnderlined = underlinedWords.any((w) => w.isNotEmpty);
-          final List<String>? questionUnderlined = hasAnyUnderlined ? underlinedWords : null;
+          final List<String>? questionUnderlined = hasAnyUnderlined
+              ? underlinedWords
+              : null;
 
           // Create TestQuestion
           final question = TestQuestion(
@@ -310,16 +406,19 @@ class QuestionsService {
             timeLimitSeconds: timeLimitSeconds,
             topicId: topicId,
             lessonId: lessonId,
+            imageUrl:
+                imageUrls?[id
+                    .toLowerCase()], // ID ile görsel URL'sini eşle (normalleştirilmiş)
             source: 'Storage JSON',
             order: int.tryParse(id) ?? 0,
           );
-          
+
           questions.add(question);
         } catch (e) {
           debugPrint('⚠️ Error parsing question: $e');
         }
       }
-      
+
       return questions;
     } catch (e) {
       return [];
@@ -334,7 +433,12 @@ class QuestionsService {
           .orderBy('order', descending: false)
           .get();
       return snapshot.docs
-          .map((doc) => TestQuestion.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .map(
+            (doc) => TestQuestion.fromMap(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            ),
+          )
           .toList();
     } catch (e) {
       debugPrint('Error fetching questions: $e');
@@ -349,7 +453,12 @@ class QuestionsService {
         .snapshots()
         .map((snapshot) {
           final questions = snapshot.docs
-              .map((doc) => TestQuestion.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+              .map(
+                (doc) => TestQuestion.fromMap(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ),
+              )
               .toList();
           // Sort by order on client side
           questions.sort((a, b) => a.order.compareTo(b.order));
@@ -374,32 +483,40 @@ class QuestionsService {
     try {
       const batchSize = 20; // Firestore batch limit is 500, using 20 for safety
       int successCount = 0;
-      
+
       for (int i = 0; i < questions.length; i += batchSize) {
         final batch = _firestore.batch();
-        final end = (i + batchSize < questions.length) ? i + batchSize : questions.length;
+        final end = (i + batchSize < questions.length)
+            ? i + batchSize
+            : questions.length;
         final batchQuestions = questions.sublist(i, end);
-        
+
         for (final question in batchQuestions) {
           final docRef = _questionsCollection.doc(question.id);
           batch.set(docRef, question.toMap());
         }
-        
+
         try {
           await batch.commit();
           successCount += batchQuestions.length;
-          debugPrint('✅ Uploaded ${successCount}/${questions.length} questions...');
+          debugPrint(
+            '✅ Uploaded ${successCount}/${questions.length} questions...',
+          );
         } catch (e) {
           debugPrint('❌ Error in batch ${i ~/ batchSize + 1}: $e');
           // Continue with next batch even if one fails
         }
       }
-      
+
       if (successCount == questions.length) {
-        debugPrint('✅ All ${questions.length} questions uploaded successfully!');
+        debugPrint(
+          '✅ All ${questions.length} questions uploaded successfully!',
+        );
         return true;
       } else {
-        debugPrint('⚠️ Uploaded $successCount/${questions.length} questions (some may have failed)');
+        debugPrint(
+          '⚠️ Uploaded $successCount/${questions.length} questions (some may have failed)',
+        );
         return successCount > 0; // Return true if at least some were uploaded
       }
     } catch (e) {
@@ -420,4 +537,3 @@ class QuestionsService {
     }
   }
 }
-

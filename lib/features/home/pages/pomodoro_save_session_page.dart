@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/pomodoro_session.dart';
 import '../../../core/services/pomodoro_storage_service.dart';
 
@@ -19,7 +20,8 @@ class PomodoroSaveSessionPage extends StatefulWidget {
   });
 
   @override
-  State<PomodoroSaveSessionPage> createState() => _PomodoroSaveSessionPageState();
+  State<PomodoroSaveSessionPage> createState() =>
+      _PomodoroSaveSessionPageState();
 }
 
 class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
@@ -30,7 +32,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
   final _correctController = TextEditingController();
   final _wrongController = TextEditingController();
   final _totalController = TextEditingController();
-  
+
   final PomodoroStorageService _storageService = PomodoroStorageService();
   bool _isSaving = false;
   late AnimationController _animationController;
@@ -43,14 +45,11 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    
+
     _animationController.forward();
   }
 
@@ -77,57 +76,41 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         sessionCount: widget.sessionCount,
         sessionDuration: widget.sessionDuration,
         totalMinutes: widget.totalMinutes,
-        topic: _topicController.text.trim().isEmpty ? null : _topicController.text.trim(),
-        correctAnswers: _correctController.text.trim().isEmpty 
-            ? null 
+        topic: _topicController.text.trim().isEmpty
+            ? null
+            : _topicController.text.trim(),
+        correctAnswers: _correctController.text.trim().isEmpty
+            ? null
             : int.tryParse(_correctController.text.trim()),
-        wrongAnswers: _wrongController.text.trim().isEmpty 
-            ? null 
+        wrongAnswers: _wrongController.text.trim().isEmpty
+            ? null
             : int.tryParse(_wrongController.text.trim()),
-        totalQuestions: _totalController.text.trim().isEmpty 
-            ? null 
+        totalQuestions: _totalController.text.trim().isEmpty
+            ? null
             : int.tryParse(_totalController.text.trim()),
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
       );
 
       await _storageService.saveSession(session);
-      
+
       if (mounted) {
         widget.onSaved();
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 12),
-                Text('Kayıt başarıyla kaydedildi'),
-              ],
-            ),
-            backgroundColor: AppColors.gradientGreenStart,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Kayıt başarıyla kaydedildi',
+          type: SnackBarType.success,
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Hata: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Hata: $e',
+          type: SnackBarType.error,
         );
       }
     }
@@ -138,9 +121,11 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
     final isCompact = size.height < 700;
-    
+
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : const Color(0xFFF5F7FA),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -150,10 +135,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         ),
         title: const Text(
           'Çalışma Kaydı',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         centerTitle: true,
       ),
@@ -169,9 +151,9 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
             children: [
               // Kompakt Özet Kartı
               _buildCompactSummary(isDark, isCompact),
-              
+
               SizedBox(height: isCompact ? 16 : 20),
-              
+
               // Konu Input - Kompakt
               _buildCompactInput(
                 controller: _topicController,
@@ -181,14 +163,14 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
                 isDark: isDark,
                 isCompact: isCompact,
               ),
-              
+
               SizedBox(height: isCompact ? 16 : 20),
-              
+
               // Test Bilgileri - Kompakt
               _buildTestSection(isDark, isCompact),
-              
+
               SizedBox(height: isCompact ? 16 : 20),
-              
+
               // Notlar - Kompakt
               _buildCompactInput(
                 controller: _notesController,
@@ -199,12 +181,12 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
                 isCompact: isCompact,
                 maxLines: 3,
               ),
-              
+
               SizedBox(height: isCompact ? 20 : 24),
-              
+
               // Kaydet Butonu - Kompakt
               _buildCompactSaveButton(isDark, isCompact),
-              
+
               SizedBox(height: isCompact ? 12 : 16),
             ],
           ),
@@ -218,10 +200,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
       padding: EdgeInsets.all(isCompact ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.gradientBlueStart,
-            AppColors.gradientBlueEnd,
-          ],
+          colors: [AppColors.gradientBlueStart, AppColors.gradientBlueEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -299,7 +278,11 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
   }) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white.withOpacity(0.9), size: isCompact ? 16 : 18),
+        Icon(
+          icon,
+          color: Colors.white.withOpacity(0.9),
+          size: isCompact ? 16 : 18,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -336,7 +319,9 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.withOpacity(0.2),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.grey.withOpacity(0.2),
           width: 1,
         ),
         boxShadow: [
@@ -465,7 +450,9 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.withOpacity(0.2),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.grey.withOpacity(0.2),
           width: 1,
         ),
         boxShadow: [
@@ -517,10 +504,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
           padding: EdgeInsets.symmetric(vertical: isCompact ? 14 : 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                AppColors.gradientBlueStart,
-                AppColors.gradientBlueEnd,
-              ],
+              colors: [AppColors.gradientBlueStart, AppColors.gradientBlueEnd],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

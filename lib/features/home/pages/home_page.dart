@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_test.dart';
 import '../../../core/models/ongoing_podcast.dart';
@@ -18,8 +19,8 @@ import '../widgets/ongoing_flash_cards_section.dart';
 import '../widgets/info_cards_section.dart';
 import '../widgets/daily_quote_card.dart';
 import '../widgets/exam_countdown_card.dart';
+import '../../../core/services/auth_service.dart';
 import '../widgets/quick_access_section.dart';
-import '../../../../main.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -31,168 +32,128 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final ProgressService _progressService = ProgressService();
   final LessonsService _lessonsService = LessonsService();
-  List<OngoingTest> _ongoingTests = [];
-  List<OngoingPodcast> _ongoingPodcasts = [];
-  List<OngoingVideo> _ongoingVideos = [];
-  List<OngoingFlashCard> _ongoingFlashCards = [];
-  List<InfoCard> _infoCards = [];
-  int _userTotalScore = 0;
+  final AuthService _authService = AuthService();
+
+  // Memory cache for instant display
+  static List<OngoingTest> _cachedTests = [];
+  static List<OngoingPodcast> _cachedPodcasts = [];
+  static List<OngoingVideo> _cachedVideos = [];
+  static List<OngoingFlashCard> _cachedFlashCards = [];
+  static List<InfoCard> _cachedInfoCards = [];
+  static int _cachedScore = 0;
+
+  List<OngoingTest> _ongoingTests = _cachedTests;
+  List<OngoingPodcast> _ongoingPodcasts = _cachedPodcasts;
+  List<OngoingVideo> _ongoingVideos = _cachedVideos;
+  List<OngoingFlashCard> _ongoingFlashCards = _cachedFlashCards;
+  List<InfoCard> _infoCards = _cachedInfoCards;
+  String _userName = 'Kullanıcı';
+  int _userTotalScore = _cachedScore;
 
   @override
   void initState() {
     super.initState();
-    // Önce cache'den hızlıca yükle (sayfa açılışını engellemez)
     _loadOngoingContentFromCache();
     _loadUserScore();
-    // Arka planda Firestore'dan güncelle (non-blocking)
+    _loadUserData();
     Future.microtask(() {
       _loadOngoingContent();
       _loadUserScore();
+      _loadUserData();
     });
   }
 
-  /// Load user total score from cache and Firestore
   Future<void> _loadUserScore() async {
     try {
-      // Önce cache'den yükle
       final prefs = await SharedPreferences.getInstance();
       final cachedScore = prefs.getInt('user_total_score');
       if (cachedScore != null) {
-        if (mounted) {
-          setState(() {
-            _userTotalScore = cachedScore;
-          });
-        }
+        if (mounted) setState(() => _userTotalScore = cachedScore);
       }
-
-      // Firestore'dan güncelle
       final score = await _progressService.getUserTotalScore();
       if (mounted) {
         setState(() {
           _userTotalScore = score;
+          _cachedScore = score;
         });
       }
-
-      // Cache'e kaydet
       await prefs.setInt('user_total_score', score);
-    } catch (e) {
-      // Silent error handling
-    }
+    } catch (e) {}
   }
 
-  /// Cache'den devam eden içerikleri hemen yükle (synchronous - çok hızlı)
+  Future<void> _loadUserData() async {
+    try {
+      final name = await _authService.getUserName();
+      if (mounted && name != null && name.isNotEmpty) {
+        setState(() => _userName = name);
+      }
+    } catch (e) {}
+  }
+
   Future<void> _loadOngoingContentFromCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // Testler
       final testsJson = prefs.getString('ongoing_tests_cache');
       if (testsJson != null && testsJson.isNotEmpty) {
         try {
-          final List<dynamic> testsList = jsonDecode(testsJson);
-          final tests = testsList
-              .map((json) => OngoingTest.fromMap(json as Map<String, dynamic>))
+          final List<dynamic> list = jsonDecode(testsJson);
+          final items = list
+              .map((j) => OngoingTest.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) {
-            setState(() {
-              _ongoingTests = tests;
-            });
-          }
-        } catch (e) {
-          // Silent error handling
-        }
+          if (mounted) setState(() => _ongoingTests = items);
+        } catch (e) {}
       }
-
-      // Podcastler
       final podcastsJson = prefs.getString('ongoing_podcasts_cache');
       if (podcastsJson != null && podcastsJson.isNotEmpty) {
         try {
-          final List<dynamic> podcastsList = jsonDecode(podcastsJson);
-          final podcasts = podcastsList
-              .map(
-                (json) => OngoingPodcast.fromMap(json as Map<String, dynamic>),
-              )
+          final List<dynamic> list = jsonDecode(podcastsJson);
+          final items = list
+              .map((j) => OngoingPodcast.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) {
-            setState(() {
-              _ongoingPodcasts = podcasts;
-            });
-          }
-        } catch (e) {
-          // Silent error handling
-        }
+          if (mounted) setState(() => _ongoingPodcasts = items);
+        } catch (e) {}
       }
-
-      // Videolar
       final videosJson = prefs.getString('ongoing_videos_cache');
       if (videosJson != null && videosJson.isNotEmpty) {
         try {
-          final List<dynamic> videosList = jsonDecode(videosJson);
-          final videos = videosList
-              .map((json) => OngoingVideo.fromMap(json as Map<String, dynamic>))
+          final List<dynamic> list = jsonDecode(videosJson);
+          final items = list
+              .map((j) => OngoingVideo.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) {
-            setState(() {
-              _ongoingVideos = videos;
-            });
-          }
-        } catch (e) {
-          // Silent error handling
-        }
+          if (mounted) setState(() => _ongoingVideos = items);
+        } catch (e) {}
       }
-
-      // Flash Cards (devam eden bilgi kartları)
       final flashCardsJson = prefs.getString('ongoing_flash_cards_cache');
       if (flashCardsJson != null && flashCardsJson.isNotEmpty) {
         try {
-          final List<dynamic> flashCardsList = jsonDecode(flashCardsJson);
-          final flashCards = flashCardsList
-              .map(
-                (json) =>
-                    OngoingFlashCard.fromMap(json as Map<String, dynamic>),
-              )
+          final List<dynamic> list = jsonDecode(flashCardsJson);
+          final items = list
+              .map((j) => OngoingFlashCard.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) {
-            setState(() {
-              _ongoingFlashCards = flashCards;
-            });
-          }
-        } catch (e) {
-          // Silent error handling
-        }
+          if (mounted) setState(() => _ongoingFlashCards = items);
+        } catch (e) {}
       }
-
-      // Info Cards (flash cards) - cache'den yükle
       final infoCardsJson = prefs.getString('info_cards_cache');
       if (infoCardsJson != null && infoCardsJson.isNotEmpty) {
         try {
-          final List<dynamic> infoCardsList = jsonDecode(infoCardsJson);
-          final infoCards = infoCardsList
-              .map((json) => InfoCard.fromMap(json as Map<String, dynamic>))
+          final List<dynamic> list = jsonDecode(infoCardsJson);
+          final items = list
+              .map((j) => InfoCard.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) {
-            setState(() {
-              _infoCards = infoCards;
-            });
-          }
-        } catch (e) {
-          // Silent error handling
-        }
+          if (mounted) setState(() => _infoCards = items);
+        } catch (e) {}
       }
-    } catch (e) {
-      // Silent error handling
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadOngoingContent() async {
     try {
-      // Paralel yükleme - tüm devam eden içerikleri aynı anda çek
       final results = await Future.wait([
         _progressService.getOngoingTests(),
         _progressService.getOngoingPodcasts(),
         _progressService.getOngoingVideos(),
         _progressService.getOngoingFlashCards(),
-        _lessonsService.getAllTopics(), // InfoCards için
+        _lessonsService.getAllTopics(),
       ]);
 
       final tests = results[0] as List<OngoingTest>;
@@ -201,14 +162,10 @@ class _HomePageState extends State<HomePage> {
       final flashCards = results[3] as List<OngoingFlashCard>;
       final allTopics = results[4] as List<Topic>;
 
-      // Load topics with flash cards (videoCount > 0 means flash cards exist)
       final topicsWithFlashCards = allTopics
           .where((topic) => topic.videoCount > 0)
           .toList();
-
-      // Convert topics to InfoCards
       final infoCards = topicsWithFlashCards.map((topic) {
-        // Generate color based on topic name hash
         final colors = [
           'green',
           'orange',
@@ -219,7 +176,6 @@ class _HomePageState extends State<HomePage> {
           'red',
         ];
         final colorIndex = topic.name.hashCode.abs() % colors.length;
-
         return InfoCard(
           id: topic.id,
           title: topic.name,
@@ -232,38 +188,27 @@ class _HomePageState extends State<HomePage> {
         );
       }).toList();
 
-      // Cache'e kaydet
-      try {
-        final prefs = await SharedPreferences.getInstance();
-
-        // Testler
-        final testsJson = jsonEncode(tests.map((t) => t.toMap()).toList());
-        await prefs.setString('ongoing_tests_cache', testsJson);
-
-        // Podcastler
-        final podcastsJson = jsonEncode(
-          podcasts.map((p) => p.toMap()).toList(),
-        );
-        await prefs.setString('ongoing_podcasts_cache', podcastsJson);
-
-        // Videolar
-        final videosJson = jsonEncode(videos.map((v) => v.toMap()).toList());
-        await prefs.setString('ongoing_videos_cache', videosJson);
-
-        // Flash Cards
-        final flashCardsJson = jsonEncode(
-          flashCards.map((f) => f.toMap()).toList(),
-        );
-        await prefs.setString('ongoing_flash_cards_cache', flashCardsJson);
-
-        // Info Cards
-        final infoCardsJson = jsonEncode(
-          infoCards.map((c) => c.toMap()).toList(),
-        );
-        await prefs.setString('info_cards_cache', infoCardsJson);
-      } catch (e) {
-        // Silent error handling
-      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'ongoing_tests_cache',
+        jsonEncode(tests.map((t) => t.toMap()).toList()),
+      );
+      await prefs.setString(
+        'ongoing_podcasts_cache',
+        jsonEncode(podcasts.map((p) => p.toMap()).toList()),
+      );
+      await prefs.setString(
+        'ongoing_videos_cache',
+        jsonEncode(videos.map((v) => v.toMap()).toList()),
+      );
+      await prefs.setString(
+        'ongoing_flash_cards_cache',
+        jsonEncode(flashCards.map((f) => f.toMap()).toList()),
+      );
+      await prefs.setString(
+        'info_cards_cache',
+        jsonEncode(infoCards.map((c) => c.toMap()).toList()),
+      );
 
       if (mounted) {
         setState(() {
@@ -272,419 +217,437 @@ class _HomePageState extends State<HomePage> {
           _ongoingVideos = videos;
           _ongoingFlashCards = flashCards;
           _infoCards = infoCards;
+          _cachedTests = tests;
+          _cachedPodcasts = podcasts;
+          _cachedVideos = videos;
+          _cachedFlashCards = flashCards;
+          _cachedInfoCards = infoCards;
         });
       }
-    } catch (e) {
-      // Silent error handling
-    }
+    } catch (e) {}
+  }
+
+  void refreshContent() {
+    _loadOngoingContentFromCache();
+    _loadOngoingContent();
+    _loadUserScore();
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) return 'Günaydın';
+    if (hour >= 12 && hour < 18) return 'İyi günler';
+    if (hour >= 18 && hour < 23) return 'İyi akşamlar';
+    return 'İyi geceler';
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-  }
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSmallScreen = MediaQuery.of(context).size.height < 700;
 
-  // Public method to refresh content from outside
-  void refreshContent() {
-    _loadOngoingContent();
-    _loadUserScore(); // Puanı da güncelle
-  }
-
-  Widget _buildEmptyState(bool isSmallScreen, bool isTablet) {
-    final isCompact = isTablet;
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: isTablet ? 20.0 : 16.0),
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 24.0 : (isSmallScreen ? 24.0 : 32.0),
-        vertical: isCompact ? 20.0 : (isSmallScreen ? 24.0 : 32.0),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.15),
-          width: 1,
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
+          children: [
+            // Layer 1: Immersive Mesh Background
+            _buildMeshBackground(isDark, screenWidth),
+
+            // Layer 2: Main Content
+            Column(
+              children: [
+                // Premium Integrated Header (AppBar-less feel)
+                _buildPremiumHeader(
+                  statusBarHeight,
+                  isDark,
+                  screenWidth,
+                  isSmallScreen,
+                ),
+
+                // Content Area
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final hasOngoingContent =
+                          _ongoingTests.isNotEmpty ||
+                          _ongoingPodcasts.isNotEmpty ||
+                          _ongoingVideos.isNotEmpty ||
+                          _ongoingFlashCards.isNotEmpty ||
+                          _infoCards.isNotEmpty;
+
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Header Cards Group (CONTENT PRESERVED)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                12.0,
+                                8.0,
+                                12.0,
+                                2.0,
+                              ),
+                              child: Column(
+                                children: [
+                                  DailyQuoteCard(
+                                    quote: '',
+                                    isSmallScreen: isSmallScreen,
+                                    isCompactLayout: true,
+                                  ),
+                                  const SizedBox(height: 4.0),
+                                  ExamCountdownCard(
+                                    examDate: DateTime(2026, 7, 1),
+                                    isSmallScreen: isSmallScreen,
+                                    isCompactLayout: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 2.0),
+
+                            // 2. Quick Access Section (CONTENT PRESERVED)
+                            QuickAccessSection(isSmallScreen: isSmallScreen),
+                            const SizedBox(height: 2.0),
+
+                            // 3. Ongoing Tests Section (CONTENT PRESERVED)
+                            if (_ongoingTests.isNotEmpty)
+                              OngoingTestsSection(
+                                tests: _ongoingTests,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: isSmallScreen ? 160 : 200,
+                              ),
+                            if (_ongoingTests.isNotEmpty)
+                              const SizedBox(height: 6.0),
+
+                            // 4. Ongoing Podcasts Section (CONTENT PRESERVED)
+                            if (_ongoingPodcasts.isNotEmpty)
+                              OngoingPodcastsSection(
+                                podcasts: _ongoingPodcasts,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: isSmallScreen ? 160 : 200,
+                              ),
+                            if (_ongoingPodcasts.isNotEmpty)
+                              const SizedBox(height: 6.0),
+
+                            // 5. Ongoing Videos Section (CONTENT PRESERVED)
+                            if (_ongoingVideos.isNotEmpty)
+                              OngoingVideosSection(
+                                videos: _ongoingVideos,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: isSmallScreen ? 160 : 200,
+                              ),
+                            if (_ongoingVideos.isNotEmpty)
+                              const SizedBox(height: 6.0),
+
+                            // 6. Ongoing Flash Cards Section (CONTENT PRESERVED)
+                            if (_ongoingFlashCards.isNotEmpty)
+                              OngoingFlashCardsSection(
+                                flashCards: _ongoingFlashCards,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: isSmallScreen ? 160 : 200,
+                              ),
+                            if (_ongoingFlashCards.isNotEmpty)
+                              const SizedBox(height: 6.0),
+
+                            // 7. Info Cards Section (CONTENT PRESERVED)
+                            if (_infoCards.isNotEmpty)
+                              InfoCardsSection(
+                                infoCards: _infoCards,
+                                isSmallScreen: isSmallScreen,
+                                availableHeight: isSmallScreen ? 160 : 200,
+                              ),
+
+                            // Empty State
+                            if (!hasOngoingContent) ...[
+                              const SizedBox(height: 32),
+                              _buildEmptyState(
+                                isSmallScreen,
+                                screenWidth > 600,
+                              ),
+                            ],
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      child: Column(
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF010101) : const Color(0xFFF8FAFF),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF0D0221),
+                    const Color(0xFF010101),
+                    const Color(0xFF050505),
+                  ]
+                : [const Color(0xFFF0F4FF), const Color(0xFFFFFFFF)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Ultra-Vivid Glow 1: Top Right
+            Positioned(
+              top: -screenWidth * 0.3,
+              right: -screenWidth * 0.3,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.5,
+                color: isDark
+                    ? const Color(0xFF6366F1).withOpacity(0.25)
+                    : const Color(0xFF818CF8).withOpacity(0.2),
+              ),
+            ),
+
+            // Ultra-Vivid Glow 2: Bottom Left
+            Positioned(
+              bottom: -screenWidth * 0.4,
+              left: -screenWidth * 0.4,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.6,
+                color: isDark
+                    ? const Color(0xFFA855F7).withOpacity(0.18)
+                    : const Color(0xFFC084FC).withOpacity(0.15),
+              ),
+            ),
+
+            // Vivid Accent 3: Top Left (Subtle)
+            Positioned(
+              top: 100,
+              left: -screenWidth * 0.2,
+              child: _buildBlurCircle(
+                size: screenWidth,
+                color: isDark
+                    ? const Color(0xFF22D3EE).withOpacity(0.08)
+                    : const Color(0xFF67E8F9).withOpacity(0.1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, color.withOpacity(0)],
+          stops: const [0.1, 1.0],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumHeader(
+    double statusBarHeight,
+    bool isDark,
+    double screenWidth,
+    bool isSmallScreen,
+  ) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: statusBarHeight + 10,
+        bottom: 14,
+        left: 20,
+        right: 20,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            (isDark ? Colors.black : const Color(0xFF1E1E2E)).withOpacity(
+              isDark ? 0.4 : 0.05,
+            ),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getGreeting(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.blueAccent.shade100
+                            : Colors.blueAccent.shade700,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      _userName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              _buildScorePill(isDark),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScorePill(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [Colors.white.withOpacity(0.12), Colors.white.withOpacity(0.03)]
+              : [
+                  Colors.black.withOpacity(0.05),
+                  Colors.black.withOpacity(0.01),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.15)
+              : Colors.black.withOpacity(0.08),
+          width: 1,
+        ),
+        boxShadow: [
+          if (isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+        ],
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Premium Glow Icon Container
           Container(
-            padding: EdgeInsets.all(
-              isCompact ? 16.0 : (isSmallScreen ? 20.0 : 24.0),
-            ),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.school_outlined,
-              size: isCompact ? 40.0 : (isSmallScreen ? 48.0 : 64.0),
-              color: AppColors.primaryBlue,
-            ),
-          ),
-          SizedBox(height: isCompact ? 12.0 : (isSmallScreen ? 16.0 : 24.0)),
-          Text(
-            'Hoş Geldiniz!',
-            style: TextStyle(
-              fontSize: isCompact ? 20.0 : (isSmallScreen ? 22.0 : 28.0),
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: isCompact ? 6.0 : (isSmallScreen ? 8.0 : 12.0)),
-          Text(
-            'Çalışmaya başlamak için dersler bölümünden bir konu seçebilirsiniz.',
-            style: TextStyle(
-              fontSize: isCompact ? 13.0 : (isSmallScreen ? 14.0 : 16.0),
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: isCompact ? 16.0 : (isSmallScreen ? 24.0 : 32.0)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildQuickActionButton(
-                icon: Icons.library_books_rounded,
-                label: 'Dersler',
-                color: AppColors.primaryBlue,
-                isSmallScreen: isSmallScreen || isCompact,
-                onTap: () {
-                  final mainScreen = MainScreen.of(context);
-                  if (mainScreen != null) mainScreen.navigateToTab(1);
-                },
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.amber.shade300, Colors.orange.shade600],
               ),
-              SizedBox(width: isSmallScreen || isCompact ? 12.0 : 16.0),
-              _buildQuickActionButton(
-                icon: Icons.school_rounded,
-                label: 'Çalışma',
-                color: AppColors.gradientGreenStart,
-                isSmallScreen: isSmallScreen || isCompact,
-                onTap: () {
-                  final mainScreen = MainScreen.of(context);
-                  if (mainScreen != null) mainScreen.navigateToTab(3);
-                },
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.4),
+                  blurRadius: 12,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.stars_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Score Text Section
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$_userTotalScore',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black87,
+                  letterSpacing: 0.5,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                'PUAN',
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? Colors.blueAccent.shade200
+                      : Colors.blueAccent.shade700,
+                  letterSpacing: 1.5,
+                  height: 1.1,
+                ),
               ),
             ],
           ),
+          const SizedBox(width: 12),
         ],
       ),
     );
   }
 
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool isSmallScreen,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 20.0 : 24.0,
-          vertical: isSmallScreen ? 12.0 : 16.0,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [color, color.withValues(alpha: 0.8)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildEmptyState(bool isSmallScreen, bool isTablet) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
           children: [
-            Icon(icon, color: Colors.white, size: isSmallScreen ? 20.0 : 24.0),
-            SizedBox(width: isSmallScreen ? 8.0 : 10.0),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14.0 : 16.0,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            Icon(
+              Icons.rocket_launch_rounded,
+              size: 64,
+              color: AppColors.primaryBlue.withOpacity(0.2),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Günaydın';
-    } else if (hour < 18) {
-      return 'İyi günler';
-    } else {
-      return 'İyi akşamlar';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final isTablet = screenWidth > 600;
-    final isSmallScreen = screenHeight < 700;
-
-    // Responsive font sizes
-    final greetingFontSize = isSmallScreen ? 12.0 : 14.0;
-    final titleFontSize = isSmallScreen ? 16.0 : 20.0;
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final headerGradientColors = isDark
-        ? [
-            const Color(0xFF1A1A2E),
-            const Color(0xFF16213E),
-            const Color(0xFF0F3460),
-          ]
-        : [
-            const Color(0xFF2563EB),
-            const Color(0xFF1D4ED8),
-            const Color(0xFF1E40AF),
-          ];
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark
-            ? const Color(0xFF121212)
-            : Colors.white,
-        systemNavigationBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark,
-      ),
-      child: Scaffold(
-        body: Column(
-          children: [
-            // Custom AppBar with Status Bar (Kaydedilenler ile aynı gradient)
-            Container(
-              padding: EdgeInsets.only(
-                top: statusBarHeight,
-                bottom: isSmallScreen ? 8.0 : 12.0,
-                left: isTablet ? 24.0 : 16.0,
-                right: isTablet ? 24.0 : 16.0,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: headerGradientColors,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        (isDark
-                                ? const Color(0xFF0F3460)
-                                : const Color(0xFF1E40AF))
-                            .withValues(alpha: 0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getGreeting(),
-                        style: TextStyle(
-                          fontSize: greetingFontSize,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Kadrox',
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // Puan göster
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 10.0 : 12.0,
-                      vertical: isSmallScreen ? 6.0 : 8.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.star_rounded,
-                          color: Colors.amber,
-                          size: isSmallScreen ? 16 : 18,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 6),
-                        Text(
-                          '$_userTotalScore',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 14 : 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 20),
+            const Text(
+              'Hadi Başlayalım!',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
             ),
-            // Content - Fits in single screen
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final hasOngoingContent =
-                      _ongoingTests.isNotEmpty ||
-                      _ongoingPodcasts.isNotEmpty ||
-                      _ongoingVideos.isNotEmpty ||
-                      _ongoingFlashCards.isNotEmpty ||
-                      _infoCards.isNotEmpty;
-
-                  return SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Tablet yatay: Günün Sözü + Sınava Kalan yan yana (kompakt)
-                            if (screenWidth > 900) ...[
-                              Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isTablet ? 20.0 : 16.0,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: DailyQuoteCard(
-                                        quote: '',
-                                        isSmallScreen: isSmallScreen,
-                                        isCompactLayout: true,
-                                      ),
-                                    ),
-                                    SizedBox(width: 12.0),
-                                    Expanded(
-                                      child: ExamCountdownCard(
-                                        examDate: DateTime(2026, 7, 1),
-                                        isSmallScreen: isSmallScreen,
-                                        isCompactLayout: true,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ] else ...[
-                              DailyQuoteCard(
-                                quote: '',
-                                isSmallScreen: isSmallScreen,
-                              ),
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                              ExamCountdownCard(
-                                examDate: DateTime(2026, 7, 1),
-                                isSmallScreen: isSmallScreen,
-                              ),
-                            ],
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Quick Access Section
-                            QuickAccessSection(isSmallScreen: isSmallScreen),
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Ongoing Tests Section
-                            if (_ongoingTests.isNotEmpty)
-                              OngoingTestsSection(
-                                tests: _ongoingTests,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: constraints.maxHeight * 0.35,
-                              ),
-                            if (_ongoingTests.isNotEmpty)
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Ongoing Podcasts Section
-                            if (_ongoingPodcasts.isNotEmpty)
-                              OngoingPodcastsSection(
-                                podcasts: _ongoingPodcasts,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: constraints.maxHeight * 0.35,
-                              ),
-                            if (_ongoingPodcasts.isNotEmpty)
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Ongoing Videos Section
-                            if (_ongoingVideos.isNotEmpty)
-                              OngoingVideosSection(
-                                videos: _ongoingVideos,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: constraints.maxHeight * 0.35,
-                              ),
-                            if (_ongoingVideos.isNotEmpty)
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Ongoing Flash Cards Section
-                            if (_ongoingFlashCards.isNotEmpty)
-                              OngoingFlashCardsSection(
-                                flashCards: _ongoingFlashCards,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: constraints.maxHeight * 0.35,
-                              ),
-                            if (_ongoingFlashCards.isNotEmpty)
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                            // Info Cards Section (Flash Cards)
-                            if (_infoCards.isNotEmpty) ...[
-                              SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                              InfoCardsSection(
-                                infoCards: _infoCards,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: constraints.maxHeight * 0.35,
-                              ),
-                            ],
-                            // Boş durum - devam eden içerik yoksa
-                            if (!hasOngoingContent) ...[
-                              SizedBox(height: isSmallScreen ? 20.0 : 32.0),
-                              _buildEmptyState(isSmallScreen, isTablet),
-                            ],
-                            SizedBox(height: isSmallScreen ? 8.0 : 12.0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+            const SizedBox(height: 8),
+            const Text(
+              'Çalışmaya başlamak için dersler bölümünden bir konu seçebilirsiniz.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ],
         ),

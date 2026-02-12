@@ -2,14 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/services/auth_service.dart';
 
-enum KpssType {
-  ortaOgretim,
-  onLisans,
-  lisans,
-  ags,
-}
+enum KpssType { ortaOgretim, onLisans, lisans, ags }
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -52,13 +48,9 @@ class _RegisterPageState extends State<RegisterPage>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     _animationController.forward();
   }
@@ -81,32 +73,20 @@ class _RegisterPageState extends State<RegisterPage>
     if (_formKey.currentState!.validate()) {
       if (_selectedKpssType == null) {
         HapticFeedback.vibrate();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Lütfen KPSS türünü seçin'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Lütfen KPSS türünü seçin',
+          type: SnackBarType.warning,
         );
         return;
       }
 
       if (!_agreeToTerms) {
         HapticFeedback.vibrate();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Lütfen kullanım şartlarını kabul edin'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Lütfen kullanım şartlarını kabul edin',
+          type: SnackBarType.warning,
         );
         return;
       }
@@ -136,16 +116,10 @@ class _RegisterPageState extends State<RegisterPage>
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
           HapticFeedback.vibrate();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.message),
-              backgroundColor: Colors.red.shade400,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
+          PremiumSnackBar.show(
+            context,
+            message: result.message,
+            type: SnackBarType.error,
           );
         }
       }
@@ -450,8 +424,8 @@ class _RegisterPageState extends State<RegisterPage>
                                           strokeWidth: 2.5,
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                            AppColors.primaryBlue,
-                                          ),
+                                                AppColors.primaryBlue,
+                                              ),
                                         ),
                                       )
                                     : Text(
@@ -734,10 +708,7 @@ class _TermsCheckbox extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.15),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
           ),
           child: Row(
             children: [

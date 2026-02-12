@@ -7,6 +7,7 @@ import '../../../core/services/storage_cleanup_service.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/subscription_service.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../../main.dart';
 import 'subscription_page.dart';
 
@@ -30,7 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   double _maxStorageGB = 5.0;
   double _currentStorageGB = 0.0;
   bool _isLoadingStorage = false;
-  
+
   // User statistics
   String _userName = 'Kullanıcı';
   int _solvedQuestions = 0;
@@ -54,12 +55,12 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
-      
+
       _autoCleanupEnabled = await _cleanupService.isAutoCleanupEnabled();
       _cleanupDays = await _cleanupService.getCleanupDays();
       _maxStorageGB = await _cleanupService.getMaxStorageGB();
       _currentStorageGB = await _cleanupService.getTotalStorageUsed();
-      
+
       setState(() {
         _selectedTheme = prefs.getString('selected_theme') ?? 'Açık';
       });
@@ -123,15 +124,15 @@ class _ProfilePageState extends State<ProfilePage> {
       // Silent error handling
     }
   }
-  
+
   Future<void> _refreshStorageInfo() async {
     if (!mounted) return;
     setState(() {
       _isLoadingStorage = true;
     });
-    
+
     final currentStorage = await _cleanupService.getTotalStorageUsed();
-    
+
     if (mounted) {
       setState(() {
         _currentStorageGB = currentStorage;
@@ -160,22 +161,30 @@ class _ProfilePageState extends State<ProfilePage> {
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
-    
+
     final compactPadding = isSmallScreen ? 12.0 : 16.0;
     final compactSpacing = isSmallScreen ? 8.0 : 12.0;
     final iconSize = isSmallScreen ? 18.0 : 20.0;
     final fontSize = isSmallScreen ? 13.0 : 14.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final headerColor = isDark ? const Color(0xFF1E1E1E) : AppColors.primaryBlue;
-    final headerDarkColor = isDark ? const Color(0xFF121212) : AppColors.primaryDarkBlue;
-    
+    final headerColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.primaryBlue;
+    final headerDarkColor = isDark
+        ? const Color(0xFF121212)
+        : AppColors.primaryDarkBlue;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF121212) : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
         body: Column(
@@ -192,10 +201,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    headerColor,
-                    headerDarkColor,
-                  ],
+                  colors: [headerColor, headerDarkColor],
                 ),
               ),
               child: Row(
@@ -256,11 +262,16 @@ class _ProfilePageState extends State<ProfilePage> {
                     // Statistics Card
                     _buildStatisticsCard(isSmallScreen, compactSpacing),
                     SizedBox(height: compactSpacing),
-                    
+
                     // Abonelik Durumu
-                    _buildSubscriptionCard(isSmallScreen, compactSpacing, iconSize, fontSize),
+                    _buildSubscriptionCard(
+                      isSmallScreen,
+                      compactSpacing,
+                      iconSize,
+                      fontSize,
+                    ),
                     SizedBox(height: compactSpacing),
-                    
+
                     // Tema Ayarları
                     _buildSectionTitle('Ayarlar', isSmallScreen),
                     SizedBox(height: compactSpacing / 2),
@@ -277,13 +288,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                     SizedBox(height: compactSpacing),
-                    
+
                     // Depolama Yönetimi
                     _buildSectionTitle('Depolama Yönetimi', isSmallScreen),
                     SizedBox(height: compactSpacing / 2),
-                    _buildStorageCard(isSmallScreen, compactSpacing, iconSize, fontSize),
+                    _buildStorageCard(
+                      isSmallScreen,
+                      compactSpacing,
+                      iconSize,
+                      fontSize,
+                    ),
                     SizedBox(height: compactSpacing),
-                    
+
                     // Hakkında
                     _buildSectionTitle('Hakkında', isSmallScreen),
                     SizedBox(height: compactSpacing / 2),
@@ -303,11 +319,11 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildSettingTile(
                           icon: Icons.picture_as_pdf_outlined,
                           title: 'PDF URL\'lerini Güncelle',
-                          subtitle: _isUpdatingPdfUrls 
-                              ? 'Güncelleniyor...' 
+                          subtitle: _isUpdatingPdfUrls
+                              ? 'Güncelleniyor...'
                               : 'Storage\'daki PDF\'leri eşleştir',
-                          onTap: _isUpdatingPdfUrls 
-                              ? null 
+                          onTap: _isUpdatingPdfUrls
+                              ? null
                               : () => _updatePdfUrls(),
                           iconSize: iconSize,
                           fontSize: fontSize,
@@ -315,7 +331,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                     SizedBox(height: compactSpacing),
-                    
+
                     // Çıkış
                     _buildLogoutButton(isSmallScreen, fontSize),
                     SizedBox(height: compactSpacing),
@@ -335,20 +351,20 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildStatisticsCard(bool isSmallScreen, double spacing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
-    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
-    
+    final cardColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.cardBackground;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : AppColors.cardShadow;
+
     return Container(
       padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: _isLoadingStats
@@ -357,15 +373,19 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryBlue,
+                  ),
                 ),
               ),
             )
           : Builder(
               builder: (context) {
                 final isDark = Theme.of(context).brightness == Brightness.dark;
-                final dividerColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
-                
+                final dividerColor = isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : AppColors.progressGray;
+
                 return Row(
                   children: [
                     Expanded(
@@ -377,11 +397,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         isSmallScreen: isSmallScreen,
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 30,
-                      color: dividerColor,
-                    ),
+                    Container(width: 1, height: 30, color: dividerColor),
                     Expanded(
                       child: _buildStatItem(
                         icon: Icons.check_circle_outline,
@@ -391,11 +407,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         isSmallScreen: isSmallScreen,
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 30,
-                      color: dividerColor,
-                    ),
+                    Container(width: 1, height: 30, color: dividerColor),
                     Expanded(
                       child: _buildStatItem(
                         icon: Icons.cancel_outlined,
@@ -405,11 +417,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         isSmallScreen: isSmallScreen,
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 30,
-                      color: dividerColor,
-                    ),
+                    Container(width: 1, height: 30, color: dividerColor),
                     Expanded(
                       child: _buildStatItem(
                         icon: Icons.trending_up_outlined,
@@ -435,16 +443,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : AppColors.textSecondary;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: isSmallScreen ? 16 : 18,
-          color: color,
-        ),
+        Icon(icon, size: isSmallScreen ? 16 : 18, color: color),
         SizedBox(height: 4),
         Text(
           value,
@@ -472,7 +478,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildSectionTitle(String title, bool isSmallScreen) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 4),
       child: Text(
@@ -489,24 +495,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildSettingsCard({required List<Widget> children}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
-    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
-    
+    final cardColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.cardBackground;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : AppColors.cardShadow;
+
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -520,9 +524,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : AppColors.textSecondary;
     final lightTextColor = isDark ? Colors.white60 : AppColors.textLight;
-    
+
     return ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       enabled: onTap != null,
@@ -532,11 +538,7 @@ class _ProfilePageState extends State<ProfilePage> {
           color: AppColors.primaryBlue.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          size: iconSize,
-          color: AppColors.primaryBlue,
-        ),
+        child: Icon(icon, size: iconSize, color: AppColors.primaryBlue),
       ),
       title: Text(
         title,
@@ -548,39 +550,38 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          fontSize: fontSize - 2,
-          color: secondaryTextColor,
-        ),
+        style: TextStyle(fontSize: fontSize - 2, color: secondaryTextColor),
       ),
-      trailing: Icon(
-        Icons.chevron_right,
-        size: 20,
-        color: lightTextColor,
-      ),
+      trailing: Icon(Icons.chevron_right, size: 20, color: lightTextColor),
       onTap: onTap,
     );
   }
 
   Widget _buildDivider() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dividerColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
-    
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: 60,
-      color: dividerColor,
-    );
+    final dividerColor = isDark
+        ? Colors.white.withOpacity(0.1)
+        : AppColors.progressGray;
+
+    return Divider(height: 1, thickness: 1, indent: 60, color: dividerColor);
   }
-  
-  Widget _buildStorageCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
+
+  Widget _buildStorageCard(
+    bool isSmallScreen,
+    double spacing,
+    double iconSize,
+    double fontSize,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    final progressBgColor = isDark ? Colors.white.withOpacity(0.1) : AppColors.progressGray;
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : AppColors.textSecondary;
+    final progressBgColor = isDark
+        ? Colors.white.withOpacity(0.1)
+        : AppColors.progressGray;
     final iconColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    
+
     return _buildSettingsCard(
       children: [
         Padding(
@@ -611,7 +612,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primaryBlue,
+                        ),
                       ),
                     )
                   else
@@ -651,15 +654,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: _maxStorageGB > 0 ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0) : 0.0,
+                      value: _maxStorageGB > 0
+                          ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0)
+                          : 0.0,
                       minHeight: 8,
                       backgroundColor: progressBgColor,
                       valueColor: AlwaysStoppedAnimation<Color>(
                         _currentStorageGB > _maxStorageGB * 0.9
                             ? Colors.red
                             : _currentStorageGB > _maxStorageGB * 0.7
-                                ? Colors.orange
-                                : AppColors.primaryBlue,
+                            ? Colors.orange
+                            : AppColors.primaryBlue,
                       ),
                     ),
                   ),
@@ -672,7 +677,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildSwitchTile(
           icon: Icons.auto_delete_outlined,
           title: 'Otomatik Temizleme',
-          subtitle: _autoCleanupEnabled 
+          subtitle: _autoCleanupEnabled
               ? 'Kullanılmayan içerikler otomatik silinir'
               : 'Otomatik temizleme kapalı',
           value: _autoCleanupEnabled,
@@ -727,8 +732,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : AppColors.textSecondary;
+
     return ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
@@ -737,11 +744,7 @@ class _ProfilePageState extends State<ProfilePage> {
           color: AppColors.primaryBlue.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          size: iconSize,
-          color: AppColors.primaryBlue,
-        ),
+        child: Icon(icon, size: iconSize, color: AppColors.primaryBlue),
       ),
       title: Text(
         title,
@@ -753,10 +756,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          fontSize: fontSize - 2,
-          color: secondaryTextColor,
-        ),
+        style: TextStyle(fontSize: fontSize - 2, color: secondaryTextColor),
       ),
       trailing: Switch(
         value: value,
@@ -765,7 +765,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-  
+
   Future<void> _showCleanupDaysDialog() async {
     final selectedDays = await showDialog<int>(
       context: context,
@@ -784,13 +784,13 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
     );
-    
+
     if (selectedDays != null && selectedDays != _cleanupDays) {
       setState(() => _cleanupDays = selectedDays);
       await _cleanupService.setCleanupDays(selectedDays);
     }
   }
-  
+
   Future<void> _showMaxStorageDialog() async {
     final storageOptions = [1.0, 3.0, 5.0, 10.0, 20.0, 0.0];
     final selectedStorage = await showDialog<double>(
@@ -800,7 +800,9 @@ class _ProfilePageState extends State<ProfilePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: storageOptions.map((gb) {
-            final label = gb == 0.0 ? 'Sınırsız' : '${gb.toStringAsFixed(0)} GB';
+            final label = gb == 0.0
+                ? 'Sınırsız'
+                : '${gb.toStringAsFixed(0)} GB';
             return RadioListTile<double>(
               title: Text(label),
               value: gb,
@@ -811,20 +813,22 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
     );
-    
+
     if (selectedStorage != null && selectedStorage != _maxStorageGB) {
       setState(() => _maxStorageGB = selectedStorage);
       await _cleanupService.setMaxStorageGB(selectedStorage);
       await _refreshStorageInfo();
     }
   }
-  
+
   Future<void> _runManualCleanup() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Manuel Temizleme'),
-        content: const Text('Kullanılmayan içerikler temizlenecek. Devam etmek istiyor musunuz?'),
+        content: const Text(
+          'Kullanılmayan içerikler temizlenecek. Devam etmek istiyor musunuz?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -837,32 +841,27 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
-    
+
     if (confirm == true) {
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-      
+
       final deletedCount = await _cleanupService.runCleanup();
-      
+
       if (mounted) {
         Navigator.pop(context);
         await _refreshStorageInfo();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              deletedCount > 0
-                  ? '$deletedCount dosya temizlendi'
-                  : 'Temizlenecek dosya bulunamadı',
-            ),
-            backgroundColor: deletedCount > 0 ? Colors.green : Colors.orange,
-          ),
+
+        PremiumSnackBar.show(
+          context,
+          message: deletedCount > 0
+              ? '$deletedCount dosya temizlendi'
+              : 'Temizlenecek dosya bulunamadı',
+          type: deletedCount > 0 ? SnackBarType.success : SnackBarType.info,
         );
       }
     }
@@ -870,20 +869,20 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildLogoutButton(bool isSmallScreen, double fontSize) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
-    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
-    
+    final cardColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.cardBackground;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : AppColors.cardShadow;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: ListTile(
@@ -917,8 +916,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildDeleteAccountButton(bool isSmallScreen, double fontSize) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
-    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    final cardColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.cardBackground;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : AppColors.cardShadow;
 
     return Container(
       width: double.infinity,
@@ -926,11 +929,7 @@ class _ProfilePageState extends State<ProfilePage> {
         color: cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: ListTile(
@@ -1071,12 +1070,10 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('PDF URL\'leri başarıyla güncellendi!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'PDF URL\'leri başarıyla güncellendi!',
+          type: SnackBarType.success,
         );
       }
     } catch (e) {
@@ -1085,12 +1082,10 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Hata: $e'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Hata: $e',
+          type: SnackBarType.error,
         );
       }
     } finally {
@@ -1129,13 +1124,24 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing, double iconSize, double fontSize) {
+  Widget _buildSubscriptionCard(
+    bool isSmallScreen,
+    double spacing,
+    double iconSize,
+    double fontSize,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : AppColors.cardBackground;
-    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : AppColors.cardShadow;
+    final cardColor = isDark
+        ? const Color(0xFF1E1E1E)
+        : AppColors.cardBackground;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : AppColors.cardShadow;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : AppColors.textSecondary;
+
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
@@ -1147,11 +1153,7 @@ class _ProfilePageState extends State<ProfilePage> {
               )
             : null,
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: ListTile(
@@ -1165,9 +1167,13 @@ class _ProfilePageState extends State<ProfilePage> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
-            _subscriptionStatus.isPremium ? Icons.star_rounded : Icons.star_outline,
+            _subscriptionStatus.isPremium
+                ? Icons.star_rounded
+                : Icons.star_outline,
             size: iconSize,
-            color: _subscriptionStatus.isPremium ? AppColors.primaryBlue : Colors.grey,
+            color: _subscriptionStatus.isPremium
+                ? AppColors.primaryBlue
+                : Colors.grey,
           ),
         ),
         title: Text(
@@ -1191,7 +1197,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 color: secondaryTextColor,
               ),
             ),
-            if (_subscriptionStatus.isPremium && _subscriptionStatus.endDate != null) ...[
+            if (_subscriptionStatus.isPremium &&
+                _subscriptionStatus.endDate != null) ...[
               SizedBox(height: 4),
               Text(
                 'Bitiş: ${_formatDate(_subscriptionStatus.endDate!)}',
@@ -1242,13 +1249,12 @@ class _ProfilePageState extends State<ProfilePage> {
               Navigator.pop(context);
               await _authService.logout();
               if (mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
               }
             },
-            child: Text(
-              'Çıkış Yap',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: Text('Çıkış Yap', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1285,8 +1291,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: InputDecoration(
                       hintText: 'Şifre',
                       suffixIcon: IconButton(
-                        onPressed: () => setState(() => isObscured = !isObscured),
-                        icon: Icon(isObscured ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () =>
+                            setState(() => isObscured = !isObscured),
+                        icon: Icon(
+                          isObscured ? Icons.visibility : Icons.visibility_off,
+                        ),
                       ),
                     ),
                   ),
@@ -1299,10 +1308,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text(
-                    'Sil',
-                    style: TextStyle(color: Colors.red),
-                  ),
+                  child: const Text('Sil', style: TextStyle(color: Colors.red)),
                 ),
               ],
             );
@@ -1321,11 +1327,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (password.trim().isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen şifrenizi girin.'),
-          backgroundColor: Colors.red,
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: 'Lütfen şifrenizi girin.',
+        type: SnackBarType.error,
       );
       return;
     }
@@ -1343,20 +1348,19 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.pop(context); // progress dialog
 
     if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message.isNotEmpty ? result.message : 'Hesabınız silindi.'),
-          backgroundColor: Colors.green,
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Hesabınız silindi.',
+        type: SnackBarType.success,
       );
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: result.message.isNotEmpty ? result.message : 'Hata oluştu.',
+        type: SnackBarType.error,
       );
     }
   }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/topic.dart';
 import '../../../core/services/pdf_cache_service.dart';
 import '../../../core/services/pdf_download_service.dart';
@@ -10,10 +11,7 @@ import '../../../core/services/storage_cleanup_service.dart';
 class TopicPdfViewerPage extends StatefulWidget {
   final Topic topic;
 
-  const TopicPdfViewerPage({
-    super.key,
-    required this.topic,
-  });
+  const TopicPdfViewerPage({super.key, required this.topic});
 
   @override
   State<TopicPdfViewerPage> createState() => _TopicPdfViewerPageState();
@@ -38,33 +36,35 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
     // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için)
     _initializePdf();
   }
-  
+
   /// Initialize PDF - cache kontrolü tamamlanana kadar bekle
   Future<void> _initializePdf() async {
     // Önce cache kontrolü yap (await et - tamamlanmasını bekle)
     await _checkCacheImmediately();
-    
+
     // Cache kontrolü tamamlandı
     if (mounted) {
       setState(() {
         _cacheCheckComplete = true;
       });
     }
-    
+
     // Sonra diğer kontrolleri yap
     _checkPdfUrl();
     _checkDownloadedStatus();
   }
-  
+
   /// Check cache immediately (synchronous check for instant loading)
   Future<void> _checkCacheImmediately() async {
     if (widget.topic.pdfUrl == null || widget.topic.pdfUrl!.isEmpty) return;
-    
+
     print('🔍 Checking cache immediately for instant loading...');
-    
+
     try {
       // Önce downloaded kontrolü
-      final downloadedPath = await _downloadService.getLocalFilePath(widget.topic.pdfUrl!);
+      final downloadedPath = await _downloadService.getLocalFilePath(
+        widget.topic.pdfUrl!,
+      );
       if (downloadedPath != null && await File(downloadedPath).exists()) {
         print('📁 PDF is downloaded (instant check)');
         if (mounted) {
@@ -77,12 +77,14 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
         }
         return;
       }
-      
+
       // Sonra cache kontrolü
       final isCached = await PdfCacheService.isCached(widget.topic.pdfUrl!);
       if (isCached) {
         print('📂 PDF is cached (instant check)');
-        final cachedPath = await PdfCacheService.getCachedPath(widget.topic.pdfUrl!);
+        final cachedPath = await PdfCacheService.getCachedPath(
+          widget.topic.pdfUrl!,
+        );
         if (cachedPath != null) {
           // Dosyanın gerçekten var olduğunu kontrol et
           final file = File(cachedPath);
@@ -108,10 +110,12 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
       print('⚠️ Error checking cache in initState: $e');
     }
   }
-  
+
   Future<void> _checkDownloadedStatus() async {
     if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty) {
-      final isDownloaded = await _downloadService.isPdfDownloaded(widget.topic.pdfUrl!);
+      final isDownloaded = await _downloadService.isPdfDownloaded(
+        widget.topic.pdfUrl!,
+      );
       if (mounted) {
         setState(() {
           _isDownloaded = isDownloaded;
@@ -122,7 +126,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
 
   Future<void> _checkPdfUrl() async {
     if (!mounted) return;
-    
+
     if (widget.topic.pdfUrl == null || widget.topic.pdfUrl!.isEmpty) {
       if (!mounted) return;
       setState(() {
@@ -132,7 +136,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
     } else {
       // Önce cache kontrolü yap (bekle)
       await _checkCacheImmediately();
-      
+
       // Eğer cache'den yüklendiyse _loadPdfWithCache çağırma (zaten yüklendi)
       if (_localPdfPath == null || _localPdfPath!.isEmpty) {
         print('⚠️ PDF not in cache, loading with _loadPdfWithCache...');
@@ -156,7 +160,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
 
     try {
       if (!mounted) return;
-      
+
       _isLoadingPdf = true;
       setState(() {
         _isLoading = true;
@@ -164,19 +168,21 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
       });
 
       print('📄 Loading PDF: ${widget.topic.pdfUrl}');
-      
+
       // First check if PDF is downloaded
-      final downloadedPath = await _downloadService.getLocalFilePath(widget.topic.pdfUrl!);
-      
+      final downloadedPath = await _downloadService.getLocalFilePath(
+        widget.topic.pdfUrl!,
+      );
+
       if (downloadedPath != null && await File(downloadedPath).exists()) {
         // Use downloaded file (instant - reads from local disk)
         print('📁 PDF is downloaded, using file mode (instant)...');
-        
+
         if (!mounted) {
           _isLoadingPdf = false;
           return;
         }
-        
+
         setState(() {
           _localPdfPath = downloadedPath;
           _isLoading = false;
@@ -187,20 +193,22 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
         _isLoadingPdf = false;
         return;
       }
-      
+
       // Check if PDF is cached
       final isCached = await PdfCacheService.isCached(widget.topic.pdfUrl!);
-      
+
       if (isCached) {
         // Use cached file (instant - reads from local disk)
         print('📂 PDF is cached, using file mode (instant)...');
-        final cachedPath = await PdfCacheService.getCachedPath(widget.topic.pdfUrl!);
-        
+        final cachedPath = await PdfCacheService.getCachedPath(
+          widget.topic.pdfUrl!,
+        );
+
         if (!mounted) {
           _isLoadingPdf = false;
           return;
         }
-        
+
         if (cachedPath != null) {
           setState(() {
             _localPdfPath = cachedPath;
@@ -212,33 +220,37 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
           return;
         }
       }
-      
+
       // Not cached - use streaming mode (fast, no full download needed)
       // PDF viewer will stream from network, we cache in background
-      print('🌐 PDF not cached, using streaming mode (fast, no full download)...');
-      
+      print(
+        '🌐 PDF not cached, using streaming mode (fast, no full download)...',
+      );
+
       if (!mounted) {
         _isLoadingPdf = false;
         return;
       }
-      
+
       // Set to network mode (streaming - very fast)
       setState(() {
         _localPdfPath = null; // Use network mode
         _isLoading = false; // PDF viewer will handle loading
       });
       print('✅ PDF will stream from network (no download needed)');
-      
+
       // Cache in background (non-blocking)
-      PdfCacheService.cachePdf(widget.topic.pdfUrl!).then((cachedPath) {
-        if (cachedPath != null && mounted) {
-          print('✅ PDF cached in background: $cachedPath');
-          // Next time will use cache
-        }
-      }).catchError((e) {
-        print('⚠️ Background cache failed: $e');
-      });
-      
+      PdfCacheService.cachePdf(widget.topic.pdfUrl!)
+          .then((cachedPath) {
+            if (cachedPath != null && mounted) {
+              print('✅ PDF cached in background: $cachedPath');
+              // Next time will use cache
+            }
+          })
+          .catchError((e) {
+            print('⚠️ Background cache failed: $e');
+          });
+
       _isLoadingPdf = false;
     } catch (e) {
       print('❌ Error loading PDF: $e');
@@ -246,7 +258,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
         _isLoadingPdf = false;
         return;
       }
-      
+
       setState(() {
         _isLoading = false;
         _errorMessage = 'PDF yüklenirken bir hata oluştu: $e';
@@ -260,13 +272,15 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
     if (widget.topic.pdfUrl == null || widget.topic.pdfUrl!.isEmpty) {
       return;
     }
-    
+
     // Delete PDF
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('PDF\'yi Sil'),
-        content: Text('${widget.topic.name} PDF\'sini silmek istediğinize emin misiniz?'),
+        content: Text(
+          '${widget.topic.name} PDF\'sini silmek istediğinize emin misiniz?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -279,7 +293,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
         ],
       ),
     );
-    
+
     if (confirm == true) {
       final deleted = await _downloadService.deletePdf(widget.topic.pdfUrl!);
       if (deleted && mounted) {
@@ -289,11 +303,10 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
         });
         // Reload PDF (will download again automatically)
         _loadPdfWithCache();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF silindi. Tekrar açıldığında otomatik indirilecek.'),
-            backgroundColor: Colors.green,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'PDF silindi. Tekrar açıldığında otomatik indirilecek.',
+          type: SnackBarType.success,
         );
       }
     }
@@ -308,7 +321,9 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(isSmallScreen ? 56 : 64),
         child: Container(
@@ -318,10 +333,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFFF9800),
-                      const Color(0xFFFF6B35),
-                    ],
+                    colors: [const Color(0xFFFF9800), const Color(0xFFFF6B35)],
                   ),
             color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
@@ -385,7 +397,9 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                     ),
                   ),
                   // Delete button (only show if downloaded)
-                  if (widget.topic.pdfUrl != null && widget.topic.pdfUrl!.isNotEmpty && _isDownloaded)
+                  if (widget.topic.pdfUrl != null &&
+                      widget.topic.pdfUrl!.isNotEmpty &&
+                      _isDownloaded)
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
@@ -486,11 +500,9 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
       builder: (context) {
         // Cache kontrolü tamamlanana kadar bekle
         if (!_cacheCheckComplete) {
-          return Center(
-            child: CircularProgressIndicator(),
-          );
+          return Center(child: CircularProgressIndicator());
         }
-        
+
         try {
           // Strategy:
           // - If _localPdfPath is set: Use file mode (INSTANT, reads from local cache)
@@ -517,7 +529,8 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                     setState(() {
                       _localPdfPath = null; // Fallback to network
                       _isLoading = false;
-                      _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
+                      _errorMessage =
+                          'PDF yüklenirken bir hata oluştu: ${details.error}';
                     });
                   }
                 },
@@ -528,7 +541,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
               _localPdfPath = null;
             }
           }
-          
+
           // Use network mode for streaming (when not cached or file doesn't exist)
           print('📄 Using network mode (streaming): ${widget.topic.pdfUrl}');
           return SfPdfViewer.network(
@@ -546,7 +559,8 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
               if (mounted) {
                 setState(() {
                   _isLoading = false;
-                  _errorMessage = 'PDF yüklenirken bir hata oluştu: ${details.error}';
+                  _errorMessage =
+                      'PDF yüklenirken bir hata oluştu: ${details.error}';
                 });
               }
             },
@@ -557,7 +571,8 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
             if (mounted) {
               setState(() {
                 _isLoading = false;
-                _errorMessage = 'PDF görüntüleyici başlatılamadı. Lütfen uygulamayı tamamen kapatıp yeniden açın.';
+                _errorMessage =
+                    'PDF görüntüleyici başlatılamadı. Lütfen uygulamayı tamamen kapatıp yeniden açın.';
               });
             }
           });
@@ -585,10 +600,7 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                   SizedBox(height: 8),
                   Text(
                     'Lütfen uygulamayı tamamen kapatıp yeniden açın.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -644,7 +656,9 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
             builder: (context) {
               final isDark = Theme.of(context).brightness == Brightness.dark;
               return Container(
-                color: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+                color: isDark
+                    ? const Color(0xFF121212)
+                    : AppColors.backgroundLight,
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -659,7 +673,9 @@ class _TopicPdfViewerPageState extends State<TopicPdfViewerPage> {
                         'PDF yükleniyor...',
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
                         ),
                       ),
                     ],

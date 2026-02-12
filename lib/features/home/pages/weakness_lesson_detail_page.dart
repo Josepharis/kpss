@@ -4,17 +4,16 @@ import '../../../core/models/lesson.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
 import 'weakness_topic_detail_page.dart';
+import 'all_saved_questions_page.dart';
 
 class WeaknessLessonDetailPage extends StatefulWidget {
   final Lesson lesson;
 
-  const WeaknessLessonDetailPage({
-    super.key,
-    required this.lesson,
-  });
+  const WeaknessLessonDetailPage({super.key, required this.lesson});
 
   @override
-  State<WeaknessLessonDetailPage> createState() => _WeaknessLessonDetailPageState();
+  State<WeaknessLessonDetailPage> createState() =>
+      _WeaknessLessonDetailPageState();
 }
 
 class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
@@ -32,7 +31,9 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
       _isLoading = true;
     });
 
-    final weaknesses = await WeaknessesService.getWeaknessesByLesson(widget.lesson.id);
+    final weaknesses = await WeaknessesService.getWeaknessesByLesson(
+      widget.lesson.id,
+    );
     final Map<String, List<WeaknessQuestion>> grouped = {};
 
     for (var weakness in weaknesses) {
@@ -82,14 +83,24 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: (accentColor ?? (isDark ? Colors.white12 : AppColors.backgroundBeige))
-            .withValues(alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1)),
+        color:
+            (accentColor ??
+                    (isDark ? Colors.white12 : AppColors.backgroundBeige))
+                .withValues(
+                  alpha: accentColor != null ? 0.2 : (isDark ? 0.5 : 1),
+                ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: accentColor ?? (isDark ? Colors.white54 : AppColors.textSecondary)),
+          Icon(
+            icon,
+            size: 10,
+            color:
+                accentColor ??
+                (isDark ? Colors.white54 : AppColors.textSecondary),
+          ),
           const SizedBox(width: 3),
           Text(
             text,
@@ -112,11 +123,16 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topPadding = MediaQuery.of(context).padding.top;
     final topics = _groupedByTopic.keys.toList();
-    final totalWeaknesses = _groupedByTopic.values.fold<int>(0, (sum, list) => sum + list.length);
+    final totalWeaknesses = _groupedByTopic.values.fold<int>(
+      0,
+      (sum, list) => sum + list.length,
+    );
     final color = _getColor();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       body: SafeArea(
         top: false,
         child: Column(
@@ -143,7 +159,12 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.fromLTRB(isTablet ? 16 : 12, topPadding + 8, isTablet ? 16 : 12, 14),
+                padding: EdgeInsets.fromLTRB(
+                  isTablet ? 16 : 12,
+                  topPadding + 8,
+                  isTablet ? 16 : 12,
+                  14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -157,7 +178,11 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
                             borderRadius: BorderRadius.circular(10),
                             child: Padding(
                               padding: const EdgeInsets.all(8),
-                              child: Icon(Icons.arrow_back_ios_new_rounded, size: isSmallScreen ? 18 : 20, color: Colors.white),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: isSmallScreen ? 18 : 20,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -191,11 +216,42 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
                           color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10),
                           child: InkWell(
-                            onTap: _loadWeaknesses,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AllSavedQuestionsPage(
+                                    lessonId: widget.lesson.id,
+                                    lessonName: widget.lesson.name,
+                                  ),
+                                ),
+                              ).then((_) => _loadWeaknesses());
+                            },
                             borderRadius: BorderRadius.circular(10),
                             child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Icon(Icons.refresh_rounded, size: isSmallScreen ? 20 : 22, color: Colors.white),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome_motion_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    'Soruları Birleştir',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -217,7 +273,9 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
                             height: 40,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.5,
-                              color: isDark ? const Color(0xFF3B82F6) : AppColors.primaryBlue,
+                              color: isDark
+                                  ? const Color(0xFF3B82F6)
+                                  : AppColors.primaryBlue,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -225,162 +283,209 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
                             'Yükleniyor...',
                             style: TextStyle(
                               fontSize: 14,
-                              color: isDark ? Colors.white54 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.white54
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     )
                   : topics.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 40),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: (isDark ? Colors.white10 : Colors.red.withValues(alpha: 0.08)),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.quiz_outlined,
-                                    size: 44,
-                                    color: isDark ? Colors.white38 : Colors.red.withValues(alpha: 0.6),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Bu derste eksik soru yok',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? Colors.white : AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Yanlış yaptığınız veya kaydettiğiniz sorular burada listelenir.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: isDark ? Colors.white54 : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: (isDark
+                                    ? Colors.white10
+                                    : Colors.red.withValues(alpha: 0.08)),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.quiz_outlined,
+                                size: 44,
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.red.withValues(alpha: 0.6),
+                              ),
                             ),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadWeaknesses,
-                          color: AppColors.primaryBlue,
-                          backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
-                          child: ListView.builder(
-                            padding: EdgeInsets.fromLTRB(isTablet ? 20 : 16, 12, isTablet ? 20 : 16, 16),
-                            itemCount: topics.length,
-                            itemBuilder: (context, index) {
-                              final topicName = topics[index];
-                              final weaknesses = _groupedByTopic[topicName]!;
-                              final weaknessCount = weaknesses.length;
+                            const SizedBox(height: 16),
+                            Text(
+                              'Bu derste eksik soru yok',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Yanlış yaptığınız veya kaydettiğiniz sorular burada listelenir.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark
+                                    ? Colors.white54
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadWeaknesses,
+                      color: AppColors.primaryBlue,
+                      backgroundColor: isDark
+                          ? const Color(0xFF1C1C1C)
+                          : Colors.white,
+                      child: ListView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                          isTablet ? 20 : 16,
+                          12,
+                          isTablet ? 20 : 16,
+                          16,
+                        ),
+                        itemCount: topics.length,
+                        itemBuilder: (context, index) {
+                          final topicName = topics[index];
+                          final weaknesses = _groupedByTopic[topicName]!;
+                          final weaknessCount = weaknesses.length;
 
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => WeaknessTopicDetailPage(
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          WeaknessTopicDetailPage(
                                             lesson: widget.lesson,
                                             topicName: topicName,
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                                          width: 1,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 44,
-                                            height: 44,
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                                colors: [color, color.withValues(alpha: 0.8)],
-                                              ),
-                                              borderRadius: BorderRadius.circular(12),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: color.withValues(alpha: 0.35),
-                                                  blurRadius: 6,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Icon(Icons.folder_rounded, color: Colors.white, size: 22),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  topicName,
-                                                  style: TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: isDark ? Colors.white : AppColors.textPrimary,
-                                                  ),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 6),
-                                                _buildMiniBadge(
-                                                  isDark: isDark,
-                                                  icon: Icons.quiz_rounded,
-                                                  text: '$weaknessCount soru',
-                                                  accentColor: const Color(0xFFEF4444),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.arrow_forward_ios_rounded,
-                                            size: 12,
-                                            color: isDark ? Colors.white38 : AppColors.textLight,
-                                          ),
-                                        ],
-                                      ),
                                     ),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFF1C1C1C)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.06)
+                                          : Colors.black.withValues(
+                                              alpha: 0.04,
+                                            ),
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: isDark ? 0.25 : 0.06,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              color,
+                                              color.withValues(alpha: 0.8),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: color.withValues(
+                                                alpha: 0.35,
+                                              ),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Icon(
+                                          Icons.folder_rounded,
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              topicName,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.textPrimary,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            _buildMiniBadge(
+                                              isDark: isDark,
+                                              icon: Icons.quiz_rounded,
+                                              text: '$weaknessCount soru',
+                                              accentColor: const Color(
+                                                0xFFEF4444,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 12,
+                                        color: isDark
+                                            ? Colors.white38
+                                            : AppColors.textLight,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
             ),
           ],
         ),
@@ -388,4 +493,3 @@ class _WeaknessLessonDetailPageState extends State<WeaknessLessonDetailPage> {
     );
   }
 }
-

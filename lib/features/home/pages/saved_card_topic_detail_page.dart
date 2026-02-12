@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/services/saved_cards_service.dart';
-
-// SavedCard'ı import et
-import '../../../core/services/saved_cards_service.dart' show SavedCard;
 
 class SavedCardTopicDetailPage extends StatefulWidget {
   final Lesson lesson;
@@ -17,7 +17,8 @@ class SavedCardTopicDetailPage extends StatefulWidget {
   });
 
   @override
-  State<SavedCardTopicDetailPage> createState() => _SavedCardTopicDetailPageState();
+  State<SavedCardTopicDetailPage> createState() =>
+      _SavedCardTopicDetailPageState();
 }
 
 class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
@@ -49,15 +50,15 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
   }
 
   Future<void> _loadSavedCards() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      final allCards = await SavedCardsService.getSavedCardsByTopic(widget.topicName);
-      // Sadece bu derse ait kartları filtrele
-      final filteredCards = allCards.where((c) => c.lessonId == widget.lesson.id).toList();
-      
+      final allCards = await SavedCardsService.getSavedCardsByTopic(
+        widget.topicName,
+      );
+      final filteredCards = allCards
+          .where((c) => c.lessonId == widget.lesson.id)
+          .toList();
+
       if (mounted) {
         setState(() {
           _savedCards = filteredCards;
@@ -68,26 +69,18 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
         });
       }
     } catch (e) {
-      // Silent error handling
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _flipCard() {
     if (_flipController.isAnimating) return;
-
     if (_isFlipped) {
       _flipController.reverse();
     } else {
       _flipController.forward();
     }
-    setState(() {
-      _isFlipped = !_isFlipped;
-    });
+    setState(() => _isFlipped = !_isFlipped);
   }
 
   void _previousCard() {
@@ -112,12 +105,13 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
 
   Future<void> _removeCard() async {
     if (_savedCards.isEmpty || _currentCardIndex >= _savedCards.length) return;
-
     final currentCard = _savedCards[_currentCardIndex];
-    final success = await SavedCardsService.removeSavedCard(currentCard.id, currentCard.topicId);
+    final success = await SavedCardsService.removeSavedCard(
+      currentCard.id,
+      currentCard.topicId,
+    );
 
     if (mounted && success) {
-      // Kartı listeden kaldır
       setState(() {
         _savedCards.removeAt(_currentCardIndex);
         if (_currentCardIndex >= _savedCards.length && _savedCards.isNotEmpty) {
@@ -128,539 +122,670 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
         _isFlipped = false;
         _flipController.reset();
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kart kaydedilenlerden kaldırıldı.'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
+      PremiumSnackBar.show(
+        context,
+        message: 'Kart kaydedilenlerden kaldırıldı.',
+        type: SnackBarType.success,
       );
-
-      // Eğer tüm kartlar silindiyse geri dön
-      if (_savedCards.isEmpty) {
-        Navigator.of(context).pop();
-      }
-    }
-  }
-
-  Color _getColor() {
-    switch (widget.lesson.color) {
-      case 'orange':
-        return const Color(0xFFFF6B35);
-      case 'blue':
-        return const Color(0xFF4A90E2);
-      case 'red':
-        return const Color(0xFFE74C3C);
-      case 'green':
-        return const Color(0xFF27AE60);
-      case 'purple':
-        return const Color(0xFF9B59B6);
-      case 'teal':
-        return const Color(0xFF16A085);
-      case 'indigo':
-        return const Color(0xFF5C6BC0);
-      case 'pink':
-        return const Color(0xFFE91E63);
-      default:
-        return AppColors.gradientRedStart;
+      if (_savedCards.isEmpty) Navigator.of(context).pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
-    final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: isSmallScreen ? 18 : 20,
-            ),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Text(
-            widget.topicName,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    
-    if (_savedCards.isEmpty) {
-      return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: isSmallScreen ? 18 : 20,
-            ),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Text(
-            widget.topicName,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.style_outlined,
-                size: 64,
-                color: isDark ? Colors.grey.shade700 : Colors.grey.shade400,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Bu konuda kaydedilmiş kart yok',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    final currentCard = _savedCards[_currentCardIndex];
+    final isSmallScreen = MediaQuery.of(context).size.height < 700;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : _getColor(),
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-            size: isSmallScreen ? 18 : 20,
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.topicName,
-          style: TextStyle(
-            fontSize: isSmallScreen ? 16 : 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: isTablet ? 20 : 16),
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmallScreen ? 10 : 12,
-              vertical: isSmallScreen ? 6 : 8,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '${_currentCardIndex + 1}/${_savedCards.length}',
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark, // Android
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF141414)
+            : Colors.white,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isVerySmallScreen = constraints.maxWidth < 360;
-          return Column(
-            children: [
-              // Flash Card - maksimum alan kullan
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 12 : 16,
-                    vertical: isSmallScreen ? 8 : 12,
-                  ),
-                  child: GestureDetector(
-                    onTap: _flipCard,
-                    child: AnimatedBuilder(
-                      animation: _flipAnimation,
-                      builder: (context, child) {
-                        final angle = _flipAnimation.value * 3.14159; // π
-                        final isFrontVisible = _flipAnimation.value < 0.5;
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
+          children: [
+            _buildMeshBackground(isDark, screenWidth),
 
-                        return Transform(
-                          alignment: Alignment.center,
-                          transform: Matrix4.identity()
-                            ..setEntry(3, 2, 0.001)
-                            ..rotateY(angle),
-                          child: isFrontVisible
-                              ? _buildCardFront(currentCard, isSmallScreen, isVerySmallScreen)
-                              : Transform(
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_savedCards.isEmpty)
+              _buildEmptyState(isDark)
+            else
+              Column(
+                children: [
+                  SizedBox(height: statusBarHeight + 60),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isVerySmall = constraints.maxWidth < 360;
+                        return Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 12 : 20,
+                            vertical: isSmallScreen ? 8 : 16,
+                          ),
+                          child: GestureDetector(
+                            onTap: _flipCard,
+                            child: AnimatedBuilder(
+                              animation: _flipAnimation,
+                              builder: (context, child) {
+                                final angle = _flipAnimation.value * 3.14159;
+                                final isFrontVisible =
+                                    _flipAnimation.value < 0.5;
+                                return Transform(
                                   alignment: Alignment.center,
-                                  transform: Matrix4.identity()..rotateY(3.14159),
-                                  child: _buildCardBack(currentCard, isSmallScreen, isVerySmallScreen),
-                                ),
+                                  transform: Matrix4.identity()
+                                    ..setEntry(3, 2, 0.001)
+                                    ..rotateY(angle),
+                                  child: isFrontVisible
+                                      ? _buildCardFront(
+                                          _savedCards[_currentCardIndex],
+                                          isSmallScreen,
+                                          isVerySmall,
+                                        )
+                                      : Transform(
+                                          alignment: Alignment.center,
+                                          transform: Matrix4.identity()
+                                            ..rotateY(3.14159),
+                                          child: _buildCardBack(
+                                            _savedCards[_currentCardIndex],
+                                            isSmallScreen,
+                                            isVerySmall,
+                                          ),
+                                        ),
+                                );
+                              },
+                            ),
+                          ),
                         );
                       },
                     ),
                   ),
+                  _buildBottomControls(isDark, bottomPadding, isSmallScreen),
+                ],
+              ),
+
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildCustomHeader(context, isDark, statusBarHeight),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF8FAFF),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF0D0221),
+                    const Color(0xFF0F0F1A),
+                    const Color(0xFF19102E),
+                  ]
+                : [const Color(0xFFF0F4FF), const Color(0xFFFFFFFF)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -screenWidth * 0.4,
+              left: -screenWidth * 0.2,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.2,
+                color: isDark
+                    ? const Color(0xFF4C1D95).withOpacity(0.15)
+                    : const Color(0xFFC4B5FD).withOpacity(0.2),
+              ),
+            ),
+            Positioned(
+              bottom: -screenWidth * 0.4,
+              right: -screenWidth * 0.2,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.2,
+                color: isDark
+                    ? const Color(0xFFBE185D).withOpacity(0.15)
+                    : const Color(0xFFFBCFE8).withOpacity(0.2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 0.5,
+          colors: [color, color.withOpacity(0)],
+          stops: const [0.1, 1.0],
+        ),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+        child: Container(color: Colors.transparent),
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(
+    BuildContext context,
+    bool isDark,
+    double statusBarHeight,
+  ) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.only(
+            top: statusBarHeight + 10,
+            bottom: 12,
+            left: 20,
+            right: 20,
+          ),
+          color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
+          child: Row(
+            children: [
+              _buildGlassIconButton(
+                context,
+                icon: Icons.arrow_back_ios_new_rounded,
+                isDark: isDark,
+                onTap: () => Navigator.pop(context),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  widget.topicName,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
                 ),
               ),
-              // Navigation buttons - ekran altında ama tam görünsün
-              Container(
-                padding: EdgeInsets.only(
-                  left: isTablet ? 20 : 12,
-                  right: isTablet ? 20 : 12,
-                  top: isSmallScreen ? 16 : 20,
-                  bottom: isSmallScreen ? 16 : 20,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark 
-                          ? Colors.black.withValues(alpha: 0.3)
-                          : Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
+              if (!_isLoading && _savedCards.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.black.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_currentCardIndex + 1}/${_savedCards.length}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : AppColors.primaryBlue,
                     ),
-                  ],
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Kaldır butonu
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _removeCard,
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 20,
-                        ),
-                        label: const Text(
-                          'Kaydedilenlerden Kaldır',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassIconButton(
+    BuildContext context, {
+    required IconData icon,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isDark ? Colors.white : const Color(0xFF1E293B),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.style_outlined,
+            size: 64,
+            color: isDark ? Colors.white24 : Colors.grey.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Bu konuda kaydedilmiş kart yok',
+            style: TextStyle(
+              fontSize: 16,
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardFront(SavedCard card, bool isSmallScreen, bool isVerySmall) {
+    final textLength = card.frontText.length;
+    double baseFontSize = isVerySmall ? 18 : (isSmallScreen ? 24 : 30);
+    if (textLength > 100) baseFontSize -= 4;
+    if (textLength > 200) baseFontSize -= 4;
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF43F5E),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFFF7E93),
+            const Color(0xFFF43F5E),
+            const Color(0xFFBE123C),
+          ],
+          stops: const [0.0, 0.4, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(36),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFBE123C).withOpacity(0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: -5,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Fully visible watermark - Top Right
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.help_outline_rounded,
+                size: 64,
+                color: Colors.white.withOpacity(0.2),
+              ),
+            ),
+          ),
+
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 3),
+
+              Expanded(
+                flex: 6,
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Text(
+                      card.frontText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: baseFontSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.3,
+                        letterSpacing: -0.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.15),
+                            offset: const Offset(0, 2),
+                            blurRadius: 4,
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            vertical: isSmallScreen ? 12 : 14,
-                          ),
-                          minimumSize: Size(0, isSmallScreen ? 48 : 52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 4,
-                        ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: isSmallScreen ? 8 : 10),
-                    // Navigation buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: ElevatedButton.icon(
-                            onPressed: _previousCard,
-                            icon: Icon(
-                              Icons.arrow_back_rounded,
-                              size: isSmallScreen ? 18 : 20,
-                            ),
-                            label: Text(
-                              'Önceki',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
-                                vertical: isSmallScreen ? 10 : 12,
-                              ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: isDark 
-                                      ? Colors.grey.withValues(alpha: 0.3)
-                                      : Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              elevation: 2,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
-                        Flexible(
-                          child: ElevatedButton.icon(
-                            onPressed: _flipCard,
-                            icon: Icon(
-                              _isFlipped ? Icons.refresh_rounded : Icons.autorenew_rounded,
-                              size: isSmallScreen ? 18 : 20,
-                            ),
-                            label: Text(
-                              _isFlipped ? 'Çevir' : 'Göster',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _getColor(),
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 12 : isSmallScreen ? 16 : 20,
-                                vertical: isSmallScreen ? 10 : 12,
-                              ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isVerySmallScreen ? 8 : isSmallScreen ? 10 : 12),
-                        Flexible(
-                          child: ElevatedButton.icon(
-                            onPressed: _nextCard,
-                            icon: Icon(
-                              Icons.arrow_forward_rounded,
-                              size: isSmallScreen ? 18 : 20,
-                            ),
-                            label: Text(
-                              'Sonraki',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                              foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isVerySmallScreen ? 10 : isSmallScreen ? 12 : 16,
-                                vertical: isSmallScreen ? 10 : 12,
-                              ),
-                              minimumSize: Size(0, isSmallScreen ? 44 : 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              elevation: 2,
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.white.withOpacity(0.25)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Cevabı Gör',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.touch_app_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCardFront(SavedCard card, bool isSmallScreen, bool isVerySmallScreen) {
-    // Dinamik font boyutu hesapla - metin uzunluğuna göre
-    final textLength = card.frontText.length;
-    double baseFontSize;
-    
-    if (textLength <= 30) {
-      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
-    } else if (textLength <= 50) {
-      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
-    } else if (textLength <= 100) {
-      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
-    } else if (textLength <= 200) {
-      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
-    } else {
-      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
-    }
-    
-    return Container(
-      margin: EdgeInsets.zero,
-      width: double.infinity,
-      height: double.infinity,
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _getColor(),
-            _getColor().withValues(alpha: 0.85),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: _getColor().withValues(alpha: 0.4),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.help_outline_rounded,
-                size: isSmallScreen ? 44 : 52,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              Text(
-                card.frontText,
-                style: TextStyle(
-                  fontSize: baseFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
-              Text(
-                'Cevabı görmek için dokun',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  color: Colors.white70,
-                  fontStyle: FontStyle.italic,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
-  Widget _buildCardBack(SavedCard card, bool isSmallScreen, bool isVerySmallScreen) {
-    // Dinamik font boyutu hesapla - metin uzunluğuna göre
+  Widget _buildCardBack(SavedCard card, bool isSmallScreen, bool isVerySmall) {
     final textLength = card.backText.length;
-    double baseFontSize;
-    
-    if (textLength <= 30) {
-      baseFontSize = isVerySmallScreen ? 24 : isSmallScreen ? 30 : 36;
-    } else if (textLength <= 50) {
-      baseFontSize = isVerySmallScreen ? 22 : isSmallScreen ? 28 : 34;
-    } else if (textLength <= 100) {
-      baseFontSize = isVerySmallScreen ? 20 : isSmallScreen ? 26 : 32;
-    } else if (textLength <= 200) {
-      baseFontSize = isVerySmallScreen ? 18 : isSmallScreen ? 24 : 30;
-    } else {
-      baseFontSize = isVerySmallScreen ? 16 : isSmallScreen ? 22 : 28;
-    }
-    
+    double baseFontSize = isVerySmall ? 18 : (isSmallScreen ? 22 : 28);
+    if (textLength > 100) baseFontSize -= 4;
+    if (textLength > 200) baseFontSize -= 4;
+
     return Container(
-      margin: EdgeInsets.zero,
       width: double.infinity,
       height: double.infinity,
-      padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
+      padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
       decoration: BoxDecoration(
+        color: const Color(0xFF10B981),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.gradientGreenStart,
-            AppColors.gradientGreenEnd,
+            const Color(0xFF34D399),
+            const Color(0xFF10B981),
+            const Color(0xFF059669),
           ],
+          stops: const [0.0, 0.5, 1.0],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(36),
+        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: AppColors.gradientGreenStart.withValues(alpha: 0.4),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF059669).withOpacity(0.35),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: -5,
+          ),
+          BoxShadow(
+            color: const Color(0xFF059669).withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
+      child: Stack(
+        children: [
+          // Fully visible watermark - Top Right
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_rounded,
+                size: 64,
+                color: Colors.white.withOpacity(0.2),
+              ),
+            ),
+          ),
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.check_circle_outline_rounded,
-                size: isSmallScreen ? 44 : 52,
-                color: Colors.white,
-              ),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              Text(
-                card.backText,
-                style: TextStyle(
-                  fontSize: baseFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  height: 1.4,
+              const SizedBox(height: 32),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Text(
+                      card.backText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: baseFontSize,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
-              SizedBox(height: isSmallScreen ? 12 : 16),
-              Text(
-                'Tekrar görmek için dokun',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 16,
-                  color: Colors.white70,
-                  fontStyle: FontStyle.italic,
+              const Spacer(flex: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.refresh_rounded,
+                      size: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Kartı çevir',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 16),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomControls(
+    bool isDark,
+    double bottomPadding,
+    bool isSmallScreen,
+  ) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding + 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildGlassButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: _previousCard,
+            isDark: isDark,
+            enabled: _currentCardIndex > 0,
+          ),
+
+          const Spacer(),
+
+          GestureDetector(
+            onTap: _removeCard,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: Colors.red.withOpacity(0.2),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.red,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Kaldır',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const Spacer(),
+
+          _buildGlassButton(
+            icon: Icons.arrow_forward_rounded,
+            onTap: _nextCard,
+            isDark: isDark,
+            enabled: _currentCardIndex < _savedCards.length - 1,
+            isPrimary: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+    bool enabled = true,
+    bool isPrimary = false,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.3,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
+            boxShadow: [
+              if (enabled)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+            border: isPrimary
+                ? Border.all(
+                    color: AppColors.primaryBlue.withOpacity(0.5),
+                    width: 1.5,
+                  )
+                : null,
+          ),
+          child: Icon(
+            icon,
+            color: isPrimary
+                ? AppColors.primaryBlue
+                : (isDark ? Colors.white : Colors.black87),
+            size: 26,
           ),
         ),
       ),

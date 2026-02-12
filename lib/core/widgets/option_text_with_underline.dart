@@ -16,7 +16,8 @@ class OptionTextWithUnderline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if ((underlinedWord == null || underlinedWord!.isEmpty) && !text.contains('__')) {
+    if ((underlinedWord == null || underlinedWord!.isEmpty) &&
+        !text.contains('__')) {
       return Text(text, style: style);
     }
 
@@ -28,10 +29,12 @@ class OptionTextWithUnderline extends StatelessWidget {
         if (idx > 0) {
           spans.add(TextSpan(text: text.substring(0, idx), style: style));
         }
-        spans.add(TextSpan(
-          text: underlinedWord!,
-          style: style.copyWith(decoration: TextDecoration.underline),
-        ));
+        spans.add(
+          TextSpan(
+            text: underlinedWord!,
+            style: style.copyWith(decoration: TextDecoration.underline),
+          ),
+        );
         final end = idx + underlinedWord!.length;
         if (end < text.length) {
           spans.add(TextSpan(text: text.substring(end), style: style));
@@ -56,7 +59,20 @@ class OptionTextWithUnderline extends StatelessWidget {
     final result = <TextSpan>[];
     int i = 0;
     while (i < text.length) {
-      final start = text.indexOf('__', i);
+      final startUnderline = text.indexOf('__', i);
+      final startBold = text.indexOf('**', i);
+
+      int start = -1;
+      String tag = '';
+      if (startUnderline != -1 &&
+          (startBold == -1 || startUnderline < startBold)) {
+        start = startUnderline;
+        tag = '__';
+      } else if (startBold != -1) {
+        start = startBold;
+        tag = '**';
+      }
+
       if (start == -1) {
         result.add(TextSpan(text: text.substring(i), style: style));
         break;
@@ -64,16 +80,21 @@ class OptionTextWithUnderline extends StatelessWidget {
       if (start > i) {
         result.add(TextSpan(text: text.substring(i, start), style: style));
       }
-      final end = text.indexOf('__', start + 2);
+      final end = text.indexOf(tag, start + 2);
       if (end == -1) {
         result.add(TextSpan(text: text.substring(start), style: style));
         break;
       }
       final word = text.substring(start + 2, end);
-      result.add(TextSpan(
-        text: word,
-        style: style.copyWith(decoration: TextDecoration.underline),
-      ));
+      result.add(
+        TextSpan(
+          text: word,
+          style: style.copyWith(
+            decoration: tag == '__' ? TextDecoration.underline : null,
+            fontWeight: tag == '**' ? FontWeight.bold : null,
+          ),
+        ),
+      );
       i = end + 2;
     }
     return result;

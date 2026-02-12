@@ -55,22 +55,14 @@ class OngoingTestCard extends StatelessWidget {
               ),
             ),
 
-            // Modern "Glow" highlights (not mesh, just clean highlights)
+            // Decorative Watermark Icon
             Positioned(
-              top: -15,
-              left: -15,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withValues(alpha: 0.25),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
+              right: -10,
+              bottom: -10,
+              child: Icon(
+                Icons.edit_note_rounded,
+                size: 72,
+                color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
 
@@ -109,11 +101,11 @@ class OngoingTestCard extends StatelessWidget {
                         child: Text(
                           test.topic,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontSize: isSmallScreen ? 8 : 9,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             letterSpacing: -0.2,
-                            height: 1.1,
+                            height: 1.05,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -232,23 +224,6 @@ class OngoingTestCard extends StatelessWidget {
   }
 
   IconData _getIcon() {
-    final title = test.topic.toLowerCase();
-    if (title.contains('matematik')) return Icons.functions_rounded;
-    if (title.contains('türkçe')) return Icons.spellcheck_rounded;
-    if (title.contains('tarih')) return Icons.auto_stories_rounded;
-    if (title.contains('coğrafya')) return Icons.public_rounded;
-
-    switch (test.icon) {
-      case 'atom':
-        return Icons.psychology_outlined;
-      case 'chart':
-        return Icons.insert_chart_outlined_rounded;
-      case 'globe':
-        return Icons.language_rounded;
-      case 'megaphone':
-        return Icons.notification_important_rounded;
-      default:
-        return Icons.assignment_outlined;
-    }
+    return Icons.assignment_rounded;
   }
 }

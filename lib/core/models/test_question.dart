@@ -2,6 +2,7 @@ class TestQuestion {
   final String id;
   final String question;
   final List<String> options;
+
   /// Her seçenek için altı çizilecek kelime (soru "altı çizili sözcük" dediğinde kullanılır).
   /// options ile aynı sırada, [options[i]] içinde underline edilecek kelime [underlinedWords[i]].
   final List<String>? underlinedWords;
@@ -11,6 +12,7 @@ class TestQuestion {
   final String? topicId; // Hangi konuya ait
   final String? lessonId; // Hangi derse ait
   final String? source; // Kaynak bilgisi
+  final String? imageUrl; // Görsel varsa URL'si
   final int order; // Sıralama için
 
   TestQuestion({
@@ -23,6 +25,7 @@ class TestQuestion {
     required this.timeLimitSeconds,
     this.topicId,
     this.lessonId,
+    this.imageUrl,
     this.source,
     this.order = 0,
   });
@@ -45,6 +48,7 @@ class TestQuestion {
       timeLimitSeconds: (map['timeLimitSeconds'] ?? 60) as int,
       topicId: map['topicId'] as String?,
       lessonId: map['lessonId'] as String?,
+      imageUrl: map['imageUrl'] as String?,
       source: map['source'] as String?,
       order: (map['order'] ?? 0) as int,
     );
@@ -61,9 +65,9 @@ class TestQuestion {
       'timeLimitSeconds': timeLimitSeconds,
       if (topicId != null) 'topicId': topicId,
       if (lessonId != null) 'lessonId': lessonId,
+      if (imageUrl != null) 'imageUrl': imageUrl,
       if (source != null) 'source': source,
       'order': order,
     };
   }
 }
-

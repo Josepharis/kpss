@@ -61,22 +61,7 @@ class InfoCardWidget extends StatelessWidget {
   }
 
   IconData _getIcon() {
-    switch (infoCard.icon) {
-      case 'info':
-        return Icons.info_rounded;
-      case 'book':
-        return Icons.book_rounded;
-      case 'lightbulb':
-        return Icons.lightbulb_rounded;
-      case 'star':
-        return Icons.star_rounded;
-      case 'school':
-        return Icons.school_rounded;
-      case 'tips':
-        return Icons.tips_and_updates_rounded;
-      default:
-        return Icons.info_outline_rounded;
-    }
+    return Icons.assignment_rounded;
   }
 
   @override
@@ -153,11 +138,11 @@ class InfoCardWidget extends StatelessWidget {
                       child: Text(
                         infoCard.title,
                         style: TextStyle(
-                          fontSize: isSmallScreen ? 8.5 : 9.5,
+                          fontSize: isSmallScreen ? 8 : 9,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
                           letterSpacing: -0.2,
-                          height: 1.1,
+                          height: 1.05,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

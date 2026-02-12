@@ -115,11 +115,11 @@ class OngoingFlashCardCard extends StatelessWidget {
                         child: Text(
                           flashCard.topic,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontSize: isSmallScreen ? 8 : 9,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             letterSpacing: -0.2,
-                            height: 1.1,
+                            height: 1.05,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -141,7 +141,7 @@ class OngoingFlashCardCard extends StatelessWidget {
                             ),
                           ),
                           child: const Icon(
-                            Icons.filter_none_rounded,
+                            Icons.assignment_rounded,
                             size: 14,
                             color: Colors.white,
                           ),

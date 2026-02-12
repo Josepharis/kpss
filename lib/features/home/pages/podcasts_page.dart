@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/models/podcast.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/storage_service.dart';
@@ -16,14 +17,15 @@ import '../../../core/services/podcast_download_service.dart';
 import '../../../core/services/storage_cleanup_service.dart';
 import '../../../core/services/podcasts_service.dart';
 import '../../../core/widgets/floating_home_button.dart';
-import '../../../../main.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 
 class PodcastsPage extends StatefulWidget {
   final String topicName;
   final int podcastCount;
   final String topicId; // Storage'dan podcast çekmek için
   final String lessonId; // Ders ID'si (Storage yolunu oluşturmak için)
-  final String? initialAudioUrl; // Anasayfadan geliyorsa, cache'den direkt yükle
+  final String?
+  initialAudioUrl; // Anasayfadan geliyorsa, cache'den direkt yükle
   final String? initialPodcastId; // Devam eden podcast'ten geliyorsa direkt seç
 
   const PodcastsPage({
@@ -63,12 +65,11 @@ class _PodcastsPageState extends State<PodcastsPage>
   late AnimationController _pulseController;
   Timer? _progressSaveTimer;
   Map<String, bool> _downloadedPodcasts = {}; // Track downloaded podcasts
-  Map<String, double> _downloadProgress = {}; // Track download progress
-  Map<String, bool> _downloadingPodcasts = {}; // Track podcasts being downloaded
-    StreamSubscription<Duration>? _positionSubscription;
-    StreamSubscription<Duration?>? _durationSubscription;
-    StreamSubscription<bool>? _playingSubscription;
-    StreamSubscription<ProcessingState>? _processingStateSubscription;
+
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
+  StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<ProcessingState>? _processingStateSubscription;
 
   @override
   void initState() {
@@ -81,16 +82,16 @@ class _PodcastsPageState extends State<PodcastsPage>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
-    
+
     // Cache kontrolünü önce yap ve TAMAMLANMASINI BEKLE (anında açılış için)
     _initializePodcasts();
   }
-  
+
   /// Initialize podcasts - optimize edilmiş yükleme
   Future<void> _initializePodcasts() async {
     // Önce local cache'den kontrol et (Firestore'dan çekilmiş podcast listesi)
     await _loadPodcastsFromLocalCache();
-    
+
     // Eğer cache'den yüklenmediyse, Firestore'dan çek ve cache'e kaydet
     if (_podcasts.isEmpty) {
       await _loadPodcastsFromFirestore();
@@ -98,13 +99,13 @@ class _PodcastsPageState extends State<PodcastsPage>
       // Cache'den yüklendi, cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
       await _updateCachedFileUrls();
     }
-    
+
     // İndirilen podcast durumlarını yükle (kalıcı olması için)
     await _loadDownloadedPodcastsStatus();
-    
+
     // Audio'yu initialize et
     await _initializeAudio();
-    
+
     // Eğer devam eden podcast'ten gelindiyse, o podcast'i seçip direkt başlat.
     await _applyInitialSelectionAndAutoplayIfNeeded();
   }
@@ -143,20 +144,24 @@ class _PodcastsPageState extends State<PodcastsPage>
 
     await _loadAndPlayCurrentPodcast();
   }
-  
+
   /// Load podcasts from local cache (Firestore'dan çekilmiş podcast listesi)
   Future<void> _loadPodcastsFromLocalCache() async {
     try {
-      debugPrint('🔍 Loading podcasts from local cache for topicId: ${widget.topicId}');
+      debugPrint(
+        '🔍 Loading podcasts from local cache for topicId: ${widget.topicId}',
+      );
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'podcasts_${widget.topicId}';
       final cachedJson = prefs.getString(cacheKey);
-      
+
       if (cachedJson != null && cachedJson.isNotEmpty) {
         final List<dynamic> cachedList = jsonDecode(cachedJson);
-        _podcasts = cachedList.map((json) => Podcast.fromMap(json, json['id'] ?? '')).toList();
+        _podcasts = cachedList
+            .map((json) => Podcast.fromMap(json, json['id'] ?? ''))
+            .toList();
         debugPrint('✅ Loaded ${_podcasts.length} podcasts from local cache');
-        
+
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -169,23 +174,27 @@ class _PodcastsPageState extends State<PodcastsPage>
       debugPrint('⚠️ Error loading podcasts from local cache: $e');
     }
   }
-  
+
   /// Save podcasts to local cache
   Future<void> _savePodcastsToLocalCache(List<Podcast> podcasts) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'podcasts_${widget.topicId}';
-      final jsonList = podcasts.map((p) => {
-        'id': p.id,
-        'title': p.title,
-        'description': p.description,
-        'audioUrl': p.audioUrl,
-        'durationMinutes': p.durationMinutes,
-        'thumbnailUrl': p.thumbnailUrl,
-        'topicId': p.topicId,
-        'lessonId': p.lessonId,
-        'order': p.order,
-      }).toList();
+      final jsonList = podcasts
+          .map(
+            (p) => {
+              'id': p.id,
+              'title': p.title,
+              'description': p.description,
+              'audioUrl': p.audioUrl,
+              'durationMinutes': p.durationMinutes,
+              'thumbnailUrl': p.thumbnailUrl,
+              'topicId': p.topicId,
+              'lessonId': p.lessonId,
+              'order': p.order,
+            },
+          )
+          .toList();
       final jsonString = jsonEncode(jsonList);
       await prefs.setString(cacheKey, jsonString);
       debugPrint('✅ Saved ${podcasts.length} podcasts to local cache');
@@ -193,37 +202,43 @@ class _PodcastsPageState extends State<PodcastsPage>
       debugPrint('⚠️ Error saving podcasts to local cache: $e');
     }
   }
-  
+
   /// Load podcasts from Firestore and cache them
   Future<void> _loadPodcastsFromFirestore() async {
     try {
-      debugPrint('🔍 Loading podcasts from Firestore for topicId: ${widget.topicId}');
-      
+      debugPrint(
+        '🔍 Loading podcasts from Firestore for topicId: ${widget.topicId}',
+      );
+
       if (mounted) {
         setState(() {
           _isLoading = true;
         });
       }
-      
+
       // Firestore'dan podcast'leri çek
-      final podcasts = await _podcastsService.getPodcastsByTopicId(widget.topicId);
-      
+      final podcasts = await _podcastsService.getPodcastsByTopicId(
+        widget.topicId,
+      );
+
       if (podcasts.isEmpty) {
-        debugPrint('⚠️ No podcasts found in Firestore, trying Storage fallback...');
+        debugPrint(
+          '⚠️ No podcasts found in Firestore, trying Storage fallback...',
+        );
         // Firestore'da yoksa, Storage'dan çek (eski yöntem)
         await _loadPodcastsFromStorage();
         return;
       }
-      
+
       debugPrint('✅ Found ${podcasts.length} podcasts from Firestore');
-      
+
       // Cache'e kaydet
       await _savePodcastsToLocalCache(podcasts);
-      
+
       // Cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
       _podcasts = podcasts;
       await _updateCachedFileUrls();
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -235,54 +250,58 @@ class _PodcastsPageState extends State<PodcastsPage>
       await _loadPodcastsFromStorage();
     }
   }
-  
+
   /// Update cached file URLs (check if files are cached and update URLs to file://)
   Future<void> _updateCachedFileUrls() async {
     try {
       debugPrint('🔍 Updating cached file URLs...');
       final updatedPodcasts = <Podcast>[];
-      
+
       for (final podcast in _podcasts) {
         // Eğer zaten file:// ile başlıyorsa, atla
         if (podcast.audioUrl.startsWith('file://')) {
           updatedPodcasts.add(podcast);
           continue;
         }
-        
+
         // Cache'de dosya var mı kontrol et
-        final localPath = await _downloadService.getLocalFilePath(podcast.audioUrl);
+        final localPath = await _downloadService.getLocalFilePath(
+          podcast.audioUrl,
+        );
         if (localPath != null) {
           // Cache'de var, file:// URL'ini kullan
-          updatedPodcasts.add(Podcast(
-            id: podcast.id,
-            title: podcast.title,
-            description: podcast.description,
-            audioUrl: 'file://$localPath',
-            durationMinutes: podcast.durationMinutes,
-            thumbnailUrl: podcast.thumbnailUrl,
-            topicId: podcast.topicId,
-            lessonId: podcast.lessonId,
-            order: podcast.order,
-          ));
+          updatedPodcasts.add(
+            Podcast(
+              id: podcast.id,
+              title: podcast.title,
+              description: podcast.description,
+              audioUrl: 'file://$localPath',
+              durationMinutes: podcast.durationMinutes,
+              thumbnailUrl: podcast.thumbnailUrl,
+              topicId: podcast.topicId,
+              lessonId: podcast.lessonId,
+              order: podcast.order,
+            ),
+          );
           debugPrint('  ✅ Updated URL to cached file: ${podcast.title}');
         } else {
           // Cache'de yok, orijinal URL'i kullan
           updatedPodcasts.add(podcast);
         }
       }
-      
+
       _podcasts = updatedPodcasts;
-      
+
       if (mounted) {
         setState(() {});
       }
-      
+
       debugPrint('✅ Updated ${updatedPodcasts.length} podcast URLs');
     } catch (e) {
       debugPrint('⚠️ Error updating cached file URLs: $e');
     }
   }
-  
+
   /// Load podcasts from Storage (fallback method - eski yöntem, Firestore'da yoksa kullanılır)
   Future<void> _loadPodcastsFromStorage() async {
     try {
@@ -291,9 +310,11 @@ class _PodcastsPageState extends State<PodcastsPage>
           _isLoading = true;
         });
       }
-      
-      debugPrint('🔍 Loading podcasts from Storage (fallback) for topicId: ${widget.topicId}');
-      
+
+      debugPrint(
+        '🔍 Loading podcasts from Storage (fallback) for topicId: ${widget.topicId}',
+      );
+
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
@@ -305,7 +326,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         }
         return;
       }
-      
+
       // Lesson name'i storage path'ine çevir
       final lessonNameForPath = lesson.name
           .toLowerCase()
@@ -316,29 +337,35 @@ class _PodcastsPageState extends State<PodcastsPage>
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
+
       // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: widget.lessonId,
         topicId: widget.topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
+
       // Storage yolunu oluştur
       String storagePath = '$basePath/podcast';
-      
+
       // Storage'dan dosyaları listele (hızlı - sadece URL listesi)
       final audioUrls = await _storageService.listAudioFiles(storagePath);
-      
+
       debugPrint('✅ Found ${audioUrls.length} podcasts from Storage');
       debugPrint('📊 Current podcasts before adding: ${_podcasts.length}');
-      
+
       // Cache'den yüklenen podcast'lerin dosya adlarını çıkar (duplicate kontrolü için)
-      final cachedPodcasts = _podcasts.where((p) => p.audioUrl.startsWith('file://')).toList();
-      final networkPodcasts = _podcasts.where((p) => !p.audioUrl.startsWith('file://')).toList();
-      
-      debugPrint('📊 Before adding: Cached podcasts: ${cachedPodcasts.length}, Network podcasts: ${networkPodcasts.length}');
-      
+      final cachedPodcasts = _podcasts
+          .where((p) => p.audioUrl.startsWith('file://'))
+          .toList();
+      final networkPodcasts = _podcasts
+          .where((p) => !p.audioUrl.startsWith('file://'))
+          .toList();
+
+      debugPrint(
+        '📊 Before adding: Cached podcasts: ${cachedPodcasts.length}, Network podcasts: ${networkPodcasts.length}',
+      );
+
       // Cache'deki podcast'lerin dosya adlarını çıkar (normalize edilmiş)
       final cachedFileNames = <String>{};
       for (final cachedPodcast in cachedPodcasts) {
@@ -365,25 +392,29 @@ class _PodcastsPageState extends State<PodcastsPage>
           debugPrint('⚠️ Error extracting cached file name: $e');
         }
       }
-      
+
       // Firebase Storage'dan gelen podcast'lerin URL'lerini topla
-      final existingNetworkUrls = networkPodcasts.map((p) => p.audioUrl).toSet();
-      
+      final existingNetworkUrls = networkPodcasts
+          .map((p) => p.audioUrl)
+          .toSet();
+
       // Yeni podcast'leri ekle (cache'de olmayanlar)
       if (cachedPodcasts.isNotEmpty) {
         // Cache'den yüklenen podcast'ler var, onları koru ve yeni olanları ekle
-        _podcasts = List<Podcast>.from(cachedPodcasts); // Cache'den yüklenenleri koru
+        _podcasts = List<Podcast>.from(
+          cachedPodcasts,
+        ); // Cache'den yüklenenleri koru
         int newIndex = cachedPodcasts.length;
-        
+
         for (int index = 0; index < audioUrls.length; index++) {
           final url = audioUrls[index];
-          
+
           // Eğer bu URL zaten network podcast'lerinde varsa, atla
           if (existingNetworkUrls.contains(url)) {
             debugPrint('  ⏭️ Skipping already loaded network podcast: $url');
             continue;
           }
-          
+
           // URL'den dosya adını çıkar ve cache'deki dosya adlarıyla karşılaştır
           try {
             String fileName = '';
@@ -392,7 +423,10 @@ class _PodcastsPageState extends State<PodcastsPage>
               final pathWithoutQuery = uri.path;
               if (pathWithoutQuery.isNotEmpty) {
                 final segments = pathWithoutQuery.split('/');
-                fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+                fileName = segments.lastWhere(
+                  (s) => s.isNotEmpty,
+                  orElse: () => '',
+                );
               }
               if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
                 fileName = uri.pathSegments.last;
@@ -416,9 +450,9 @@ class _PodcastsPageState extends State<PodcastsPage>
                 fileName = fileName.split('?').first;
               }
             }
-            
+
             fileName = fileName.replaceAll('\\', '/').split('/').last;
-            
+
             // Normalize edilmiş dosya adını oluştur (cache ile karşılaştırma için)
             final normalizedFileName = fileName
                 .replaceAll('.m4a', '')
@@ -426,13 +460,15 @@ class _PodcastsPageState extends State<PodcastsPage>
                 .replaceAll('.mp4', '')
                 .toLowerCase()
                 .trim();
-            
+
             // Eğer bu dosya adı cache'de varsa, atla (duplicate)
             if (cachedFileNames.contains(normalizedFileName)) {
-              debugPrint('  ⏭️ Skipping duplicate podcast (already in cache): $normalizedFileName');
+              debugPrint(
+                '  ⏭️ Skipping duplicate podcast (already in cache): $normalizedFileName',
+              );
               continue;
             }
-            
+
             // Title oluştur
             final title = fileName
                 .replaceAll('.m4a', '')
@@ -441,31 +477,35 @@ class _PodcastsPageState extends State<PodcastsPage>
                 .replaceAll('_', ' ')
                 .replaceAll('%20', ' ')
                 .trim();
-            
-            _podcasts.add(Podcast(
-              id: 'podcast_${widget.topicId}_$newIndex',
-              title: title.isNotEmpty ? title : 'Podcast ${newIndex + 1}',
-              description: '${widget.topicName} podcast',
-              audioUrl: url,
-              durationMinutes: 0,
-              topicId: widget.topicId,
-              lessonId: widget.lessonId,
-              order: newIndex,
-            ));
+
+            _podcasts.add(
+              Podcast(
+                id: 'podcast_${widget.topicId}_$newIndex',
+                title: title.isNotEmpty ? title : 'Podcast ${newIndex + 1}',
+                description: '${widget.topicName} podcast',
+                audioUrl: url,
+                durationMinutes: 0,
+                topicId: widget.topicId,
+                lessonId: widget.lessonId,
+                order: newIndex,
+              ),
+            );
             newIndex++;
             debugPrint('  ✅ Added new podcast: $title');
           } catch (e) {
             debugPrint('⚠️ Error processing podcast $index: $e');
-            _podcasts.add(Podcast(
-              id: 'podcast_${widget.topicId}_$newIndex',
-              title: 'Podcast ${newIndex + 1}',
-              description: '${widget.topicName} podcast',
-              audioUrl: url,
-              durationMinutes: 0,
-              topicId: widget.topicId,
-              lessonId: widget.lessonId,
-              order: newIndex,
-            ));
+            _podcasts.add(
+              Podcast(
+                id: 'podcast_${widget.topicId}_$newIndex',
+                title: 'Podcast ${newIndex + 1}',
+                description: '${widget.topicName} podcast',
+                audioUrl: url,
+                durationMinutes: 0,
+                topicId: widget.topicId,
+                lessonId: widget.lessonId,
+                order: newIndex,
+              ),
+            );
             newIndex++;
           }
         }
@@ -474,7 +514,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         _podcasts = [];
         for (int index = 0; index < audioUrls.length; index++) {
           final url = audioUrls[index];
-        
+
           try {
             // URL'den sadece dosya adını çıkar (hızlı)
             String fileName = '';
@@ -483,7 +523,10 @@ class _PodcastsPageState extends State<PodcastsPage>
               final pathWithoutQuery = uri.path;
               if (pathWithoutQuery.isNotEmpty) {
                 final segments = pathWithoutQuery.split('/');
-                fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+                fileName = segments.lastWhere(
+                  (s) => s.isNotEmpty,
+                  orElse: () => '',
+                );
               }
               if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
                 fileName = uri.pathSegments.last;
@@ -507,7 +550,7 @@ class _PodcastsPageState extends State<PodcastsPage>
                 fileName = fileName.split('?').first;
               }
             }
-            
+
             fileName = fileName.replaceAll('\\', '/').split('/').last;
             final title = fileName
                 .replaceAll('.m4a', '')
@@ -516,56 +559,62 @@ class _PodcastsPageState extends State<PodcastsPage>
                 .replaceAll('_', ' ')
                 .replaceAll('%20', ' ')
                 .trim();
-            
-            _podcasts.add(Podcast(
-              id: 'podcast_${widget.topicId}_$index',
-              title: title.isNotEmpty ? title : 'Podcast ${index + 1}',
-              description: '${widget.topicName} podcast',
-              audioUrl: url,
-              durationMinutes: 0, // Arka planda yüklenecek
-              topicId: widget.topicId,
-              lessonId: widget.lessonId,
-              order: index,
-            ));
+
+            _podcasts.add(
+              Podcast(
+                id: 'podcast_${widget.topicId}_$index',
+                title: title.isNotEmpty ? title : 'Podcast ${index + 1}',
+                description: '${widget.topicName} podcast',
+                audioUrl: url,
+                durationMinutes: 0, // Arka planda yüklenecek
+                topicId: widget.topicId,
+                lessonId: widget.lessonId,
+                order: index,
+              ),
+            );
             debugPrint('  ✅ Added podcast ${index + 1}: $title');
           } catch (e) {
             debugPrint('⚠️ Error processing podcast $index: $e');
-            _podcasts.add(Podcast(
-              id: 'podcast_${widget.topicId}_$index',
-              title: 'Podcast ${index + 1}',
-              description: '${widget.topicName} podcast',
-              audioUrl: url,
-              durationMinutes: 0,
-              topicId: widget.topicId,
-              lessonId: widget.lessonId,
-              order: index,
-            ));
+            _podcasts.add(
+              Podcast(
+                id: 'podcast_${widget.topicId}_$index',
+                title: 'Podcast ${index + 1}',
+                description: '${widget.topicName} podcast',
+                audioUrl: url,
+                durationMinutes: 0,
+                topicId: widget.topicId,
+                lessonId: widget.lessonId,
+                order: index,
+              ),
+            );
           }
         }
       }
-      
+
       // Listeyi HEMEN göster (anında açılış için)
       debugPrint('📊 Total podcasts after loading: ${_podcasts.length}');
       for (int i = 0; i < _podcasts.length; i++) {
-        debugPrint('  Podcast ${i + 1}: ${_podcasts[i].title} (${_podcasts[i].audioUrl})');
+        debugPrint(
+          '  Podcast ${i + 1}: ${_podcasts[i].title} (${_podcasts[i].audioUrl})',
+        );
       }
-      
+
       // Cache'e kaydet (bir sonraki açılışta kullanılmak üzere)
       await _savePodcastsToLocalCache(_podcasts);
-      
+
       // Cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
       await _updateCachedFileUrls();
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
           // _podcasts listesi zaten güncellendi, sadece UI'ı yenile
         });
       }
-      
+
       // Check downloaded status for all podcasts (arka planda)
       _checkDownloadedPodcasts();
-      
+
       // Arka planda duration'ları yükle (non-blocking)
       _loadDurationsInBackground();
     } catch (e) {
@@ -578,19 +627,23 @@ class _PodcastsPageState extends State<PodcastsPage>
       }
     }
   }
-  
+
   /// Load downloaded podcasts status from SharedPreferences
   Future<void> _loadDownloadedPodcastsStatus() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'downloaded_podcasts_${widget.topicId}';
       final cachedJson = prefs.getString(cacheKey);
-      
+
       if (cachedJson != null && cachedJson.isNotEmpty) {
         final Map<String, dynamic> cachedMap = jsonDecode(cachedJson);
-        _downloadedPodcasts = cachedMap.map((key, value) => MapEntry(key, value as bool));
-        debugPrint('✅ Loaded ${_downloadedPodcasts.length} downloaded podcast statuses from cache');
-        
+        _downloadedPodcasts = cachedMap.map(
+          (key, value) => MapEntry(key, value as bool),
+        );
+        debugPrint(
+          '✅ Loaded ${_downloadedPodcasts.length} downloaded podcast statuses from cache',
+        );
+
         if (mounted) {
           setState(() {});
         }
@@ -601,7 +654,7 @@ class _PodcastsPageState extends State<PodcastsPage>
       debugPrint('⚠️ Error loading downloaded podcast statuses: $e');
     }
   }
-  
+
   /// Save downloaded podcasts status to SharedPreferences
   Future<void> _saveDownloadedPodcastsStatus() async {
     try {
@@ -609,22 +662,26 @@ class _PodcastsPageState extends State<PodcastsPage>
       final cacheKey = 'downloaded_podcasts_${widget.topicId}';
       final jsonString = jsonEncode(_downloadedPodcasts);
       await prefs.setString(cacheKey, jsonString);
-      debugPrint('✅ Saved ${_downloadedPodcasts.length} downloaded podcast statuses to cache');
+      debugPrint(
+        '✅ Saved ${_downloadedPodcasts.length} downloaded podcast statuses to cache',
+      );
     } catch (e) {
       debugPrint('⚠️ Error saving downloaded podcast statuses: $e');
     }
   }
-  
+
   Future<void> _checkDownloadedPodcasts() async {
     for (final podcast in _podcasts) {
-      final isDownloaded = await _downloadService.isPodcastDownloaded(podcast.audioUrl);
+      final isDownloaded = await _downloadService.isPodcastDownloaded(
+        podcast.audioUrl,
+      );
       if (mounted) {
         setState(() {
           _downloadedPodcasts[podcast.id] = isDownloaded;
         });
       }
     }
-    
+
     // Durumları kaydet (kalıcı olması için)
     await _saveDownloadedPodcastsStatus();
   }
@@ -632,18 +689,18 @@ class _PodcastsPageState extends State<PodcastsPage>
   // Arka planda duration'ları paralel yükle (çok daha hızlı)
   Future<void> _loadDurationsInBackground() async {
     final futures = <Future<void>>[];
-    
+
     for (int index = 0; index < _podcasts.length; index++) {
       final podcast = _podcasts[index];
       if (podcast.durationMinutes > 0) continue; // Zaten yüklenmiş
-      
+
       futures.add(_loadDurationForPodcast(index, podcast));
     }
-    
+
     // Tüm duration'ları paralel yükle
     await Future.wait(futures);
   }
-  
+
   // Tek bir podcast için duration yükle
   Future<void> _loadDurationForPodcast(int index, Podcast podcast) async {
     // Eğer zaten cache'de varsa, tekrar yükleme
@@ -653,7 +710,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         return; // Zaten cache'de var
       }
     }
-    
+
     try {
       final audioPlayer = AudioPlayer();
       // Sadece metadata'yı yükle
@@ -663,7 +720,7 @@ class _PodcastsPageState extends State<PodcastsPage>
       } else {
         await audioPlayer.setUrl(podcast.audioUrl);
       }
-      
+
       // Duration'ı bekle (maksimum 2 saniye - daha hızlı)
       Duration? duration;
       try {
@@ -673,11 +730,14 @@ class _PodcastsPageState extends State<PodcastsPage>
       } catch (e) {
         duration = audioPlayer.duration;
       }
-      
+
       if (duration != null && duration.inMinutes > 0) {
         // Cache'e kaydet
-        await PodcastCacheService.saveDuration(podcast.audioUrl, duration.inMinutes);
-        
+        await PodcastCacheService.saveDuration(
+          podcast.audioUrl,
+          duration.inMinutes,
+        );
+
         if (mounted) {
           final updatedPodcast = Podcast(
             id: podcast.id,
@@ -701,11 +761,11 @@ class _PodcastsPageState extends State<PodcastsPage>
 
   Future<void> _initializeAudio() async {
     await _audioService.initialize();
-    
+
     // Register callbacks for next/previous podcast navigation
     _audioService.setOnNextPodcast(_playNextPodcast);
     _audioService.setOnPreviousPodcast(_playPreviousPodcast);
-    
+
     // Listen to position updates
     _positionSubscription = _audioService.positionStream.listen((position) {
       if (mounted) {
@@ -734,12 +794,16 @@ class _PodcastsPageState extends State<PodcastsPage>
         }
       }
     });
-    
+
     // Listen to processing state for buffering
-    _processingStateSubscription = _audioService.processingStateStream.listen((state) {
+    _processingStateSubscription = _audioService.processingStateStream.listen((
+      state,
+    ) {
       if (mounted) {
         setState(() {
-          _isBuffering = (state == ProcessingState.loading || state == ProcessingState.buffering);
+          _isBuffering =
+              (state == ProcessingState.loading ||
+              state == ProcessingState.buffering);
         });
       }
     });
@@ -759,24 +823,27 @@ class _PodcastsPageState extends State<PodcastsPage>
 
   Future<void> _saveProgress({bool allowDurationLoad = true}) async {
     if (_podcasts.isEmpty || _selectedPodcastIndex >= _podcasts.length) return;
-    
+
     final currentPodcast = _podcasts[_selectedPodcastIndex];
     final position = _audioService.position;
-    
+
     Duration? total = _audioService.duration ?? _totalDuration;
     if (total == null || total.inSeconds == 0) {
       if (currentPodcast.durationMinutes > 0) {
         total = Duration(minutes: currentPodcast.durationMinutes);
       }
     }
-    
+
     // Cache'den duration çek (streaming'de duration null kalabiliyor)
     if (total == null || total.inSeconds == 0) {
-      final cachedMinutes = await PodcastCacheService.getDuration(currentPodcast.audioUrl);
+      final cachedMinutes = await PodcastCacheService.getDuration(
+        currentPodcast.audioUrl,
+      );
       if (cachedMinutes != null && cachedMinutes > 0) {
         total = Duration(minutes: cachedMinutes);
         // UI'a zorla setState yapma; sadece local list'i güncelle (save için yeterli).
-        if (currentPodcast.durationMinutes == 0 && _selectedPodcastIndex < _podcasts.length) {
+        if (currentPodcast.durationMinutes == 0 &&
+            _selectedPodcastIndex < _podcasts.length) {
           _podcasts[_selectedPodcastIndex] = Podcast(
             id: currentPodcast.id,
             title: currentPodcast.title,
@@ -791,7 +858,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         }
       }
     }
-    
+
     // Eğer hala duration yoksa, (özellikle podcast değiştirirken) hızlıca metadata yüklemeyi dene
     if ((total == null || total.inSeconds == 0) && allowDurationLoad) {
       await _loadDurationForPodcast(_selectedPodcastIndex, currentPodcast);
@@ -802,9 +869,9 @@ class _PodcastsPageState extends State<PodcastsPage>
         }
       }
     }
-    
+
     if (total == null || total.inSeconds == 0) return;
-    
+
     // Güvenli clamp: hatalı/yuvarlanmış duration yüzünden "tamamlandı" sayılıp silinmesin
     final safeMaxPosSeconds = math.max(0, total.inSeconds - 1);
     final safePosSeconds = position.inSeconds.clamp(0, safeMaxPosSeconds);
@@ -824,18 +891,17 @@ class _PodcastsPageState extends State<PodcastsPage>
   @override
   void dispose() {
     _progressSaveTimer?.cancel();
-    
+
     // Save final progress before disposing
-    if (_podcasts.isNotEmpty && 
-        _selectedPodcastIndex < _podcasts.length) {
+    if (_podcasts.isNotEmpty && _selectedPodcastIndex < _podcasts.length) {
       // Dispose içinde pahalı metadata yüklemeye girme.
       _saveProgress(allowDurationLoad: false);
     }
-    
+
     // Clear callbacks
     _audioService.setOnNextPodcast(null);
     _audioService.setOnPreviousPodcast(null);
-    
+
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
@@ -851,19 +917,20 @@ class _PodcastsPageState extends State<PodcastsPage>
     if (_isBuffering) {
       return;
     }
-    
+
     // Optimistic update - immediately update UI
     final wasPlaying = _isPlaying;
     setState(() {
       _isPlaying = !_isPlaying;
     });
     _ignoreStreamUpdate = true;
-    
+
     try {
       if (wasPlaying) {
         await _audioService.pause();
       } else {
-        if (_currentPosition == Duration.zero || _audioService.processingState == ProcessingState.completed) {
+        if (_currentPosition == Duration.zero ||
+            _audioService.processingState == ProcessingState.completed) {
           // Hemen başlat - await yap, setUrl tamamlanmasını bekle
           await _loadAndPlayCurrentPodcast();
         } else {
@@ -891,30 +958,28 @@ class _PodcastsPageState extends State<PodcastsPage>
   Future<void> _loadAndPlayCurrentPodcast() async {
     if (_podcasts.isEmpty || _selectedPodcastIndex >= _podcasts.length) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Podcast bulunamadı'),
-            backgroundColor: Colors.red,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Podcast yüklenirken hata oluştu',
+          type: SnackBarType.error,
         );
       }
       return;
     }
-    
+
     final currentPodcast = _podcasts[_selectedPodcastIndex];
-    
+
     if (currentPodcast.audioUrl.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Podcast ses dosyası bulunamadı'),
-            backgroundColor: Colors.red,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Podcast ses dosyası bulunamadı',
+          type: SnackBarType.error,
         );
       }
       return;
     }
-    
+
     // Cache kontrolü - aynı podcast ise yeniden yükleme
     if (_currentPlayingUrl == currentPodcast.audioUrl) {
       // Aynı podcast zaten yüklü (cache'de)
@@ -935,7 +1000,7 @@ class _PodcastsPageState extends State<PodcastsPage>
         return;
       }
     }
-    
+
     try {
       // Buffering durumunu göster
       if (mounted) {
@@ -944,11 +1009,13 @@ class _PodcastsPageState extends State<PodcastsPage>
           _currentPlayingUrl = currentPodcast.audioUrl;
         });
       }
-      
+
       // Önce cache'den duration'ı kontrol et (eğer podcast'te yoksa)
       int? durationMinutes = currentPodcast.durationMinutes;
       if (durationMinutes == 0) {
-        final cached = await PodcastCacheService.getDuration(currentPodcast.audioUrl);
+        final cached = await PodcastCacheService.getDuration(
+          currentPodcast.audioUrl,
+        );
         if (cached != null && cached > 0) {
           durationMinutes = cached;
           // Podcast'i güncelle
@@ -968,56 +1035,69 @@ class _PodcastsPageState extends State<PodcastsPage>
           }
         }
       }
-      
+
       // Duration'ı hesapla
-      final duration = durationMinutes > 0 
+      final duration = durationMinutes > 0
           ? Duration(minutes: durationMinutes)
           : null;
-      
+
       // Load saved progress (we will seek BEFORE starting playback)
-      final savedProgress = await _progressService.getPodcastProgress(currentPodcast.id);
-      
+      final savedProgress = await _progressService.getPodcastProgress(
+        currentPodcast.id,
+      );
+
       // Check if podcast is downloaded locally (cache kontrolü - hızlı)
       // Eğer audioUrl file:// ile başlıyorsa, bu cache'den yüklenen bir podcast'tir
       String? finalLocalPath;
       if (currentPodcast.audioUrl.startsWith('file://')) {
         // Cache'den yüklenen podcast - local path'i direkt kullan
-        finalLocalPath = currentPodcast.audioUrl.substring(7); // 'file://' prefix'ini kaldır
+        finalLocalPath = currentPodcast.audioUrl.substring(
+          7,
+        ); // 'file://' prefix'ini kaldır
         debugPrint('📁 Using cached podcast (instant): $finalLocalPath');
       } else {
         // Normal podcast - cache kontrolü yap
-        final localFilePath = await _downloadService.getLocalFilePath(currentPodcast.audioUrl);
+        final localFilePath = await _downloadService.getLocalFilePath(
+          currentPodcast.audioUrl,
+        );
         finalLocalPath = localFilePath;
-        
+
         // Eğer indirilmemişse, streaming ile çal (hızlı, tam indirme yok)
         if (localFilePath == null) {
-          debugPrint('🌐 Podcast not downloaded, using streaming mode (fast, no full download)...');
+          debugPrint(
+            '🌐 Podcast not downloaded, using streaming mode (fast, no full download)...',
+          );
           // Streaming ile çal, arka planda cache'le
           finalLocalPath = null; // Network streaming kullan
-          
+
           // Arka planda indir (cache için - non-blocking)
-          _downloadService.downloadPodcast(
-            audioUrl: currentPodcast.audioUrl,
-            podcastId: currentPodcast.id,
-            onProgress: (progress) {
-              debugPrint('📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%');
-            },
-          ).then((downloadedPath) {
-            if (downloadedPath != null && mounted) {
-              debugPrint('✅ Podcast cached in background: $downloadedPath');
-              setState(() {
-                _downloadedPodcasts[currentPodcast.id] = true;
+          _downloadService
+              .downloadPodcast(
+                audioUrl: currentPodcast.audioUrl,
+                podcastId: currentPodcast.id,
+                onProgress: (progress) {
+                  debugPrint(
+                    '📊 Background download progress: ${(progress * 100).toStringAsFixed(0)}%',
+                  );
+                },
+              )
+              .then((downloadedPath) {
+                if (downloadedPath != null && mounted) {
+                  debugPrint('✅ Podcast cached in background: $downloadedPath');
+                  setState(() {
+                    _downloadedPodcasts[currentPodcast.id] = true;
+                  });
+                  // Durumu kaydet (kalıcı olması için)
+                  _saveDownloadedPodcastsStatus();
+                  // Next time will use cache
+                }
+              })
+              .catchError((e) {
+                debugPrint('⚠️ Background download failed: $e');
               });
-              // Durumu kaydet (kalıcı olması için)
-              _saveDownloadedPodcastsStatus();
-              // Next time will use cache
-            }
-          }).catchError((e) {
-            debugPrint('⚠️ Background download failed: $e');
-          });
         }
       }
-      
+
       // Oynat - yerel dosya varsa onu kullan, yoksa network'ten (fallback)
       await _audioService.play(
         currentPodcast.audioUrl,
@@ -1025,21 +1105,25 @@ class _PodcastsPageState extends State<PodcastsPage>
         artist: widget.topicName,
         duration: duration,
         localFilePath: finalLocalPath,
-        initialPosition: (savedProgress != null && savedProgress.inSeconds > 5) ? savedProgress : null,
+        initialPosition: (savedProgress != null && savedProgress.inSeconds > 5)
+            ? savedProgress
+            : null,
       );
-      
+
       // Update last access time if playing from local file
       if (finalLocalPath != null) {
         await _cleanupService.updateLastAccessTime(currentPodcast.audioUrl);
       }
-      
+
       if (savedProgress != null && savedProgress.inSeconds > 5) {
-        debugPrint('✅ Starting podcast from saved position: ${savedProgress.inMinutes}m');
+        debugPrint(
+          '✅ Starting podcast from saved position: ${savedProgress.inMinutes}m',
+        );
       }
-      
+
       // Start progress save timer
       _startProgressSaveTimer();
-      
+
       // Eğer duration hala yoksa, arka planda yükle
       if (duration == null || durationMinutes == 0) {
         _loadDurationForPodcast(_selectedPodcastIndex, currentPodcast);
@@ -1051,15 +1135,16 @@ class _PodcastsPageState extends State<PodcastsPage>
       debugPrint('Full error: ${e.toString()}');
       debugPrint('Stack trace:');
       debugPrint(stackTrace.toString());
-      
+
       if (mounted) {
         setState(() {
           _isBuffering = false;
           _isPlaying = false;
         });
-        
+
         // Detaylı hata mesajı göster
-        final errorMessage = '''
+        final errorMessage =
+            '''
 HATA DETAYLARI:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Hata Tipi: ${e.runtimeType}
@@ -1071,43 +1156,14 @@ Stack Trace (ilk 500 karakter):
 ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : stackTrace.toString().length)}...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         ''';
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: SingleChildScrollView(
-              child: Text(
-                errorMessage,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 10),
-            action: SnackBarAction(
-              label: 'Kapat',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
+
+        debugPrint(errorMessage);
+        PremiumSnackBar.show(
+          context,
+          message: 'Podcast yüklenirken bir hata oluştu.',
+          type: SnackBarType.error,
         );
       }
-    }
-  }
-
-  Future<void> _reset() async {
-    // Stop çağırma - sadece pozisyonu sıfırla ve pause yap
-    // Böylece cache korunur ve tekrar play'e basınca hemen başlar
-    await _audioService.pause();
-    await _audioService.seek(Duration.zero);
-    if (mounted) {
-      setState(() {
-        _isPlaying = false;
-        _currentPosition = Duration.zero;
-        // _currentPlayingUrl'i temizleme - cache'i koru
-      });
     }
   }
 
@@ -1119,7 +1175,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
       }
       return;
     }
-    
+
     // Kaydet: podcast değiştirirken ilerleme kaybolmasın.
     _progressSaveTimer?.cancel();
     await _saveProgress();
@@ -1134,7 +1190,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
       _totalDuration = null;
       _currentPlayingUrl = null;
     });
-    
+
     // Seçilen podcast'i otomatik olarak oynat
     if (index < _podcasts.length) {
       final podcast = _podcasts[index];
@@ -1148,7 +1204,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
   /// Play next podcast in the list (called from notification)
   Future<void> _playNextPodcast() async {
     if (_podcasts.isEmpty) return;
-    
+
     final nextIndex = _selectedPodcastIndex + 1;
     if (nextIndex < _podcasts.length) {
       debugPrint('⏭️ Playing next podcast: ${_podcasts[nextIndex].title}');
@@ -1168,12 +1224,10 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
     } else {
       debugPrint('⚠️ No next podcast available (at end of list)');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Son podcast\'e ulaşıldı'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.orange,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Son podcast\'e ulaşıldı',
+          type: SnackBarType.info,
         );
       }
     }
@@ -1182,10 +1236,12 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
   /// Play previous podcast in the list (called from notification)
   Future<void> _playPreviousPodcast() async {
     if (_podcasts.isEmpty) return;
-    
+
     final previousIndex = _selectedPodcastIndex - 1;
     if (previousIndex >= 0) {
-      debugPrint('⏮️ Playing previous podcast: ${_podcasts[previousIndex].title}');
+      debugPrint(
+        '⏮️ Playing previous podcast: ${_podcasts[previousIndex].title}',
+      );
       // Save current progress before switching
       _progressSaveTimer?.cancel();
       await _saveProgress();
@@ -1204,12 +1260,10 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
       // If at beginning, seek to beginning of current podcast
       await _audioService.seek(Duration.zero);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('İlk podcast\'e ulaşıldı'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.orange,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'İlk podcast\'e ulaşıldı',
+          type: SnackBarType.info,
         );
       }
     }
@@ -1232,7 +1286,6 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
     return '$minutes:$secs';
   }
 
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1241,1111 +1294,747 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         final screenHeight = constraints.maxHeight;
         final isTablet = screenWidth > 600;
         final isSmallScreen = screenHeight < 700;
-        final isVerySmallScreen = screenWidth < 360;
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        
+
         if (_isLoading) {
           return Scaffold(
-            backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-            floatingActionButton: const FloatingHomeButton(),
-            appBar: AppBar(
-              backgroundColor: AppColors.gradientPurpleStart,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                onPressed: () async {
-                  // Save progress before leaving
-                  if (_podcasts.isNotEmpty && 
-                      _selectedPodcastIndex < _podcasts.length && 
-                      _totalDuration != null && 
-                      _totalDuration!.inSeconds > 0) {
-                    await _saveProgress();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('İlerlemeniz kaydediliyor...'),
-                          duration: Duration(seconds: 2),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                      // Wait for message to be visible
-                      await Future.delayed(const Duration(milliseconds: 1500));
-                    }
-                  }
-                  if (mounted) {
-                    Navigator.of(context).pop(true);
-                    // MainScreen'e refresh sinyali gönder
-                    final mainScreen = MainScreen.of(context);
-                    if (mainScreen != null) {
-                      mainScreen.refreshHomePage();
-                    }
-                  }
-                },
-              ),
-              title: Text(
-                widget.topicName,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            body: const Center(
-              child: CircularProgressIndicator(),
+            backgroundColor: isDark
+                ? const Color(0xFF0F0F1A)
+                : const Color(0xFFF8FAFF),
+            body: Stack(
+              children: [
+                _buildMeshBackground(isDark, screenWidth),
+                const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         }
 
         if (_podcasts.isEmpty) {
           return Scaffold(
-            backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+            backgroundColor: isDark
+                ? const Color(0xFF0F0F1A)
+                : const Color(0xFFF8FAFF),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
             floatingActionButton: const FloatingHomeButton(),
-            appBar: AppBar(
-              backgroundColor: AppColors.gradientPurpleStart,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                onPressed: () async {
-                  // Save progress before leaving
-                  if (_podcasts.isNotEmpty && 
-                      _selectedPodcastIndex < _podcasts.length && 
-                      _totalDuration != null && 
-                      _totalDuration!.inSeconds > 0) {
-                    await _saveProgress();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('İlerlemeniz kaydediliyor...'),
-                          duration: Duration(seconds: 2),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                      // Wait for message to be visible
-                      await Future.delayed(const Duration(milliseconds: 1500));
-                    }
-                  }
-                  if (mounted) {
-                    Navigator.of(context).pop(true);
-                    // MainScreen'e refresh sinyali gönder
-                    final mainScreen = MainScreen.of(context);
-                    if (mainScreen != null) {
-                      mainScreen.refreshHomePage();
-                    }
-                  }
-                },
-              ),
-              title: Text(
-                widget.topicName,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.podcasts_outlined,
-                    size: 64,
-                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Bu konu için henüz podcast eklenmemiş',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            body: Stack(
+              children: [
+                _buildMeshBackground(isDark, screenWidth),
+                Column(
+                  children: [
+                    _buildPremiumAppBar(
+                      context,
+                      isDark,
+                      isSmallScreen,
+                      isTablet,
                     ),
-                  ),
-                ],
-              ),
+                    const Spacer(),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.podcasts_outlined,
+                            size: 64,
+                            color: isDark
+                                ? Colors.grey.shade600
+                                : Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Bu konu için henüz podcast eklenmemiş',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ],
             ),
           );
         }
 
         final currentPodcast = _podcasts[_selectedPodcastIndex];
 
-        return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: const FloatingHomeButton(),
-          extendBodyBehindAppBar: false,
-          appBar: PreferredSize(
-            preferredSize: Size.fromHeight(isSmallScreen ? 80 : 90),
-            child: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              flexibleSpace: Builder(
-                builder: (context) {
-                  final isDark = Theme.of(context).brightness == Brightness.dark;
-                  return Container(
-                    decoration: BoxDecoration(
-                      gradient: isDark
-                          ? null
-                          : LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppColors.gradientPurpleStart,
-                                AppColors.gradientPurpleEnd,
-                              ],
-                            ),
-                      color: isDark ? const Color(0xFF1E1E1E) : null,
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark
-                              ? Colors.black.withValues(alpha: 0.3)
-                              : AppColors.gradientPurpleStart.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          // Watermark
-                          Positioned(
-                            top: -10,
-                            right: -10,
-                            child: Transform.rotate(
-                              angle: -0.5,
-                              child: Text(
-                                'PODCAST',
-                                style: TextStyle(
-                                  fontSize: isVerySmallScreen ? 40 : 50,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Content
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isTablet ? 20 : 14,
-                              vertical: isSmallScreen ? 6 : 8,
-                            ),
-                            child: Row(
-                              children: [
-                                // Back button
-                                Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () async {
-                                      // Save progress before leaving
-                                      if (_podcasts.isNotEmpty && 
-                                          _selectedPodcastIndex < _podcasts.length && 
-                                          _totalDuration != null && 
-                                          _totalDuration!.inSeconds > 0) {
-                                        await _saveProgress();
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('İlerlemeniz kaydediliyor...'),
-                                              duration: Duration(seconds: 2),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                          // Wait for message to be visible
-                                          await Future.delayed(const Duration(milliseconds: 2000));
-                                        }
-                                      }
-                                      if (mounted) {
-                                        Navigator.of(context).pop(true);
-                                        // MainScreen'e refresh sinyali gönder
-                                        final mainScreen = MainScreen.of(context);
-                                        if (mainScreen != null) {
-                                          mainScreen.refreshHomePage();
-                                        }
-                                      }
-                                    },
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: Container(
-                                      padding: EdgeInsets.all(isSmallScreen ? 5 : 7),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.white.withValues(alpha: 0.3),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Icon(
-                                        Icons.arrow_back_ios_new_rounded,
-                                        color: Colors.white,
-                                        size: isSmallScreen ? 14 : 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: isSmallScreen ? 10 : 12),
-                                // Title
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Podcastler',
-                                        style: TextStyle(
-                                          fontSize: isSmallScreen ? 10 : 11,
-                                          color: Colors.white.withValues(alpha: 0.85),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        widget.topicName,
-                                        style: TextStyle(
-                                          fontSize: isSmallScreen ? 14 : 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 0.2,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: isDark
+                ? Brightness.light
+                : Brightness.dark,
+            statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
           ),
-          body: Column(
-            children: [
-              // Premium Player Card
-              Container(
-                margin: EdgeInsets.fromLTRB(
-                  isTablet ? 20 : 12,
-                  isSmallScreen ? 10 : 12,
-                  isTablet ? 20 : 12,
-                  isSmallScreen ? 10 : 12,
-                ),
-                constraints: BoxConstraints(
-                  maxHeight: isSmallScreen ? 280 : 320,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.gradientPurpleStart,
-                      AppColors.gradientPurpleEnd,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.gradientPurpleStart.withValues(alpha: 0.4),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                      spreadRadius: 0,
+          child: Scaffold(
+            backgroundColor: isDark
+                ? const Color(0xFF0F0F1A)
+                : const Color(0xFFF8FAFF),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
+            floatingActionButton: const FloatingHomeButton(),
+            body: Stack(
+              children: [
+                _buildMeshBackground(isDark, screenWidth),
+                Column(
+                  children: [
+                    _buildPremiumAppBar(
+                      context,
+                      isDark,
+                      isSmallScreen,
+                      isTablet,
                     ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 32 : 16,
+                          vertical: 16,
+                        ),
+                        child: Column(
+                          children: [
+                            _buildPodcastPlayerCard(
+                              currentPodcast,
+                              isDark,
+                              isSmallScreen,
+                              isTablet,
+                            ),
+                            const SizedBox(height: 24),
+                            _buildPodcastPlaylist(
+                              isDark,
+                              isSmallScreen,
+                              isTablet,
+                            ),
+                            const SizedBox(
+                              height: 100,
+                            ), // Spacing for floating button
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Background Pattern
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: Alignment.topRight,
-                              radius: 1.5,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.15),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Decorative circles
-                      Positioned(
-                        top: -20,
-                        right: -20,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0.2),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Content
-                      Padding(
-                        padding: EdgeInsets.all(isSmallScreen ? 14 : 18),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Podcast Title
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        currentPodcast.title,
-                                        style: TextStyle(
-                                          fontSize: isSmallScreen ? 15 : 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 0.2,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black.withValues(alpha: 0.3),
-                                              blurRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      SizedBox(height: isSmallScreen ? 4 : 6),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.access_time_rounded,
-                                            size: isSmallScreen ? 12 : 14,
-                                            color: Colors.white.withValues(alpha: 0.9),
-                                          ),
-                                          SizedBox(width: 4),
-                                          Flexible(
-                                            child: _isBuffering
-                                                ? Text(
-                                                    'Podcast hazırlanıyor...',
-                                                    style: TextStyle(
-                                                      fontSize: isSmallScreen ? 11 : 12,
-                                                      color: Colors.white.withValues(alpha: 0.9),
-                                                      fontWeight: FontWeight.w500,
-                                                      fontStyle: FontStyle.italic,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  )
-                                                : Text(
-                                                    '${currentPodcast.durationMinutes} dk',
-                                                    style: TextStyle(
-                                                      fontSize: isSmallScreen ? 11 : 12,
-                                                      color: Colors.white.withValues(alpha: 0.9),
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(width: isSmallScreen ? 8 : 10),
-                                // Waveform visualization
-                                AnimatedBuilder(
-                                  animation: _waveController,
-                                  builder: (context, child) {
-                                    return SizedBox(
-                                      width: isSmallScreen ? 45 : 55,
-                                      height: isSmallScreen ? 30 : 38,
-                                      child: CustomPaint(
-                                        painter: WaveformPainter(
-                                          isPlaying: _isPlaying,
-                                          animationValue: _waveController.value,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: isSmallScreen ? 12 : 16),
-                            // Progress Section
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Flexible(
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: isSmallScreen ? 8 : 10,
-                                          vertical: isSmallScreen ? 3 : 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.3),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _formatTime(_currentPosition),
-                                          style: TextStyle(
-                                            fontSize: isSmallScreen ? 10 : 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                            letterSpacing: 0.3,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Flexible(
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: isSmallScreen ? 8 : 10,
-                                          vertical: isSmallScreen ? 3 : 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.3),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _totalDuration != null 
-                                              ? _formatTime(_totalDuration!)
-                                              : '--:--',
-                                          style: TextStyle(
-                                            fontSize: isSmallScreen ? 10 : 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                            letterSpacing: 0.3,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: isSmallScreen ? 8 : 10),
-                                // Custom Progress Bar
-                                Container(
-                                  height: isSmallScreen ? 5 : 6,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 100),
-                                        width: double.infinity,
-                                        child: FractionallySizedBox(
-                                          widthFactor: _totalDuration != null && _totalDuration!.inSeconds > 0
-                                              ? (_currentPosition.inSeconds / _totalDuration!.inSeconds).clamp(0.0, 1.0)
-                                              : 0.0,
-                                          alignment: Alignment.centerLeft,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  Colors.white,
-                                                  Colors.white.withValues(alpha: 0.8),
-                                                ],
-                                              ),
-                                              borderRadius: BorderRadius.circular(8),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.white.withValues(alpha: 0.5),
-                                                  blurRadius: 6,
-                                                  spreadRadius: 0.5,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: isSmallScreen ? 12 : 16),
-                            // Controls
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final isVerySmall = constraints.maxWidth < 320;
-                                return SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Rewind 10s
-                                      _buildControlButton(
-                                        icon: Icons.replay_10_rounded,
-                                        onPressed: () {
-                                          final newPosition = Duration(
-                                            seconds: math.max(0, _currentPosition.inSeconds - 10),
-                                          );
-                                          _seekTo(newPosition);
-                                        },
-                                        isSmallScreen: isSmallScreen,
-                                      ),
-                                      SizedBox(width: isVerySmall ? 6 : isSmallScreen ? 8 : 10),
-                                      // Reset
-                                      _buildControlButton(
-                                        icon: Icons.restart_alt_rounded,
-                                        onPressed: _reset,
-                                        isSmallScreen: isSmallScreen,
-                                      ),
-                                      SizedBox(width: isVerySmall ? 8 : isSmallScreen ? 12 : 16),
-                                      // Play/Pause - Main Button
-                                      AnimatedBuilder(
-                                        animation: _pulseController,
-                                        builder: (context, child) {
-                                          return Container(
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.white,
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.white.withValues(
-                                                    alpha: _isPlaying ? 0.6 : 0.3,
-                                                  ),
-                                                  blurRadius: _isPlaying
-                                                      ? 15 + (_pulseController.value * 8)
-                                                      : 10,
-                                                  spreadRadius: _isPlaying
-                                                      ? _pulseController.value * 3
-                                                      : 0,
-                                                ),
-                                              ],
-                                            ),
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                onTap: _togglePlayPause,
-                                                borderRadius: BorderRadius.circular(50),
-                                                child: Container(
-                                                  width: isSmallScreen ? 52 : 60,
-                                                  height: isSmallScreen ? 52 : 60,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    gradient: LinearGradient(
-                                                      begin: Alignment.topLeft,
-                                                      end: Alignment.bottomRight,
-                                                      colors: [
-                                                        AppColors.gradientPurpleStart,
-                                                        AppColors.gradientPurpleEnd,
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  child: _isBuffering
-                                                      ? SizedBox(
-                                                          width: isSmallScreen ? 26 : 30,
-                                                          height: isSmallScreen ? 26 : 30,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2.5,
-                                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                                          ),
-                                                        )
-                                                      : Icon(
-                                                          _isPlaying
-                                                              ? Icons.pause_rounded
-                                                              : Icons.play_arrow_rounded,
-                                                          color: Colors.white,
-                                                          size: isSmallScreen ? 26 : 30,
-                                                        ),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      SizedBox(width: isVerySmall ? 8 : isSmallScreen ? 12 : 16),
-                                      // Forward 10s
-                                      _buildControlButton(
-                                        icon: Icons.forward_10_rounded,
-                                        onPressed: () {
-                                          if (_totalDuration != null) {
-                                            final newPosition = Duration(
-                                              seconds: math.min(
-                                                _totalDuration!.inSeconds,
-                                                _currentPosition.inSeconds + 10,
-                                              ),
-                                            );
-                                            _seekTo(newPosition);
-                                          }
-                                        },
-                                        isSmallScreen: isSmallScreen,
-                                      ),
-                                      SizedBox(width: isVerySmall ? 6 : isSmallScreen ? 8 : 10),
-                                      // Speed Control - PopupMenuButton
-                                      PopupMenuButton<double>(
-                                        initialValue: _playbackSpeed,
-                                        onSelected: (value) {
-                                          _changeSpeed(value);
-                                        },
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        color: Colors.white,
-                                        child: Container(
-                                          constraints: BoxConstraints(
-                                            minWidth: isVerySmall ? 60 : isSmallScreen ? 70 : 80,
-                                            maxWidth: isVerySmall ? 70 : isSmallScreen ? 80 : 90,
-                                          ),
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: isVerySmall ? 5 : isSmallScreen ? 6 : 8,
-                                            vertical: isSmallScreen ? 5 : 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(alpha: 0.2),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: Colors.white.withValues(alpha: 0.4),
-                                              width: 1.5,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.speed_rounded,
-                                                color: Colors.white,
-                                                size: isVerySmall ? 11 : isSmallScreen ? 12 : 14,
-                                              ),
-                                              SizedBox(width: isVerySmall ? 2 : 3),
-                                              Flexible(
-                                                child: Text(
-                                                  '${_playbackSpeed}x',
-                                                  style: TextStyle(
-                                                    fontSize: isVerySmall ? 9 : isSmallScreen ? 10 : 11,
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                    letterSpacing: 0.2,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              SizedBox(width: isVerySmall ? 1 : 2),
-                                              Icon(
-                                                Icons.arrow_drop_down_rounded,
-                                                color: Colors.white,
-                                                size: isVerySmall ? 12 : isSmallScreen ? 14 : 16,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        itemBuilder: (context) {
-                                          return [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-                                              .map((speed) {
-                                            return PopupMenuItem<double>(
-                                              value: speed,
-                                              child: Row(
-                                                children: [
-                                                  if (_playbackSpeed == speed)
-                                                    Icon(
-                                                      Icons.check_rounded,
-                                                      color: AppColors.gradientPurpleStart,
-                                                      size: 18,
-                                                    )
-                                                  else
-                                                    SizedBox(width: 18),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    '${speed}x',
-                                                    style: TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: _playbackSpeed == speed
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: _playbackSpeed == speed
-                                                          ? AppColors.gradientPurpleStart
-                                                          : AppColors.textPrimary,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList();
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Podcast List
-              Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.only(
-                    left: isTablet ? 20 : 12,
-                    right: isTablet ? 20 : 12,
-                    bottom: isSmallScreen ? 12 : 16,
-                  ),
-                  itemCount: _podcasts.length,
-                  itemBuilder: (context, index) {
-                    final podcast = _podcasts[index];
-                    final isSelected = index == _selectedPodcastIndex;
-                    return GestureDetector(
-                      onTap: () => _selectPodcast(index),
-                      child: Container(
-                        margin: EdgeInsets.only(
-                          bottom: isSmallScreen ? 8 : 10,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: isSelected
-                              ? LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    AppColors.gradientPurpleStart.withValues(alpha: 0.15),
-                                    AppColors.gradientPurpleEnd.withValues(alpha: 0.1),
-                                  ],
-                                )
-                              : null,
-                          color: isSelected ? null : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.gradientPurpleStart.withValues(alpha: 0.3)
-                                : Colors.grey.withValues(alpha: 0.15),
-                            width: isSelected ? 2 : 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isSelected
-                                  ? AppColors.gradientPurpleStart.withValues(alpha: 0.2)
-                                  : Colors.black.withValues(alpha: 0.08),
-                              blurRadius: isSelected ? 12 : 8,
-                              offset: Offset(0, isSelected ? 4 : 2),
-                              spreadRadius: isSelected ? 1 : 0,
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(isSmallScreen ? 12 : 14),
-                          child: Row(
-                            children: [
-                              // Thumbnail
-                              Container(
-                                width: isSmallScreen ? 48 : 56,
-                                height: isSmallScreen ? 48 : 56,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      AppColors.gradientPurpleStart,
-                                      AppColors.gradientPurpleEnd,
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.gradientPurpleStart
-                                          .withValues(alpha: 0.4),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Icon(
-                                      Icons.podcasts_rounded,
-                                      color: Colors.white,
-                                      size: isSmallScreen ? 24 : 28,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black.withValues(alpha: 0.3),
-                                          blurRadius: 3,
-                                        ),
-                                      ],
-                                    ),
-                                    if (isSelected)
-                                      Positioned(
-                                        bottom: 2,
-                                        right: 2,
-                                        child: Container(
-                                          padding: EdgeInsets.all(3),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.check_circle_rounded,
-                                            color: AppColors.gradientPurpleStart,
-                                            size: 12,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: isSmallScreen ? 10 : 12),
-                              // Content
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      podcast.title,
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 13 : 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected
-                                            ? AppColors.gradientPurpleStart
-                                            : (isDark ? Colors.white : AppColors.textPrimary),
-                                        letterSpacing: 0.1,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    SizedBox(height: isSmallScreen ? 4 : 6),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.access_time_rounded,
-                                          size: isSmallScreen ? 12 : 14,
-                                          color: isSelected
-                                              ? AppColors.gradientPurpleStart
-                                              : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
-                                        ),
-                                        SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
-                                            '${podcast.durationMinutes} dk',
-                                            style: TextStyle(
-                                              fontSize: isSmallScreen ? 11 : 12,
-                                              color: isSelected
-                                                  ? AppColors.gradientPurpleStart
-                                                  : (isDark ? Colors.grey.shade400 : AppColors.textSecondary),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (_downloadedPodcasts[podcast.id] == true)
-                                          Padding(
-                                            padding: EdgeInsets.only(left: 8),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.download_done,
-                                                  size: 12,
-                                                  color: Colors.green,
-                                                ),
-                                                SizedBox(width: 2),
-                                                Text(
-                                                  'İndirildi',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.green,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    if (_downloadingPodcasts[podcast.id] == true)
-                                      Padding(
-                                        padding: EdgeInsets.only(top: 6),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            LinearProgressIndicator(
-                                              value: _downloadProgress[podcast.id] ?? 0.0,
-                                              backgroundColor: Colors.grey.shade300,
-                                              valueColor: AlwaysStoppedAnimation<Color>(
-                                                AppColors.gradientPurpleStart,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Text(
-                                              'İndiriliyor: ${((_downloadProgress[podcast.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              // Delete button (only show if downloaded)
-                              if (_downloadedPodcasts[podcast.id] == true)
-                                Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () => _handleDelete(podcast),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.delete_outline,
-                                        color: Colors.red,
-                                        size: 18,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              if (_downloadedPodcasts[podcast.id] == true) SizedBox(width: isSmallScreen ? 8 : 10),
-                              // Play Icon
-                              Container(
-                                padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.gradientPurpleStart
-                                      : AppColors.gradientPurpleStart
-                                          .withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isSelected
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.gradientPurpleStart,
-                                  size: isSmallScreen ? 18 : 20,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Future<void> _handleDelete(Podcast podcast) async {
-    // Delete podcast
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Podcast\'i Sil'),
-        content: Text('${podcast.title} podcast\'ini silmek istediğinize emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
+  Widget _buildPremiumAppBar(
+    BuildContext context,
+    bool isDark,
+    bool isSmallScreen,
+    bool isTablet,
+  ) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 8,
+        bottom: 12,
+        left: 16,
+        right: 16,
+      ),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF0F0F1A) : Colors.white).withOpacity(
+          0.8,
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.black.withOpacity(0.05),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+        ),
+      ),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () async {
+                  if (_podcasts.isNotEmpty &&
+                      _selectedPodcastIndex < _podcasts.length &&
+                      _totalDuration != null &&
+                      _totalDuration!.inSeconds > 0) {
+                    await _saveProgress();
+                  }
+                  if (mounted) Navigator.pop(context, true);
+                },
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  size: 20,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.03),
+                  padding: const EdgeInsets.all(10),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'PODCAST DİNLE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF2563EB),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      widget.topicName,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 16 : 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildPodcastCountPill(isDark),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPodcastCountPill(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2563EB).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.podcasts_rounded,
+            size: 14,
+            color: const Color(0xFF2563EB),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${_podcasts.length}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF2563EB),
+            ),
           ),
         ],
       ),
     );
-    
-    if (confirm == true) {
-      final deleted = await _downloadService.deletePodcast(podcast.audioUrl);
-      if (deleted && mounted) {
-        setState(() {
-          _downloadedPodcasts[podcast.id] = false;
-        });
-        // Durumu kaydet (kalıcı olması için)
-        await _saveDownloadedPodcastsStatus();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Podcast silindi. Tekrar açıldığında otomatik indirilecek.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
   }
 
-  Widget _buildControlButton({
+  Widget _buildPodcastPlayerCard(
+    Podcast currentPodcast,
+    bool isDark,
+    bool isSmallScreen,
+    bool isTablet,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white.withOpacity(0.06) : Colors.white)
+            .withOpacity(0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.04),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    _buildPlayerThumbnail(isDark, isSmallScreen),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            currentPodcast.title,
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 16 : 18,
+                              fontWeight: FontWeight.w900,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1E293B),
+                              letterSpacing: -0.5,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            currentPodcast.description,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.white60
+                                  : const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildPlaybackProgress(isDark),
+                const SizedBox(height: 16),
+                _buildPlayerControls(isDark, isSmallScreen),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayerThumbnail(bool isDark, bool isSmallScreen) {
+    final size = isSmallScreen ? 80.0 : 100.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Center(
+        child: _isPlaying
+            ? AnimatedBuilder(
+                animation: _waveController,
+                builder: (context, child) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    child: CustomPaint(
+                      size: Size(size * 0.6, size * 0.6),
+                      painter: WaveformPainter(
+                        isPlaying: _isPlaying,
+                        animationValue: _waveController.value,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
+              )
+            : Icon(
+                Icons.podcasts_rounded,
+                size: size * 0.5,
+                color: Colors.white.withOpacity(0.9),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPlaybackProgress(bool isDark) {
+    final progress = (_totalDuration != null && _totalDuration!.inSeconds > 0)
+        ? (_currentPosition.inSeconds / _totalDuration!.inSeconds).clamp(
+            0.0,
+            1.0,
+          )
+        : 0.0;
+
+    return Row(
+      children: [
+        Text(
+          _formatTime(_currentPosition),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 4,
+              activeTrackColor: const Color(0xFF2563EB),
+              inactiveTrackColor: (isDark ? Colors.white : Colors.black)
+                  .withOpacity(0.08),
+              thumbColor: Colors.white,
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 6,
+                elevation: 3,
+              ),
+              overlayColor: const Color(0xFF2563EB).withOpacity(0.1),
+              trackShape: const RectangularSliderTrackShape(),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: Slider(
+              value: progress,
+              onChanged: (value) {
+                if (_totalDuration != null) {
+                  final newPos = Duration(
+                    seconds: (value * _totalDuration!.inSeconds).toInt(),
+                  );
+                  _seekTo(newPos);
+                }
+              },
+            ),
+          ),
+        ),
+        Text(
+          _totalDuration != null ? _formatTime(_totalDuration!) : '--:--',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlayerControls(bool isDark, bool isSmallScreen) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildCircleControlButton(
+          icon: Icons.restart_alt_rounded,
+          onPressed: () => _seekTo(Duration.zero),
+          isDark: isDark,
+          size: 40,
+        ),
+        const SizedBox(width: 16),
+        _buildCircleControlButton(
+          icon: Icons.replay_10_rounded,
+          onPressed: () {
+            final newPos = Duration(
+              seconds: math.max(0, _currentPosition.inSeconds - 10),
+            );
+            _seekTo(newPos);
+          },
+          isDark: isDark,
+          size: 48,
+        ),
+        const SizedBox(width: 24),
+        _buildMainPlayButton(isDark),
+        const SizedBox(width: 24),
+        _buildCircleControlButton(
+          icon: Icons.forward_10_rounded,
+          onPressed: () {
+            if (_totalDuration != null) {
+              final newPos = Duration(
+                seconds: math.min(
+                  _totalDuration!.inSeconds,
+                  _currentPosition.inSeconds + 10,
+                ),
+              );
+              _seekTo(newPos);
+            }
+          },
+          isDark: isDark,
+          size: 48,
+        ),
+        const SizedBox(width: 16),
+        _buildSpeedControl(isDark),
+      ],
+    );
+  }
+
+  Widget _buildMainPlayButton(bool isDark) {
+    return GestureDetector(
+      onTap: _togglePlayPause,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2563EB).withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Center(
+          child: _isBuffering
+              ? const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Icon(
+                  _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 36,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircleControlButton({
     required IconData icon,
     required VoidCallback onPressed,
-    required bool isSmallScreen,
+    required bool isDark,
+    double size = 44,
   }) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          size: size * 0.5,
+          color: isDark ? Colors.white : const Color(0xFF1E293B),
+        ),
+        style: IconButton.styleFrom(
+          backgroundColor: (isDark ? Colors.white : Colors.black).withOpacity(
+            0.04,
+          ),
+          fixedSize: Size(size, size),
+          padding: EdgeInsets.zero,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedControl(bool isDark) {
+    return PopupMenuButton<double>(
+      initialValue: _playbackSpeed,
+      onSelected: _changeSpeed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          '${_playbackSpeed}x',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+          ),
+        ),
+      ),
+      itemBuilder: (context) => [
+        0.5,
+        0.75,
+        1.0,
+        1.25,
+        1.5,
+        2.0,
+      ].map((s) => PopupMenuItem(value: s, child: Text('${s}x'))).toList(),
+    );
+  }
+
+  Widget _buildPodcastPlaylist(bool isDark, bool isSmallScreen, bool isTablet) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 16),
+          child: Text(
+            'DİĞER BÖLÜMLER',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF2563EB),
+              letterSpacing: 1.5,
             ),
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: isSmallScreen ? 18 : 20,
+        ),
+        ...List.generate(_podcasts.length, (index) {
+          final podcast = _podcasts[index];
+          final isSelected = index == _selectedPodcastIndex;
+          return _buildPlaylistTile(podcast, index, isSelected, isDark);
+        }),
+      ],
+    );
+  }
+
+  Widget _buildPlaylistTile(
+    Podcast podcast,
+    int index,
+    bool isSelected,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xFF2563EB).withOpacity(0.08)
+            : (isDark
+                  ? Colors.white.withOpacity(0.02)
+                  : Colors.white.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected
+              ? const Color(0xFF2563EB).withOpacity(0.3)
+              : (isDark
+                    ? Colors.white.withOpacity(0.04)
+                    : Colors.black.withOpacity(0.03)),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: ListTile(
+        onTap: () => _selectPodcast(index),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF2563EB)
+                : (isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.03)),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Icon(
+            isSelected ? Icons.headset_rounded : Icons.play_arrow_rounded,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.white60 : Colors.black45),
+            size: 18,
+          ),
+        ),
+        title: Text(
+          podcast.title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+          ),
+        ),
+        subtitle: Text(
+          '${podcast.durationMinutes} dakika dinle',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: isSelected
+            ? const Icon(Icons.bar_chart_rounded, color: Color(0xFF2563EB))
+            : (_downloadedPodcasts[podcast.id] == true
+                  ? const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 18,
+                    )
+                  : null),
+      ),
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        color: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF8FAFF),
+        child: Stack(
+          children: [
+            _buildBlurCircle(
+              -screenWidth * 0.2,
+              -screenWidth * 0.2,
+              screenWidth * 0.8,
+              const Color(0xFF2563EB).withOpacity(isDark ? 0.12 : 0.08),
+            ),
+            _buildBlurCircle(
+              screenWidth * 0.4,
+              screenWidth * 0.1,
+              screenWidth * 0.7,
+              const Color(0xFF7C3AED).withOpacity(isDark ? 0.1 : 0.06),
+            ),
+            _buildBlurCircle(
+              screenWidth * 0.1,
+              screenWidth * 0.6,
+              screenWidth * 0.9,
+              const Color(0xFF2563EB).withOpacity(isDark ? 0.08 : 0.05),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle(double top, double left, double size, Color color) {
+    return Positioned(
+      top: top,
+      left: left,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+          child: const SizedBox.shrink(),
         ),
       ),
     );
@@ -2356,16 +2045,18 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
 class WaveformPainter extends CustomPainter {
   final bool isPlaying;
   final double animationValue;
+  final Color color;
 
   WaveformPainter({
     required this.isPlaying,
     required this.animationValue,
+    this.color = Colors.white,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.6)
+      ..color = color.withOpacity(0.6)
       ..style = PaintingStyle.fill;
 
     final barWidth = 2.5;
@@ -2373,18 +2064,21 @@ class WaveformPainter extends CustomPainter {
     final maxHeight = size.height;
     final minHeight = maxHeight * 0.3;
 
-    final barCount = ((size.width - barSpacing) / (barWidth + barSpacing)).floor();
+    final barCount = ((size.width - barSpacing) / (barWidth + barSpacing))
+        .floor();
 
     for (int i = 0; i < barCount; i++) {
       final normalizedIndex = i / barCount;
       double height;
 
       if (isPlaying) {
-        final wave = math.sin((normalizedIndex * 2 * math.pi) +
-            (animationValue * 2 * math.pi));
+        final wave = math.sin(
+          (normalizedIndex * 2 * math.pi) + (animationValue * 2 * math.pi),
+        );
         height = minHeight + (maxHeight - minHeight) * ((wave + 1) / 2);
       } else {
-        height = minHeight + (maxHeight - minHeight) * (1 - normalizedIndex * 0.3);
+        height =
+            minHeight + (maxHeight - minHeight) * (1 - normalizedIndex * 0.3);
       }
 
       final x = i * (barWidth + barSpacing);

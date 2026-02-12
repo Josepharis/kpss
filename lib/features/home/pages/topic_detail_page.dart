@@ -58,13 +58,13 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     _topic = widget.topic;
     // Sayfa hemen açılsın, kontroller arka planda yapılsın
     _isLoadingContent = false;
-    
+
     // Cache'den sayıları hemen yükle (synchronous - çok hızlı)
     _loadCachedCounts();
 
     // AI içerikleri (soru/metin) - local cache'den yükle
     Future.microtask(_loadAiContent);
-    
+
     // Favori durumunu kontrol et (arka planda, non-blocking)
     Future.microtask(() async {
       final isFavorite = await QuickAccessService.isInQuickAccess(_topic.id);
@@ -74,7 +74,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         });
       }
     });
-    
+
     // Abonelik kontrolünü arka planda yap (non-blocking)
     Future.microtask(() async {
       final canAccess = await _subscriptionService.canAccessTopic(_topic);
@@ -82,18 +82,18 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         setState(() {
           _canAccess = canAccess;
         });
-        
+
         if (!canAccess) {
           // Erişim yok, içerik yükleme
           return;
         }
       }
-      
+
       // Erişim var, içerikleri kontrol et (arka planda)
       if (mounted) {
         // Cache geçerliyse Storage'dan çekme, sadece cache yoksa veya geçersizse çek
         _loadContentCountsIfNeeded();
-        
+
         // Test tamamlanma durumunu kontrol et
         _checkTestCompletion();
       }
@@ -121,68 +121,81 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   Future<void> _loadCachedCounts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Önce content_counts cache'inden tüm sayıları yükle (en hızlı)
       final contentCountsKey = 'content_counts_${_topic.id}';
       final contentCountsTimeKey = 'content_counts_time_${_topic.id}';
       final contentCountsJson = prefs.getString(contentCountsKey);
       final cacheTime = prefs.getInt(contentCountsTimeKey);
-      
+
       // Cache geçerlilik süresi: 7 gün (içerik sayıları çok sık değişmez)
       const cacheValidDuration = Duration(days: 7);
       final now = DateTime.now().millisecondsSinceEpoch;
-      final isCacheValid = cacheTime != null && 
-                          (now - cacheTime) < cacheValidDuration.inMilliseconds;
-      
-      if (contentCountsJson != null && contentCountsJson.isNotEmpty && isCacheValid) {
+      final isCacheValid =
+          cacheTime != null &&
+          (now - cacheTime) < cacheValidDuration.inMilliseconds;
+
+      if (contentCountsJson != null &&
+          contentCountsJson.isNotEmpty &&
+          isCacheValid) {
         try {
           final Map<String, dynamic> counts = jsonDecode(contentCountsJson);
           final videoCount = counts['videoCount'] as int? ?? _topic.videoCount;
-          final podcastCount = counts['podcastCount'] as int? ?? _topic.podcastCount;
-          final flashCardCount = counts['flashCardCount'] as int? ?? _topic.flashCardCount;
+          final podcastCount =
+              counts['podcastCount'] as int? ?? _topic.podcastCount;
+          final flashCardCount =
+              counts['flashCardCount'] as int? ?? _topic.flashCardCount;
           final noteCount = counts['noteCount'] as int? ?? _topic.noteCount;
           final pdfCount = counts['pdfCount'] as int? ?? _topic.pdfCount;
-          final testQuestionCount = counts['testQuestionCount'] as int? ?? _topic.averageQuestionCount;
-          
+          final testQuestionCount =
+              counts['testQuestionCount'] as int? ??
+              _topic.averageQuestionCount;
+
           // Cache'deki sayıları hemen göster
-          setState(() {
-            _topic = Topic(
-              id: _topic.id,
-              lessonId: _topic.lessonId,
-              name: _topic.name,
-              subtitle: _topic.subtitle,
-              duration: _topic.duration,
-              averageQuestionCount: testQuestionCount,
-              testCount: testQuestionCount > 0 ? 1 : 0,
-              podcastCount: podcastCount,
-              videoCount: videoCount,
-              noteCount: noteCount,
-              flashCardCount: flashCardCount,
-              pdfCount: pdfCount,
-              progress: _topic.progress,
-              order: _topic.order,
-              pdfUrl: _topic.pdfUrl,
-            );
-          });
-          debugPrint('✅ Loaded all content counts from cache immediately (NO Storage request - saving MB!)');
-          debugPrint('   Videos: $videoCount, Podcasts: $podcastCount, PDFs: $pdfCount, Questions: $testQuestionCount');
-          return; // Cache'den yüklendi, Storage'dan çekmeye gerek yok
+          if (mounted) {
+            setState(() {
+              _topic = Topic(
+                id: _topic.id,
+                lessonId: _topic.lessonId,
+                name: _topic.name,
+                subtitle: _topic.subtitle,
+                duration: _topic.duration,
+                averageQuestionCount: testQuestionCount,
+                testCount: testQuestionCount > 0 ? 1 : 0,
+                podcastCount: podcastCount,
+                videoCount: videoCount,
+                noteCount: noteCount,
+                flashCardCount: flashCardCount,
+                pdfCount: pdfCount,
+                progress: _topic.progress,
+                order: _topic.order,
+                pdfUrl: _topic.pdfUrl,
+              );
+            });
+          }
+
+          // Eğer temel bilgiler (soru sayısı gibi) 0 ise, cache'e güvenme ve Storage'dan çekilmesine izin ver
+          if (testQuestionCount > 0 || videoCount > 0 || pdfCount > 0) {
+            debugPrint('✅ Loaded all content counts from cache immediately');
+            return;
+          }
+          debugPrint('⚠️ Cache has 0 counts, will check Storage/Firestore');
         } catch (e) {
           debugPrint('⚠️ Error parsing content counts cache: $e');
         }
       }
-      
+
       // Eğer content_counts cache'i yoksa, sadece soru sayısını cache'den çek (geriye dönük uyumluluk)
       final cacheKey = 'questions_${_topic.id}';
       final cachedJson = prefs.getString(cacheKey);
-      
+
       if (cachedJson != null && cachedJson.isNotEmpty) {
         // Çok hızlı: Sadece '{' karakterlerini say (parse etmeden)
         int braceCount = 0;
         for (int i = 0; i < cachedJson.length; i++) {
           if (cachedJson[i] == '{') braceCount++;
         }
-        
+
         if (braceCount > 0 && braceCount != _topic.averageQuestionCount) {
           // Cache'deki sayıyı hemen göster
           setState(() {
@@ -204,7 +217,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               pdfUrl: _topic.pdfUrl,
             );
           });
-          debugPrint('✅ Loaded question count from cache immediately: $braceCount');
+          debugPrint(
+            '✅ Loaded question count from cache immediately: $braceCount',
+          );
         }
       }
     } catch (e) {
@@ -220,19 +235,24 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       final contentCountsTimeKey = 'content_counts_time_${_topic.id}';
       final contentCountsJson = prefs.getString(contentCountsKey);
       final cacheTime = prefs.getInt(contentCountsTimeKey);
-      
+
       // Cache geçerlilik süresi: 7 gün
       const cacheValidDuration = Duration(days: 7);
       final now = DateTime.now().millisecondsSinceEpoch;
-      final isCacheValid = cacheTime != null && 
-                          (now - cacheTime) < cacheValidDuration.inMilliseconds;
-      
+      final isCacheValid =
+          cacheTime != null &&
+          (now - cacheTime) < cacheValidDuration.inMilliseconds;
+
       // Cache geçerliyse Storage'dan ÇEKME - hiç istek atma
-      if (contentCountsJson != null && contentCountsJson.isNotEmpty && isCacheValid) {
-        print('✅ Content counts loaded from cache (NO Storage request - saving MB!)');
+      if (contentCountsJson != null &&
+          contentCountsJson.isNotEmpty &&
+          isCacheValid) {
+        print(
+          '✅ Content counts loaded from cache (NO Storage request - saving MB!)',
+        );
         return;
       }
-      
+
       // Cache yok veya geçersizse Storage'dan çek
       print('🌐 Loading content counts from Storage (cache miss or expired)');
       print('⚠️ WARNING: This will make Storage requests and use MB!');
@@ -251,26 +271,32 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         _topic = updatedTopic;
         // _isLoadingContent zaten false, sayfa açık
       });
-      
+
       // Cache'e kaydet (timestamp ile)
       try {
         final prefs = await SharedPreferences.getInstance();
         final contentCountsKey = 'content_counts_${_topic.id}';
         final contentCountsTimeKey = 'content_counts_time_${_topic.id}';
-        await prefs.setString(contentCountsKey, jsonEncode({
-          'videoCount': _topic.videoCount,
-          'podcastCount': _topic.podcastCount,
-          'flashCardCount': _topic.flashCardCount,
-          'noteCount': _topic.noteCount,
-          'pdfCount': _topic.pdfCount,
-          'testQuestionCount': _topic.averageQuestionCount,
-        }));
-        await prefs.setInt(contentCountsTimeKey, DateTime.now().millisecondsSinceEpoch);
+        await prefs.setString(
+          contentCountsKey,
+          jsonEncode({
+            'videoCount': _topic.videoCount,
+            'podcastCount': _topic.podcastCount,
+            'flashCardCount': _topic.flashCardCount,
+            'noteCount': _topic.noteCount,
+            'pdfCount': _topic.pdfCount,
+            'testQuestionCount': _topic.averageQuestionCount,
+          }),
+        );
+        await prefs.setInt(
+          contentCountsTimeKey,
+          DateTime.now().millisecondsSinceEpoch,
+        );
         print('✅ Saved content counts to cache (valid for 7 days)');
       } catch (e) {
         print('⚠️ Error saving content counts to cache: $e');
       }
-      
+
       // Hızlı erişimdeki içerik sayılarını güncelle (PDF sayısı dahil)
       await QuickAccessService.updateContentCounts(
         topicId: _topic.id,
@@ -279,7 +305,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         flashCardCount: _topic.flashCardCount,
         pdfCount: _topic.pdfCount,
       );
-      
+
       // Eğer favoriye ekliyse, anasayfayı yenile
       final isFavorite = await QuickAccessService.isInQuickAccess(_topic.id);
       if (isFavorite) {
@@ -293,7 +319,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
   Future<void> _checkTestCompletion() async {
     if (_topic.averageQuestionCount == 0) return;
-    
+
     try {
       final testResult = await _progressService.getTestResult(_topic.id);
       if (mounted) {
@@ -313,9 +339,11 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     final isTablet = screenWidth > 600;
     final isSmallScreen = screenHeight < 700;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const FloatingHomeButton(),
       extendBodyBehindAppBar: false,
@@ -328,10 +356,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.primaryBlue,
-                      AppColors.primaryDarkBlue,
-                    ],
+                    colors: [AppColors.primaryBlue, AppColors.primaryDarkBlue],
                   ),
             color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
@@ -424,29 +449,45 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () async {
-                            // Eğer içerik sayıları henüz yüklenmediyse, önce yükle
-                            if (_topic.pdfCount == 0 && _topic.podcastCount == 0 && _topic.videoCount == 0 && _topic.flashCardCount == 0) {
-                              await _loadContentCounts();
-                            }
-                            
-                            final newFavoriteState = await QuickAccessService.toggleQuickAccessItem(
-                              topicId: _topic.id,
-                              lessonId: _topic.lessonId,
-                              topicName: _topic.name,
-                              lessonName: widget.lessonName,
-                              podcastCount: _topic.podcastCount,
-                              videoCount: _topic.videoCount,
-                              flashCardCount: _topic.flashCardCount,
-                              pdfCount: _topic.pdfCount,
-                            );
-                            if (mounted) {
-                              setState(() {
-                                _isFavorite = newFavoriteState;
-                              });
-                              // Anasayfayı yenile
-                              final mainScreen = MainScreen.of(context);
-                              if (mainScreen != null) {
-                                mainScreen.refreshHomePage();
+                            final oldFavoriteState = _isFavorite;
+                            final newFavoriteState = !oldFavoriteState;
+
+                            // Optimistic UI Update
+                            setState(() {
+                              _isFavorite = newFavoriteState;
+                            });
+
+                            try {
+                              // Perform actual toggle in background
+                              final result =
+                                  await QuickAccessService.toggleQuickAccessItem(
+                                    topicId: _topic.id,
+                                    lessonId: _topic.lessonId,
+                                    topicName: _topic.name,
+                                    lessonName: widget.lessonName,
+                                    podcastCount: _topic.podcastCount,
+                                    videoCount: _topic.videoCount,
+                                    flashCardCount: _topic.flashCardCount,
+                                    pdfCount: _topic.pdfCount,
+                                  );
+
+                              if (mounted && result != newFavoriteState) {
+                                setState(() {
+                                  _isFavorite = result;
+                                });
+                              }
+
+                              if (mounted) {
+                                final mainScreen = MainScreen.of(context);
+                                if (mainScreen != null) {
+                                  mainScreen.refreshHomePage();
+                                }
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                setState(() {
+                                  _isFavorite = oldFavoriteState;
+                                });
                               }
                             }
                           },
@@ -462,7 +503,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                               ),
                             ),
                             child: Icon(
-                              _isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                              _isFavorite
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
                               color: _isFavorite ? Colors.amber : Colors.white,
                               size: isSmallScreen ? 18 : 20,
                             ),
@@ -478,7 +521,12 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         ),
       ),
       body: !_canAccess && !_subscriptionService.isTopicFree(_topic)
-          ? _buildPremiumRequiredScreen(context, isDark, isSmallScreen, isTablet)
+          ? _buildPremiumRequiredScreen(
+              context,
+              isDark,
+              isSmallScreen,
+              isTablet,
+            )
           : Column(
               children: [
                 Expanded(
@@ -496,7 +544,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           isTablet: isTablet,
                           isDark: isDark,
                         ),
-                        if (!_isLoadingAiContent && (_aiQuestions.isNotEmpty || _aiMaterial != null)) ...[
+                        if (!_isLoadingAiContent &&
+                            (_aiQuestions.isNotEmpty ||
+                                _aiMaterial != null)) ...[
                           SizedBox(height: isSmallScreen ? 14 : 18),
                           _buildAiGeneratedSection(
                             isDark: isDark,
@@ -513,300 +563,257 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     );
   }
 
-  /// Başarı yolu görseli ortada; sol ve sağında içerik kartları.
+  /// Başarı yolu görseli üstte, altında içerik kartları.
   Widget _buildSuccessPathLayout({
     required BuildContext context,
     required bool isSmallScreen,
     required bool isTablet,
     required bool isDark,
   }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final useSideBySide = screenWidth > 520;
-
-    final leftCards = <Widget>[];
-    final rightCards = <Widget>[];
     final allCards = <Widget>[];
 
     void addCard(Widget card) {
       allCards.add(card);
-      if (useSideBySide) {
-        if (leftCards.length <= rightCards.length) {
-          leftCards.add(card);
-        } else {
-          rightCards.add(card);
-        }
-      }
     }
 
     // Konu Anlatımı
     if (widget.lessonName.toLowerCase() != 'türkçe') {
-      addCard(_buildModernPathCard(
-        context: context,
-        title: 'Konu Anlatımı',
-        count: _isLoadingContent ? 0 : _topic.pdfCount,
-        countLabel: 'içerik',
-        icon: Icons.picture_as_pdf_rounded,
-        color: const Color(0xFFFF9800),
-        isSmallScreen: isSmallScreen,
-        isDark: isDark,
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PdfsPage(
-                topicName: _topic.name,
-                pdfCount: _topic.pdfCount,
-                topicId: _topic.id,
-                lessonId: _topic.lessonId,
-                topic: _topic,
+      addCard(
+        _buildModernPathCard(
+          context: context,
+          title: 'Konu Anlatımı',
+          count: _isLoadingContent ? 0 : _topic.pdfCount,
+          countLabel: 'içerik',
+          icon: Icons.picture_as_pdf_rounded,
+          color: const Color(0xFFFF9800),
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PdfsPage(
+                  topicName: _topic.name,
+                  pdfCount: _topic.pdfCount,
+                  topicId: _topic.id,
+                  lessonId: _topic.lessonId,
+                  topic: _topic,
+                ),
               ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-          }
-        },
-      ));
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+            }
+          },
+        ),
+      );
     }
     // Çıkmış Sorular
     if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(_buildModernPathCard(
+      addCard(
+        _buildModernPathCard(
+          context: context,
+          title: 'Çıkmış Sorular',
+          subtitle: 'Soru Dağılımı',
+          count: _topic.averageQuestionCount,
+          countLabel: 'soru',
+          icon: Icons.analytics_rounded,
+          color: const Color(0xFFFF6B35),
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PastQuestionsPage(
+                  topicName: _topic.name,
+                  averageQuestionCount: _topic.averageQuestionCount,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    // Testler
+    addCard(
+      _buildModernPathCard(
         context: context,
-        title: 'Çıkmış Sorular',
-        subtitle: 'Soru Dağılımı',
-        count: _topic.averageQuestionCount,
+        title: 'Testler',
+        count: _isLoadingContent ? 0 : _topic.averageQuestionCount,
         countLabel: 'soru',
-        icon: Icons.analytics_rounded,
-        color: const Color(0xFFFF6B35),
+        icon: Icons.quiz_rounded,
+        color: AppColors.primaryBlue,
+        isSmallScreen: isSmallScreen,
+        isDark: isDark,
+        isTestCompleted: _isTestCompleted,
+        onTap: () async {
+          if (_topic.testCount > 1) {
+            final tests = <Map<String, dynamic>>[];
+            for (int i = 1; i <= _topic.testCount; i++) {
+              tests.add({'name': 'Test $i', 'questionCount': 10});
+            }
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TestsListPage(
+                  topicName: _topic.name,
+                  lessonId: _topic.lessonId,
+                  topicId: _topic.id,
+                  testCount: _topic.testCount,
+                  tests: tests,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+            }
+          } else {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TestsPage(
+                  topicName: _topic.name,
+                  testCount: _topic.testCount,
+                  lessonId: _topic.lessonId,
+                  topicId: _topic.id,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+              _checkTestCompletion();
+            }
+          }
+        },
+      ),
+    );
+    // Podcastler
+    if (widget.lessonName.toLowerCase() != 'matematik') {
+      addCard(
+        _buildModernPathCard(
+          context: context,
+          title: 'Podcastler',
+          count: _isLoadingContent ? 0 : _topic.podcastCount,
+          countLabel: 'içerik',
+          icon: Icons.podcasts_rounded,
+          color: AppColors.gradientPurpleStart,
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PodcastsPage(
+                  topicName: _topic.name,
+                  podcastCount: _topic.podcastCount,
+                  topicId: _topic.id,
+                  lessonId: _topic.lessonId,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+            }
+          },
+        ),
+      );
+    }
+    // Videolar
+    if (widget.lessonName.toLowerCase() != 'türkçe' &&
+        widget.lessonName.toLowerCase() != 'matematik') {
+      addCard(
+        _buildModernPathCard(
+          context: context,
+          title: 'Videolar',
+          count: _isLoadingContent ? 0 : _topic.videoCount,
+          countLabel: 'içerik',
+          icon: Icons.video_library_rounded,
+          color: const Color(0xFFE74C3C),
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VideosPage(
+                  topicName: _topic.name,
+                  videoCount: _topic.videoCount,
+                  topicId: _topic.id,
+                  lessonId: _topic.lessonId,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+            }
+          },
+        ),
+      );
+    }
+    // Bilgi Kartları
+    if (widget.lessonName.toLowerCase() != 'matematik') {
+      addCard(
+        _buildModernPathCard(
+          context: context,
+          title: 'Bilgi Kartları',
+          count: _isLoadingContent ? 0 : _topic.flashCardCount,
+          countLabel: 'içerik',
+          icon: Icons.style_rounded,
+          color: AppColors.gradientRedStart,
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FlashCardsPage(
+                  topicName: _topic.name,
+                  cardCount: _topic.flashCardCount,
+                  topicId: _topic.id,
+                  lessonId: _topic.lessonId,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              final mainScreen = MainScreen.of(context);
+              if (mainScreen != null) mainScreen.refreshHomePage();
+            }
+          },
+        ),
+      );
+    }
+    // Notlar
+    addCard(
+      _buildModernPathCard(
+        context: context,
+        title: 'Notlar',
+        count: _isLoadingContent ? 0 : _topic.noteCount,
+        countLabel: 'içerik',
+        icon: Icons.note_rounded,
+        color: AppColors.gradientGreenStart,
         isSmallScreen: isSmallScreen,
         isDark: isDark,
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PastQuestionsPage(
+              builder: (context) => NotesPage(
                 topicName: _topic.name,
-                averageQuestionCount: _topic.averageQuestionCount,
+                noteCount: _topic.noteCount,
               ),
             ),
           );
         },
-      ));
-    }
-    // Testler
-    addCard(_buildModernPathCard(
-      context: context,
-      title: 'Testler',
-      count: _isLoadingContent ? 0 : _topic.averageQuestionCount,
-      countLabel: 'soru',
-      icon: Icons.quiz_rounded,
-      color: AppColors.primaryBlue,
-      isSmallScreen: isSmallScreen,
-      isDark: isDark,
-      isTestCompleted: _isTestCompleted,
-      onTap: () async {
-        if (_topic.testCount > 1) {
-          final tests = <Map<String, dynamic>>[];
-          for (int i = 1; i <= _topic.testCount; i++) {
-            tests.add({'name': 'Test $i', 'questionCount': 10});
-          }
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TestsListPage(
-                topicName: _topic.name,
-                lessonId: _topic.lessonId,
-                topicId: _topic.id,
-                testCount: _topic.testCount,
-                tests: tests,
-              ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-          }
-        } else {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TestsPage(
-                topicName: _topic.name,
-                testCount: _topic.testCount,
-                lessonId: _topic.lessonId,
-                topicId: _topic.id,
-              ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-            _checkTestCompletion();
-          }
-        }
-      },
-    ));
-    // Podcastler
-    if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(_buildModernPathCard(
-        context: context,
-        title: 'Podcastler',
-        count: _isLoadingContent ? 0 : _topic.podcastCount,
-        countLabel: 'içerik',
-        icon: Icons.podcasts_rounded,
-        color: AppColors.gradientPurpleStart,
-        isSmallScreen: isSmallScreen,
-        isDark: isDark,
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PodcastsPage(
-                topicName: _topic.name,
-                podcastCount: _topic.podcastCount,
-                topicId: _topic.id,
-                lessonId: _topic.lessonId,
-              ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-          }
-        },
-      ));
-    }
-    // Videolar
-    if (widget.lessonName.toLowerCase() != 'türkçe' && widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(_buildModernPathCard(
-        context: context,
-        title: 'Videolar',
-        count: _isLoadingContent ? 0 : _topic.videoCount,
-        countLabel: 'içerik',
-        icon: Icons.video_library_rounded,
-        color: const Color(0xFFE74C3C),
-        isSmallScreen: isSmallScreen,
-        isDark: isDark,
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => VideosPage(
-                topicName: _topic.name,
-                videoCount: _topic.videoCount,
-                topicId: _topic.id,
-                lessonId: _topic.lessonId,
-              ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-          }
-        },
-      ));
-    }
-    // Bilgi Kartları
-    if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(_buildModernPathCard(
-        context: context,
-        title: 'Bilgi Kartları',
-        count: _isLoadingContent ? 0 : _topic.flashCardCount,
-        countLabel: 'içerik',
-        icon: Icons.style_rounded,
-        color: AppColors.gradientRedStart,
-        isSmallScreen: isSmallScreen,
-        isDark: isDark,
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => FlashCardsPage(
-                topicName: _topic.name,
-                cardCount: _topic.flashCardCount,
-                topicId: _topic.id,
-                lessonId: _topic.lessonId,
-              ),
-            ),
-          );
-          if (result == true && mounted) {
-            final mainScreen = MainScreen.of(context);
-            if (mainScreen != null) mainScreen.refreshHomePage();
-          }
-        },
-      ));
-    }
-    // Notlar
-    addCard(_buildModernPathCard(
-      context: context,
-      title: 'Notlar',
-      count: _isLoadingContent ? 0 : _topic.noteCount,
-      countLabel: 'içerik',
-      icon: Icons.note_rounded,
-      color: AppColors.gradientGreenStart,
-      isSmallScreen: isSmallScreen,
-      isDark: isDark,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NotesPage(
-              topicName: _topic.name,
-              noteCount: _topic.noteCount,
-            ),
-          ),
-        );
-      },
-    ));
+      ),
+    );
 
-    if (useSideBySide && leftCards.isNotEmpty && rightCards.isNotEmpty) {
-      return Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  children: leftCards
-                      .map((w) => Padding(
-                            padding: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
-                            child: w,
-                          ))
-                      .toList(),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 12 : 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    width: screenWidth > 700 ? 160 : 120,
-                    constraints: BoxConstraints(maxHeight: 280),
-                    child: Image.asset(
-                      'assets/images/succes.jpg',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  children: rightCards
-                      .map((w) => Padding(
-                            padding: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
-                            child: w,
-                          ))
-                      .toList(),
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    // Dar ekran: önce görsel, altında kartlar (tek sütun)
+    // Her zaman dar ekran düzenini kullan: önce görsel, altında kartlar (tek sütun)
     return Column(
       children: [
         ClipRRect(
@@ -814,17 +821,16 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           child: SizedBox(
             width: double.infinity,
             height: 160,
-            child: Image.asset(
-              'assets/images/succes.jpg',
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset('assets/images/succes.jpg', fit: BoxFit.cover),
           ),
         ),
         SizedBox(height: isSmallScreen ? 16 : 20),
-        ...allCards.map((w) => Padding(
-              padding: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
-              child: w,
-            )),
+        ...allCards.map(
+          (w) => Padding(
+            padding: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
+            child: w,
+          ),
+        ),
       ],
     );
   }
@@ -858,7 +864,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
             color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.06) : color.withValues(alpha: 0.18),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : color.withValues(alpha: 0.18),
               width: 1,
             ),
             boxShadow: [
@@ -898,11 +906,17 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                             color: AppColors.gradientGreenStart,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                              color: isDark
+                                  ? const Color(0xFF1E1E1E)
+                                  : Colors.white,
                               width: 1.5,
                             ),
                           ),
-                          child: const Icon(Icons.check_rounded, size: 10, color: Colors.white),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            size: 10,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                   ],
@@ -930,7 +944,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                         subtitle,
                         style: TextStyle(
                           fontSize: 11,
-                          color: isDark ? Colors.white60 : AppColors.textSecondary,
+                          color: isDark
+                              ? Colors.white60
+                              : AppColors.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -966,7 +982,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     required bool isTablet,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final maxWidth = screenWidth > 900 ? 1100.0 : (isTablet ? 800.0 : double.infinity);
+    final maxWidth = screenWidth > 900
+        ? 1100.0
+        : (isTablet ? 800.0 : double.infinity);
 
     return Center(
       child: ConstrainedBox(
@@ -979,7 +997,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                 Container(
                   padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                   decoration: BoxDecoration(
-                    color: AppColors.gradientPurpleStart.withValues(alpha: 0.15),
+                    color: AppColors.gradientPurpleStart.withValues(
+                      alpha: 0.15,
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -1002,16 +1022,28 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               ],
             ),
             SizedBox(height: isSmallScreen ? 10 : 12),
-            if (_aiQuestions.isNotEmpty) _buildAiQuestionsCard(isDark: isDark, isSmallScreen: isSmallScreen),
-            if (_aiQuestions.isNotEmpty && _aiMaterial != null) const SizedBox(height: 12),
-            if (_aiMaterial != null) _buildAiMaterialCard(isDark: isDark, isSmallScreen: isSmallScreen),
+            if (_aiQuestions.isNotEmpty)
+              _buildAiQuestionsCard(
+                isDark: isDark,
+                isSmallScreen: isSmallScreen,
+              ),
+            if (_aiQuestions.isNotEmpty && _aiMaterial != null)
+              const SizedBox(height: 12),
+            if (_aiMaterial != null)
+              _buildAiMaterialCard(
+                isDark: isDark,
+                isSmallScreen: isSmallScreen,
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAiQuestionsCard({required bool isDark, required bool isSmallScreen}) {
+  Widget _buildAiQuestionsCard({
+    required bool isDark,
+    required bool isSmallScreen,
+  }) {
     final previewCount = _aiQuestions.length >= 2 ? 2 : _aiQuestions.length;
     final accent = AppColors.gradientPurpleStart;
 
@@ -1021,7 +1053,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : accent.withValues(alpha: 0.22),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : accent.withValues(alpha: 0.22),
         ),
         boxShadow: [
           BoxShadow(
@@ -1042,7 +1076,11 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   color: accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.quiz_rounded, color: accent, size: isSmallScreen ? 18 : 20),
+                child: Icon(
+                  Icons.quiz_rounded,
+                  color: accent,
+                  size: isSmallScreen ? 18 : 20,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1062,7 +1100,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                       '${_aiQuestions.length} soru kaydedildi',
                       style: TextStyle(
                         fontSize: isSmallScreen ? 12 : 13,
-                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1073,7 +1113,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AiQuestionsPage(topicId: _topic.id, topicName: _topic.name),
+                      builder: (context) => AiQuestionsPage(
+                        topicId: _topic.id,
+                        topicName: _topic.name,
+                      ),
                     ),
                   );
                   await _loadAiContent();
@@ -1090,10 +1133,14 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF242424) : const Color(0xFFF7F7FB),
+                  color: isDark
+                      ? const Color(0xFF242424)
+                      : const Color(0xFFF7F7FB),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.withValues(alpha: 0.18),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.grey.withValues(alpha: 0.18),
                   ),
                 ),
                 child: Text(
@@ -1114,12 +1161,17 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     );
   }
 
-  Widget _buildAiMaterialCard({required bool isDark, required bool isSmallScreen}) {
+  Widget _buildAiMaterialCard({
+    required bool isDark,
+    required bool isSmallScreen,
+  }) {
     final accent = const Color(0xFFFF9800);
     final content = _aiMaterial?.content ?? '';
     final preview = content.trim().isEmpty
         ? ''
-        : (content.length > 220 ? '${content.substring(0, 220).trim()}…' : content.trim());
+        : (content.length > 220
+              ? '${content.substring(0, 220).trim()}…'
+              : content.trim());
 
     return Container(
       padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
@@ -1127,7 +1179,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : accent.withValues(alpha: 0.22),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : accent.withValues(alpha: 0.22),
         ),
         boxShadow: [
           BoxShadow(
@@ -1148,7 +1202,11 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   color: accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.picture_as_pdf_rounded, color: accent, size: isSmallScreen ? 18 : 20),
+                child: Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: accent,
+                  size: isSmallScreen ? 18 : 20,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1170,7 +1228,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: isSmallScreen ? 12 : 13,
-                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1181,7 +1241,10 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AiMaterialPage(topicId: _topic.id, topicName: _topic.name),
+                      builder: (context) => AiMaterialPage(
+                        topicId: _topic.id,
+                        topicName: _topic.name,
+                      ),
                     ),
                   );
                   await _loadAiContent();
@@ -1262,11 +1325,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               onPressed: () async {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionPage(),
+                  ),
                 );
                 // Premium aktif edildiyse erişim durumunu yeniden kontrol et
                 if (result == true && mounted) {
-                  final canAccess = await _subscriptionService.canAccessTopic(_topic);
+                  final canAccess = await _subscriptionService.canAccessTopic(
+                    _topic,
+                  );
                   setState(() {
                     _canAccess = canAccess;
                   });
@@ -1305,7 +1372,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.2),
                 ),
               ),
               child: Column(

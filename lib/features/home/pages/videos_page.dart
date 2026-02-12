@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/video.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/lessons_service.dart';
@@ -43,16 +44,18 @@ class _VideosPageState extends State<VideosPage> {
     // Önce video listesini yükle, sonra download kontrolü yap
     _initializeVideos();
   }
-  
+
   /// Initialize videos - optimize edilmiş yükleme
   Future<void> _initializeVideos() async {
     await _loadVideos();
     _checkDownloadedVideos();
   }
-  
+
   Future<void> _checkDownloadedVideos() async {
     for (final video in _videos) {
-      final isDownloaded = await _downloadService.isVideoDownloaded(video.videoUrl);
+      final isDownloaded = await _downloadService.isVideoDownloaded(
+        video.videoUrl,
+      );
       if (mounted) {
         setState(() {
           _downloadedVideos[video.id] = isDownloaded;
@@ -66,9 +69,11 @@ class _VideosPageState extends State<VideosPage> {
       setState(() {
         _isLoading = true;
       });
-      
-      debugPrint('🔍 Loading videos from Storage for topicId: ${widget.topicId}');
-      
+
+      debugPrint(
+        '🔍 Loading videos from Storage for topicId: ${widget.topicId}',
+      );
+
       // Lesson name'i al
       final lesson = await _lessonsService.getLessonById(widget.lessonId);
       if (lesson == null) {
@@ -78,7 +83,7 @@ class _VideosPageState extends State<VideosPage> {
         });
         return;
       }
-      
+
       // Lesson name'i storage path'ine çevir
       final lessonNameForPath = lesson.name
           .toLowerCase()
@@ -89,25 +94,25 @@ class _VideosPageState extends State<VideosPage> {
           .replaceAll('ş', 's')
           .replaceAll('ö', 'o')
           .replaceAll('ç', 'c');
-      
+
       // Topic base path'i bul (önce konular/ altına bakar, yoksa direkt ders altına bakar)
       final basePath = await _lessonsService.getTopicBasePath(
         lessonId: widget.lessonId,
         topicId: widget.topicId,
         lessonNameForPath: lessonNameForPath,
       );
-      
+
       // Storage yolunu oluştur
       String storagePath = '$basePath/video';
-      
+
       // Storage'dan video dosyalarını listele
       final videoUrls = await _storageService.listVideoFiles(storagePath);
-      
+
       // Video listesini oluştur
       _videos = [];
       for (int index = 0; index < videoUrls.length; index++) {
         final url = videoUrls[index];
-        
+
         try {
           // URL'den sadece dosya adını çıkar (path değil)
           String fileName = '';
@@ -118,14 +123,17 @@ class _VideosPageState extends State<VideosPage> {
             // Path'ten sadece dosya adını al (son segment)
             if (pathWithoutQuery.isNotEmpty) {
               final segments = pathWithoutQuery.split('/');
-              fileName = segments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+              fileName = segments.lastWhere(
+                (s) => s.isNotEmpty,
+                orElse: () => '',
+              );
             }
-            
+
             // Eğer hala boşsa, pathSegments'ten dene
             if (fileName.isEmpty && uri.pathSegments.isNotEmpty) {
               fileName = uri.pathSegments.last;
             }
-            
+
             // Hala boşsa, URL'den son kısmı al
             if (fileName.isEmpty) {
               final parts = url.split('/');
@@ -135,13 +143,15 @@ class _VideosPageState extends State<VideosPage> {
                 fileName = fileName.split('?').first;
               }
             }
-            
+
             // Decode et, ama hata olursa direkt kullan
             try {
               fileName = Uri.decodeComponent(fileName);
             } catch (e) {
               // Decode edilemezse direkt kullan
-              debugPrint('⚠️ Could not decode filename, using as-is: $fileName');
+              debugPrint(
+                '⚠️ Could not decode filename, using as-is: $fileName',
+              );
             }
           } catch (e) {
             // URI parse edilemezse, URL'den son kısmı al
@@ -153,10 +163,10 @@ class _VideosPageState extends State<VideosPage> {
             }
             debugPrint('⚠️ Could not parse URI, extracted filename: $fileName');
           }
-          
+
           // Path karakterlerini temizle (sadece dosya adı kalmalı)
           fileName = fileName.replaceAll('\\', '/').split('/').last;
-          
+
           // Dosya adından başlık oluştur
           final title = fileName
               .replaceAll('.mp4', '')
@@ -167,44 +177,49 @@ class _VideosPageState extends State<VideosPage> {
               .replaceAll('_', ' ')
               .replaceAll('%20', ' ')
               .trim();
-          
-          _videos.add(Video(
-            id: 'video_${widget.topicId}_$index',
-            title: title.isNotEmpty ? title : 'Video ${index + 1}',
-            description: '${widget.topicName} video',
-            videoUrl: url,
-            durationMinutes: 0, // Duration will be loaded when video is played
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
+
+          _videos.add(
+            Video(
+              id: 'video_${widget.topicId}_$index',
+              title: title.isNotEmpty ? title : 'Video ${index + 1}',
+              description: '${widget.topicName} video',
+              videoUrl: url,
+              durationMinutes:
+                  0, // Duration will be loaded when video is played
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: index,
+            ),
+          );
         } catch (e) {
           debugPrint('⚠️ Error processing video $index: $e');
           // Hata olsa bile video ekle (URL ile)
-          _videos.add(Video(
-            id: 'video_${widget.topicId}_$index',
-            title: 'Video ${index + 1}',
-            description: '${widget.topicName} video',
-            videoUrl: url,
-            durationMinutes: 0,
-            topicId: widget.topicId,
-            lessonId: widget.lessonId,
-            order: index,
-          ));
+          _videos.add(
+            Video(
+              id: 'video_${widget.topicId}_$index',
+              title: 'Video ${index + 1}',
+              description: '${widget.topicName} video',
+              videoUrl: url,
+              durationMinutes: 0,
+              topicId: widget.topicId,
+              lessonId: widget.lessonId,
+              order: index,
+            ),
+          );
         }
       }
-      
+
       debugPrint('✅ Found ${_videos.length} videos from Storage');
-      
+
       setState(() {
         _isLoading = false;
       });
-      
+
       // Check downloaded status for all videos
       _checkDownloadedVideos();
     } catch (e) {
       debugPrint('❌ Error loading videos: $e');
-      
+
       setState(() {
         _isLoading = false;
         _videos = [];
@@ -221,7 +236,9 @@ class _VideosPageState extends State<VideosPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundLight,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
@@ -233,10 +250,7 @@ class _VideosPageState extends State<VideosPage> {
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFE74C3C),
-                      const Color(0xFFC0392B),
-                    ],
+                    colors: [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
                   ),
             color: isDark ? const Color(0xFF1E1E1E) : null,
             boxShadow: [
@@ -264,7 +278,9 @@ class _VideosPageState extends State<VideosPage> {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            Navigator.of(context).pop(_shouldRefresh); // Return refresh status
+                            Navigator.of(
+                              context,
+                            ).pop(_shouldRefresh); // Return refresh status
                           },
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
@@ -325,39 +341,39 @@ class _VideosPageState extends State<VideosPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : _videos.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.video_library_outlined,
-                        size: 64,
-                        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Henüz video eklenmemiş',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.video_library_outlined,
+                    size: 64,
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                   ),
-                )
-              : ListView.builder(
-                  padding: EdgeInsets.all(isTablet ? 20 : 16),
-                  itemCount: _videos.length,
-                  itemBuilder: (context, index) {
-                    final video = _videos[index];
-                    return _buildVideoCard(video, isSmallScreen);
-                  },
-                ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Henüz video eklenmemiş',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(isTablet ? 20 : 16),
+              itemCount: _videos.length,
+              itemBuilder: (context, index) {
+                final video = _videos[index];
+                return _buildVideoCard(video, isSmallScreen);
+              },
+            ),
     );
   }
 
@@ -365,25 +381,21 @@ class _VideosPageState extends State<VideosPage> {
     final isDownloaded = _downloadedVideos[video.id] ?? false;
     final isDownloading = _downloadingVideos[video.id] ?? false;
     final downloadProgress = _downloadProgress[video.id] ?? 0.0;
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Card(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 12 : 16),
       elevation: 2,
       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () async {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => VideoPlayerPage(
-                video: video,
-                topicName: widget.topicName,
-              ),
+              builder: (context) =>
+                  VideoPlayerPage(video: video, topicName: widget.topicName),
             ),
           );
           // If video player returned true, mark for refresh
@@ -408,10 +420,7 @@ class _VideosPageState extends State<VideosPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFE74C3C),
-                      const Color(0xFFC0392B),
-                    ],
+                    colors: [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -467,7 +476,9 @@ class _VideosPageState extends State<VideosPage> {
                             video.description,
                             style: TextStyle(
                               fontSize: isSmallScreen ? 12 : 13,
-                              color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : AppColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -516,7 +527,9 @@ class _VideosPageState extends State<VideosPage> {
                               'İndiriliyor: ${(downloadProgress * 100).toStringAsFixed(0)}%',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: isDark ? Colors.grey.shade400 : AppColors.textSecondary,
+                                color: isDark
+                                    ? Colors.grey.shade400
+                                    : AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -559,14 +572,16 @@ class _VideosPageState extends State<VideosPage> {
       ),
     );
   }
-  
+
   Future<void> _handleDelete(Video video) async {
     // Delete video
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Videoyu Sil'),
-        content: Text('${video.title} videosunu silmek istediğinize emin misiniz?'),
+        content: Text(
+          '${video.title} videosunu silmek istediğinize emin misiniz?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -579,21 +594,19 @@ class _VideosPageState extends State<VideosPage> {
         ],
       ),
     );
-    
+
     if (confirm == true) {
       final deleted = await _downloadService.deleteVideo(video.videoUrl);
       if (deleted && mounted) {
         setState(() {
           _downloadedVideos[video.id] = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Video silindi. Tekrar açıldığında otomatik indirilecek.'),
-            backgroundColor: Colors.green,
-          ),
+        PremiumSnackBar.show(
+          context,
+          message: 'Video başarıyla silindi.',
+          type: SnackBarType.success,
         );
       }
     }
   }
 }
-

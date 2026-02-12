@@ -3,10 +3,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/quick_access_service.dart';
 import '../../../core/models/quick_access_item.dart';
 import '../../../core/models/topic.dart';
-import '../pages/tests_page.dart';
 import '../pages/podcasts_page.dart';
 import '../pages/videos_page.dart';
 import '../pages/flash_cards_page.dart';
+import '../pages/topic_detail_page.dart';
 import '../pages/pdfs_page.dart';
 
 class QuickAccessSection extends StatefulWidget {
@@ -65,46 +65,83 @@ class _QuickAccessSectionState extends State<QuickAccessSection> {
         Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isTablet ? 20.0 : 16.0,
-            vertical: 8.0,
+            vertical: 12.0,
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.star_rounded,
-                  color: AppColors.primaryBlue,
-                  size: 18,
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.star_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 16, // Matched with ongoing section icons (16)
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 10,
+                  ), // Matched with ongoing sections (10)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Favorilerim',
+                        style: TextStyle(
+                          fontSize: widget.isSmallScreen
+                              ? 14.0
+                              : 15.0, // Matched with ongoing sections
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : AppColors.textPrimary,
+                          letterSpacing: -0.5, // Matched with ongoing sections
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        width: 24,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Text(
-                'Favorilerim',
-                style: TextStyle(
-                  fontSize: widget.isSmallScreen ? 16.0 : 18.0,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
-                  letterSpacing: -0.5,
+              if (_items.length > 3)
+                Text(
+                  '${_items.length} Konu',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryBlue.withValues(alpha: 0.8),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
         SizedBox(
-          height: 170, // Increased height for 3 full items + scroll hint
+          height:
+              185, // Increased slightly to 185 to prevent overflow while staying compact
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
             padding: EdgeInsets.symmetric(horizontal: isTablet ? 20.0 : 16.0),
             itemCount: _items.length,
+            physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               final item = _items[index];
               return Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 14, bottom: 10, top: 4),
                 child: FavoriteTopicCard(
                   item: item,
                   isDark: isDark,
@@ -219,187 +256,293 @@ class FavoriteTopicCard extends StatefulWidget {
   State<FavoriteTopicCard> createState() => _FavoriteTopicCardState();
 }
 
-class _FavoriteTopicCardState extends State<FavoriteTopicCard> {
-  final ScrollController _scrollController = ScrollController();
+class _FavoriteTopicCardState extends State<FavoriteTopicCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.94,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+  }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  Color _getLessonColor() {
+    final name = widget.item.lessonName.toLowerCase();
+    if (name.contains('tarih')) return const Color(0xFFFFAB40);
+    if (name.contains('coğrafya')) return const Color(0xFF00E676);
+    if (name.contains('vatandaşlık')) return const Color(0xFFFF5252);
+    if (name.contains('türkçe')) return const Color(0xFF448AFF);
+    if (name.contains('matematik')) return const Color(0xFF7C4DFF);
+    if (name.contains('eğitim')) return const Color(0xFFFF4081);
+    return const Color(0xFF00B0FF);
+  }
+
+  IconData _getLessonIcon() {
+    final name = widget.item.lessonName.toLowerCase();
+    if (name.contains('tarih')) return Icons.auto_stories_rounded;
+    if (name.contains('coğrafya')) return Icons.public_rounded;
+    if (name.contains('vatandaşlık')) return Icons.gavel_rounded;
+    if (name.contains('türkçe')) return Icons.translate_rounded;
+    if (name.contains('matematik')) return Icons.calculate_rounded;
+    return Icons.school_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 175,
-      decoration: BoxDecoration(
-        color: widget.isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
-          ),
-        ],
-        border: Border.all(
-          color: widget.isDark
-              ? Colors.white10
-              : Colors.black.withValues(alpha: 0.02),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.item.topicName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: widget.isDark
-                              ? Colors.white
-                              : AppColors.textPrimary,
-                          height: 1.1,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.item.lessonName,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: widget.isDark
-                              ? Colors.white38
-                              : Colors.grey[400],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => widget.onRemove(widget.item.topicId),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 16,
-                    color: widget.isDark ? Colors.white24 : Colors.grey[300],
-                  ),
+    final accentColor = _getLessonColor();
+    final cardIcon = _getLessonIcon();
+
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) => _controller.reverse(),
+      onTapCancel: () => _controller.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            width: 160, // Reduced from 170 for a more compact feel
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
-          ),
-          // Scrollable Content
-          Expanded(
-            child: RawScrollbar(
-              controller: _scrollController,
-              thumbVisibility: true,
-              thumbColor: widget.isDark ? Colors.white24 : Colors.grey.shade400,
-              thickness: 4,
-              radius: const Radius.circular(2),
-              padding: const EdgeInsets.only(right: 4, bottom: 4),
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                physics: const ClampingScrollPhysics(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
                 children: [
-                  _buildContentRow(
-                    label: 'Konu Anlatımı',
-                    count: widget.item.pdfCount,
-                    icon: Icons.picture_as_pdf_rounded,
-                    color: const Color(0xfff5a623),
-                    onTap: () => widget.onNavigatePdfs(widget.item),
+                  // 1. Midnight Dark Gradient Background
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: const [Color(0xFF1E1E2C), Color(0xFF0F0F1A)],
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  _buildContentRow(
-                    label: 'Podcast',
-                    count: widget.item.podcastCount,
-                    icon: Icons.mic_none_rounded,
-                    color: const Color(0xff9013fe),
-                    onTap: () => widget.onNavigatePodcasts(widget.item),
+
+                  // 3. Watermark Icon
+                  Positioned(
+                    top: -10,
+                    right: -10,
+                    child: Opacity(
+                      opacity: 0.08,
+                      child: Transform.rotate(
+                        angle: -0.3,
+                        child: Icon(cardIcon, size: 80, color: Colors.white),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  _buildContentRow(
-                    label: 'Video',
-                    count: widget.item.videoCount,
-                    icon: Icons.play_circle_outline_rounded,
-                    color: const Color(0xfff44336),
-                    onTap: () => widget.onNavigateVideos(widget.item),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildContentRow(
-                    label: 'Bilgi Kartı',
-                    count: widget.item.flashCardCount,
-                    icon: Icons.filter_none_rounded,
-                    color: const Color(0xffd0021b),
-                    onTap: () => widget.onNavigateFlashCards(widget.item),
+
+                  // 4. Content Overlay
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TopicDetailPage(
+                              topic: Topic(
+                                id: widget.item.topicId,
+                                lessonId: widget.item.lessonId,
+                                name: widget.item.topicName,
+                                subtitle: '${widget.item.topicName} konusu',
+                                duration: '0h 0min',
+                                averageQuestionCount: 0,
+                                testCount: 1,
+                                podcastCount: widget.item.podcastCount,
+                                videoCount: widget.item.videoCount,
+                                noteCount: 0,
+                                flashCardCount: widget.item.flashCardCount,
+                                pdfCount: widget.item.pdfCount,
+                                progress: 0.0,
+                                order: 0,
+                              ),
+                              lessonName: widget.item.lessonName,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(10), // Reduced from 12
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Glassy Header Bar
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: accentColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: accentColor.withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    widget.item.lessonName,
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                      color: accentColor,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                GestureDetector(
+                                  onTap: () =>
+                                      widget.onRemove(widget.item.topicId),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    size: 14,
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4), // Reduced from 6
+                            Text(
+                              widget.item.topicName,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                height: 1.1,
+                                letterSpacing: -0.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 10),
+                            // Action Tiles (Luxe version)
+                            Row(
+                              children: [
+                                _buildLuxeTile(
+                                  icon: Icons.article_rounded,
+                                  label: 'PDF',
+                                  count: widget.item.pdfCount,
+                                  color: const Color(0xFFEF5350),
+                                  onTap: () =>
+                                      widget.onNavigatePdfs(widget.item),
+                                ),
+                                const SizedBox(width: 4),
+                                _buildLuxeTile(
+                                  icon: Icons.play_circle_fill_rounded,
+                                  label: 'Video',
+                                  count: widget.item.videoCount,
+                                  color: const Color(0xFF42A5F5),
+                                  onTap: () =>
+                                      widget.onNavigateVideos(widget.item),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(
+                              height: 4,
+                            ), // Increased from 2 for "sufficient" space
+                            Row(
+                              children: [
+                                _buildLuxeTile(
+                                  icon: Icons.headphones_rounded,
+                                  label: 'Podcast',
+                                  count: widget.item.podcastCount,
+                                  color: const Color(0xFFAB47BC),
+                                  onTap: () =>
+                                      widget.onNavigatePodcasts(widget.item),
+                                ),
+                                const SizedBox(width: 4),
+                                _buildLuxeTile(
+                                  icon: Icons.style_rounded,
+                                  label: 'Bilgi Kartı',
+                                  count: widget.item.flashCardCount,
+                                  color: const Color(0xFFFFA726),
+                                  onTap: () =>
+                                      widget.onNavigateFlashCards(widget.item),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildContentRow({
+  Widget _buildLuxeTile({
+    required IconData icon,
     required String label,
     required int count,
-    required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: count > 0 ? onTap : null,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 6,
-          vertical: 5,
-        ), // İdeal yükseklik
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha: 0.15), width: 0.8),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: widget.isDark
-                      ? Colors.white70
-                      : color.withValues(alpha: 0.8),
+    final bool isEmpty = count == 0;
+    return Expanded(
+      child: GestureDetector(
+        onTap: isEmpty ? null : onTap,
+        child: Opacity(
+          opacity: isEmpty ? 0.4 : 1.0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.05),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: color),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
                 ),
-              ),
+              ],
             ),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: widget.isDark
-                    ? Colors.white24
-                    : color.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

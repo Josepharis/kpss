@@ -14,17 +14,17 @@ class WeaknessesService {
   static String? get _userId => _auth.currentUser?.uid;
 
   /// Get user progress document reference
-  static DocumentReference get _userProgressDoc => 
+  static DocumentReference get _userProgressDoc =>
       _firestore.collection('userProgress').doc(_userId ?? '');
 
   /// Get weaknesses collection reference
-  static CollectionReference get _weaknessesCollection => 
+  static CollectionReference get _weaknessesCollection =>
       _userProgressDoc.collection('weaknesses');
 
   /// Migrate old SharedPreferences data to Firestore
   static Future<void> migrateToFirestore() async {
     if (_userId == null) return;
-    
+
     try {
       // Check if migration already done
       final prefs = await SharedPreferences.getInstance();
@@ -43,13 +43,17 @@ class WeaknessesService {
 
       final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
       final List<WeaknessQuestion> weaknesses = jsonList
-          .map((json) => WeaknessQuestion.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => WeaknessQuestion.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
 
       // Migrate to Firestore
       final batch = _firestore.batch();
       for (var weakness in weaknesses) {
-        final docRef = _weaknessesCollection.doc('${weakness.topicName}_${weakness.id}');
+        final docRef = _weaknessesCollection.doc(
+          '${weakness.topicName}_${weakness.id}',
+        );
         batch.set(docRef, {
           'id': weakness.id,
           'question': weakness.question,
@@ -60,6 +64,7 @@ class WeaknessesService {
           'topicName': weakness.topicName,
           'addedAt': Timestamp.fromDate(weakness.addedAt),
           'isFromWrongAnswer': weakness.isFromWrongAnswer,
+          'imageUrl': weakness.imageUrl,
           'lastUpdated': FieldValue.serverTimestamp(),
         });
       }
@@ -89,6 +94,8 @@ class WeaknessesService {
       final snapshot = await _weaknessesCollection.get();
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
+        // Create an intermediate map to handle Timestamp to String conversion for fromJson if needed
+        // or just map manually but including imageUrl
         return WeaknessQuestion(
           id: data['id'] ?? '',
           question: data['question'] ?? '',
@@ -99,6 +106,7 @@ class WeaknessesService {
           topicName: data['topicName'] ?? '',
           addedAt: (data['addedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           isFromWrongAnswer: data['isFromWrongAnswer'] ?? false,
+          imageUrl: data['imageUrl'] as String?,
         );
       }).toList();
     } catch (e) {
@@ -108,13 +116,16 @@ class WeaknessesService {
   }
 
   // Konu başlığına göre eksik soruları getir
-  static Future<List<WeaknessQuestion>> getWeaknessesByTopic(String topicName) async {
+  static Future<List<WeaknessQuestion>> getWeaknessesByTopic(
+    String topicName,
+  ) async {
     final allWeaknesses = await getAllWeaknesses();
     return allWeaknesses.where((w) => w.topicName == topicName).toList();
   }
 
   // Konu başlıklarına göre gruplanmış eksik soruları getir
-  static Future<Map<String, List<WeaknessQuestion>>> getWeaknessesGroupedByTopic() async {
+  static Future<Map<String, List<WeaknessQuestion>>>
+  getWeaknessesGroupedByTopic() async {
     final allWeaknesses = await getAllWeaknesses();
     final Map<String, List<WeaknessQuestion>> grouped = {};
 
@@ -129,13 +140,16 @@ class WeaknessesService {
   }
 
   // Ders ID'sine göre eksik soruları getir
-  static Future<List<WeaknessQuestion>> getWeaknessesByLesson(String lessonId) async {
+  static Future<List<WeaknessQuestion>> getWeaknessesByLesson(
+    String lessonId,
+  ) async {
     final allWeaknesses = await getAllWeaknesses();
     return allWeaknesses.where((w) => w.lessonId == lessonId).toList();
   }
 
   // Ders bazında gruplanmış eksik soruları getir
-  static Future<Map<String, List<WeaknessQuestion>>> getWeaknessesGroupedByLesson() async {
+  static Future<Map<String, List<WeaknessQuestion>>>
+  getWeaknessesGroupedByLesson() async {
     final allWeaknesses = await getAllWeaknesses();
     final Map<String, List<WeaknessQuestion>> grouped = {};
 
@@ -151,21 +165,22 @@ class WeaknessesService {
   }
 
   // Ders ve konu bazında gruplanmış eksik soruları getir
-  static Future<Map<String, Map<String, List<WeaknessQuestion>>>> getWeaknessesGroupedByLessonAndTopic() async {
+  static Future<Map<String, Map<String, List<WeaknessQuestion>>>>
+  getWeaknessesGroupedByLessonAndTopic() async {
     final allWeaknesses = await getAllWeaknesses();
     final Map<String, Map<String, List<WeaknessQuestion>>> grouped = {};
 
     for (var weakness in allWeaknesses) {
       if (weakness.lessonId.isEmpty) continue; // Eski veriler için skip
-      
+
       if (!grouped.containsKey(weakness.lessonId)) {
         grouped[weakness.lessonId] = {};
       }
-      
+
       if (!grouped[weakness.lessonId]!.containsKey(weakness.topicName)) {
         grouped[weakness.lessonId]![weakness.topicName] = [];
       }
-      
+
       grouped[weakness.lessonId]![weakness.topicName]!.add(weakness);
     }
 
@@ -173,11 +188,14 @@ class WeaknessesService {
   }
 
   // Belirli bir ders ve konuya ait eksik soruları getir
-  static Future<List<WeaknessQuestion>> getWeaknessesByLessonAndTopic(String lessonId, String topicName) async {
+  static Future<List<WeaknessQuestion>> getWeaknessesByLessonAndTopic(
+    String lessonId,
+    String topicName,
+  ) async {
     final allWeaknesses = await getAllWeaknesses();
-    return allWeaknesses.where(
-      (w) => w.lessonId == lessonId && w.topicName == topicName,
-    ).toList();
+    return allWeaknesses
+        .where((w) => w.lessonId == lessonId && w.topicName == topicName)
+        .toList();
   }
 
   // Eksik soru ekle
@@ -209,6 +227,7 @@ class WeaknessesService {
         'topicName': weakness.topicName,
         'addedAt': Timestamp.fromDate(weakness.addedAt),
         'isFromWrongAnswer': weakness.isFromWrongAnswer,
+        'imageUrl': weakness.imageUrl,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
@@ -221,7 +240,11 @@ class WeaknessesService {
   }
 
   // Eksik soruyu kaldır
-  static Future<bool> removeWeakness(String questionId, String topicName, {String? lessonId}) async {
+  static Future<bool> removeWeakness(
+    String questionId,
+    String topicName, {
+    String? lessonId,
+  }) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot remove weakness');
       return false;
@@ -230,7 +253,7 @@ class WeaknessesService {
     try {
       final docId = '${topicName}_${questionId}';
       final doc = await _weaknessesCollection.doc(docId).get();
-      
+
       // If lessonId is provided, verify it matches
       if (lessonId != null && doc.exists) {
         final data = doc.data() as Map<String, dynamic>?;
@@ -277,14 +300,20 @@ class WeaknessesService {
   }
 
   // Belirli bir konudaki tüm eksik soruları temizle
-  static Future<bool> clearWeaknessesByTopic(String topicName, {String? lessonId}) async {
+  static Future<bool> clearWeaknessesByTopic(
+    String topicName, {
+    String? lessonId,
+  }) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot clear weaknesses');
       return false;
     }
 
     try {
-      Query query = _weaknessesCollection.where('topicName', isEqualTo: topicName);
+      Query query = _weaknessesCollection.where(
+        'topicName',
+        isEqualTo: topicName,
+      );
       if (lessonId != null) {
         query = query.where('lessonId', isEqualTo: lessonId);
       }
@@ -315,7 +344,7 @@ class WeaknessesService {
       final snapshot = await _weaknessesCollection
           .where('lessonId', isEqualTo: lessonId)
           .get();
-      
+
       final batch = _firestore.batch();
       for (var doc in snapshot.docs) {
         batch.delete(doc.reference);
@@ -331,7 +360,11 @@ class WeaknessesService {
   }
 
   // Soru zaten eksiklerde mi kontrol et
-  static Future<bool> isQuestionInWeaknesses(String questionId, String topicName, {String? lessonId}) async {
+  static Future<bool> isQuestionInWeaknesses(
+    String questionId,
+    String topicName, {
+    String? lessonId,
+  }) async {
     if (_userId == null) {
       return false;
     }
@@ -339,7 +372,7 @@ class WeaknessesService {
     try {
       final docId = '${topicName}_${questionId}';
       final doc = await _weaknessesCollection.doc(docId).get();
-      
+
       if (!doc.exists) {
         return false;
       }
@@ -357,4 +390,3 @@ class WeaknessesService {
     }
   }
 }
-

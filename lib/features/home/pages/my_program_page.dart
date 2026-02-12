@@ -17,7 +17,8 @@ class _TaskEditorResult {
   final StudyProgramTask? task;
   final bool delete;
   const _TaskEditorResult._({required this.task, required this.delete});
-  const _TaskEditorResult.save(StudyProgramTask task) : this._(task: task, delete: false);
+  const _TaskEditorResult.save(StudyProgramTask task)
+    : this._(task: task, delete: false);
   const _TaskEditorResult.delete() : this._(task: null, delete: true);
 }
 
@@ -84,13 +85,19 @@ class _MyProgramPageState extends State<MyProgramPage> {
       case 'video':
         return const [AppColors.gradientRedStart, AppColors.gradientRedEnd];
       case 'podcast':
-        return const [AppColors.gradientPurpleStart, AppColors.gradientPurpleEnd];
+        return const [
+          AppColors.gradientPurpleStart,
+          AppColors.gradientPurpleEnd,
+        ];
       case 'tekrar':
         return const [AppColors.gradientGreenStart, AppColors.gradientGreenEnd];
       case 'konu':
         return const [AppColors.gradientTealStart, AppColors.gradientTealEnd];
       default:
-        return const [AppColors.gradientOrangeStart, AppColors.gradientYellowEnd];
+        return const [
+          AppColors.gradientOrangeStart,
+          AppColors.gradientYellowEnd,
+        ];
     }
   }
 
@@ -101,16 +108,25 @@ class _MyProgramPageState extends State<MyProgramPage> {
       case 2:
         return const [AppColors.gradientTealStart, AppColors.gradientTealEnd];
       case 3:
-        return const [AppColors.gradientPurpleStart, AppColors.gradientPurpleEnd];
+        return const [
+          AppColors.gradientPurpleStart,
+          AppColors.gradientPurpleEnd,
+        ];
       case 4:
-        return const [AppColors.gradientOrangeStart, AppColors.gradientYellowEnd];
+        return const [
+          AppColors.gradientOrangeStart,
+          AppColors.gradientYellowEnd,
+        ];
       case 5:
         return const [AppColors.gradientRedStart, AppColors.gradientRedEnd];
       case 6:
         return const [AppColors.gradientGreenStart, AppColors.gradientGreenEnd];
       case 7:
       default:
-        return const [AppColors.gradientYellowStart, AppColors.gradientOrangeEnd];
+        return const [
+          AppColors.gradientYellowStart,
+          AppColors.gradientOrangeEnd,
+        ];
     }
   }
 
@@ -181,14 +197,17 @@ class _MyProgramPageState extends State<MyProgramPage> {
     return true;
   }
 
-  StudyProgram _withDayTasks(StudyProgram base, int weekday, List<StudyProgramTask> tasks) {
+  StudyProgram _withDayTasks(
+    StudyProgram base,
+    int weekday,
+    List<StudyProgramTask> tasks,
+  ) {
     final byDay = <int, StudyProgramDay>{};
     for (final d in base.days) {
       byDay[d.weekday] = d;
     }
     byDay[weekday] = StudyProgramDay(weekday: weekday, tasks: tasks);
-    final days = byDay.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final days = byDay.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     return StudyProgram(
       createdAtMillis: DateTime.now().millisecondsSinceEpoch,
       title: base.title,
@@ -200,7 +219,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
   Future<void> _deleteTask(int weekday, StudyProgramTask task) async {
     final program = _program;
     if (program == null) return;
-    final list = List<StudyProgramTask>.from(_tasksForWeekday(program, weekday));
+    final list = List<StudyProgramTask>.from(
+      _tasksForWeekday(program, weekday),
+    );
     _removeTaskFromList(list, task);
     await _saveProgram(_withDayTasks(program, weekday, list));
   }
@@ -214,7 +235,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
     final program = _program;
     if (program == null) return;
 
-    final fromList = List<StudyProgramTask>.from(_tasksForWeekday(program, fromWeekday));
+    final fromList = List<StudyProgramTask>.from(
+      _tasksForWeekday(program, fromWeekday),
+    );
     final removedIndex = _indexOfTask(fromList, task);
     final removed = _removeTaskFromList(fromList, task);
     if (!removed) return;
@@ -227,14 +250,20 @@ class _MyProgramPageState extends State<MyProgramPage> {
     if (insertIndex < 0) insertIndex = 0;
     if (insertIndex > toList.length) insertIndex = toList.length;
     // If moving within same list, removal shifts indices.
-    if (fromWeekday == toWeekday && removedIndex != -1 && removedIndex < insertIndex) {
+    if (fromWeekday == toWeekday &&
+        removedIndex != -1 &&
+        removedIndex < insertIndex) {
       insertIndex = math.max(0, insertIndex - 1);
     }
     toList.insert(insertIndex, task);
 
     final updated = (fromWeekday == toWeekday)
         ? _withDayTasks(program, toWeekday, toList)
-        : _withDayTasks(_withDayTasks(program, fromWeekday, fromList), toWeekday, toList);
+        : _withDayTasks(
+            _withDayTasks(program, fromWeekday, fromList),
+            toWeekday,
+            toList,
+          );
     await _saveProgram(updated);
   }
 
@@ -245,7 +274,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
   }) async {
     final program = _program;
     if (program == null) return;
-    final list = List<StudyProgramTask>.from(_tasksForWeekday(program, weekday));
+    final list = List<StudyProgramTask>.from(
+      _tasksForWeekday(program, weekday),
+    );
     if (replace != null) {
       final idx = _indexOfTask(list, replace);
       if (idx >= 0) {
@@ -381,7 +412,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
               decoration: BoxDecoration(
                 color: card,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14)),
+                border: Border.all(
+                  color: Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
@@ -407,13 +440,19 @@ class _MyProgramPageState extends State<MyProgramPage> {
                       borderRadius: BorderRadius.circular(26),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.gradientTealStart.withValues(alpha: isDark ? 0.22 : 0.26),
+                          color: AppColors.gradientTealStart.withValues(
+                            alpha: isDark ? 0.22 : 0.26,
+                          ),
                           blurRadius: 18,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 38),
+                    child: const Icon(
+                      Icons.calendar_month_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -440,15 +479,23 @@ class _MyProgramPageState extends State<MyProgramPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
+                      color: (isDark ? Colors.white : Colors.black).withValues(
+                        alpha: isDark ? 0.06 : 0.04,
+                      ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.12)),
+                      border: Border.all(
+                        color: Colors.grey.withValues(
+                          alpha: isDark ? 0.14 : 0.12,
+                        ),
+                      ),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.auto_awesome_rounded,
-                          color: AppColors.gradientYellowStart.withValues(alpha: 0.95),
+                          color: AppColors.gradientYellowStart.withValues(
+                            alpha: 0.95,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -458,7 +505,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
                               fontSize: 12.5,
                               height: 1.35,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white60 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.white60
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ),
@@ -472,7 +521,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
                       final aiBtn = FilledButton.icon(
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const AiAssistantPage()),
+                            MaterialPageRoute(
+                              builder: (_) => const AiAssistantPage(),
+                            ),
                           );
                         },
                         icon: const Icon(Icons.auto_awesome_rounded),
@@ -515,7 +566,10 @@ class _MyProgramPageState extends State<MyProgramPage> {
   Widget _buildProgram(bool isDark, StudyProgram program) {
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 390;
-    final totalTasks = program.days.fold<int>(0, (sum, d) => sum + d.tasks.length);
+    final totalTasks = program.days.fold<int>(
+      0,
+      (sum, d) => sum + d.tasks.length,
+    );
     final activeDays = program.days.where((d) => d.tasks.isNotEmpty).length;
 
     final bg = isDark ? const Color(0xFF0B0F14) : const Color(0xFFF6F8FC);
@@ -528,7 +582,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
           builder: (context, constraints) {
             final maxW = constraints.maxWidth;
             final contentMaxW = 860.0;
-            final horizontal = maxW > contentMaxW ? (maxW - contentMaxW) / 2 : (isCompact ? 12.0 : 16.0);
+            final horizontal = maxW > contentMaxW
+                ? (maxW - contentMaxW) / 2
+                : (isCompact ? 12.0 : 16.0);
 
             return ListView(
               key: _listKey,
@@ -543,13 +599,21 @@ class _MyProgramPageState extends State<MyProgramPage> {
                   activeDays: activeDays,
                 ),
                 const SizedBox(height: 10),
-                _buildWeekStrip(program: program, isDark: isDark, isCompact: isCompact),
+                _buildWeekStrip(
+                  program: program,
+                  isDark: isDark,
+                  isCompact: isCompact,
+                ),
                 const SizedBox(height: 10),
                 if (_editMode) ...[
                   _buildEditHint(isDark),
                   const SizedBox(height: 10),
                 ],
-                ..._buildWeekSections(program: program, isDark: isDark, compact: isCompact),
+                ..._buildWeekSections(
+                  program: program,
+                  isDark: isDark,
+                  compact: isCompact,
+                ),
                 const SizedBox(height: 4),
               ],
             );
@@ -563,13 +627,21 @@ class _MyProgramPageState extends State<MyProgramPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF151515) : Colors.white.withValues(alpha: 0.92),
+        color: isDark
+            ? const Color(0xFF151515)
+            : Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.14)),
+        border: Border.all(
+          color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.14),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.edit_rounded, size: 18, color: AppColors.gradientTealStart.withValues(alpha: 0.9)),
+          Icon(
+            Icons.edit_rounded,
+            size: 18,
+            color: AppColors.gradientTealStart.withValues(alpha: 0.9),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -606,139 +678,157 @@ class _MyProgramPageState extends State<MyProgramPage> {
       7: 'Paz',
     };
 
-    final chipWidth = isCompact ? 66.0 : 74.0;
-    final chipPadV = isCompact ? 10.0 : 12.0;
-    final chipRadius = isCompact ? 16.0 : 18.0;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(
-              Icons.calendar_view_week_rounded,
-              size: 18,
-              color: isDark ? Colors.white70 : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Bu hafta',
-              style: TextStyle(
-                fontSize: isCompact ? 12.5 : 13.5,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : AppColors.textPrimary,
-              ),
-            ),
-            const Spacer(),
-            if (_editMode)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.gradientTealStart.withValues(alpha: isDark ? 0.18 : 0.10),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.gradientTealStart.withValues(alpha: isDark ? 0.22 : 0.16)),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Row(
+            children: [
+              Text(
+                'Haftalık Plan',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.3,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
                 ),
-                child: Text(
-                  'Düzenle',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white70 : AppColors.textPrimary,
+              ),
+              const SizedBox(width: 8),
+              if (_editMode)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gradientTealStart.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'DÜZENLEME MODU',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.gradientTealStart,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
           child: Row(
             children: List.generate(7, (i) {
               final weekday = i + 1;
               final date = weekStart.add(Duration(days: i));
-              final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+              final isToday =
+                  date.year == now.year &&
+                  date.month == now.month &&
+                  date.day == now.day;
               final tasks = _tasksForWeekday(program, weekday);
               final grad = _gradientForWeekday(weekday);
 
-              final bg = isToday
-                  ? LinearGradient(colors: grad.map((c) => c.withValues(alpha: isDark ? 0.75 : 0.92)).toList())
-                  : null;
-
               return Padding(
-                padding: EdgeInsets.only(right: i == 6 ? 0 : 10),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(chipRadius),
-                    onTap: () => _scrollToWeekday(weekday),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: chipWidth,
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: chipPadV),
-                      decoration: BoxDecoration(
-                        gradient: bg,
-                        color: bg == null
-                            ? (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white)
-                            : null,
-                        borderRadius: BorderRadius.circular(chipRadius),
-                        border: Border.all(
-                          color: isToday
-                              ? Colors.white.withValues(alpha: isDark ? 0.16 : 0.26)
-                              : Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14),
-                        ),
-                        boxShadow: [
+                padding: EdgeInsets.only(right: i == 6 ? 0 : 8),
+                child: GestureDetector(
+                  onTap: () => _scrollToWeekday(weekday),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutQuint,
+                    width: 58,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: isToday
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: grad,
+                            )
+                          : null,
+                      color: isToday
+                          ? null
+                          : (isDark
+                                ? Colors.white.withOpacity(0.04)
+                                : Colors.white),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isToday
+                            ? Colors.white.withOpacity(0.2)
+                            : (isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : Colors.black.withOpacity(0.04)),
+                      ),
+                      boxShadow: [
+                        if (isToday)
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+                            color: grad[0].withOpacity(0.3),
                             blurRadius: 12,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            shortNames[weekday] ?? '',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: isToday ? Colors.white : (isDark ? Colors.white70 : AppColors.textSecondary),
+                            offset: const Offset(0, 6),
+                          )
+                        else
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                              isDark ? 0.15 : 0.03,
                             ),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${date.day}.${date.month}',
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          shortNames[weekday] ?? '',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                            color: isToday
+                                ? Colors.white.withOpacity(0.9)
+                                : (isDark ? Colors.white54 : Colors.black45),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: isToday
+                                ? Colors.white
+                                : (isDark ? Colors.white : Colors.black87),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? Colors.white.withOpacity(0.2)
+                                : (isDark
+                                      ? Colors.white.withOpacity(0.06)
+                                      : const Color(0xFFF1F5F9)),
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            tasks.isEmpty ? '0' : '${tasks.length}',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 10,
                               fontWeight: FontWeight.w900,
-                              color: isToday ? Colors.white : (isDark ? Colors.white : AppColors.textPrimary),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
                               color: isToday
-                                  ? Colors.white.withValues(alpha: 0.18)
-                                  : (isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF6F8FC)),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: isToday
-                                    ? Colors.white.withValues(alpha: 0.22)
-                                    : Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14),
-                              ),
-                            ),
-                            child: Text(
-                              tasks.isEmpty ? '—' : '${tasks.length}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                color: isToday ? Colors.white : (isDark ? Colors.white70 : AppColors.textPrimary),
-                              ),
+                                  ? Colors.white
+                                  : (isDark ? Colors.white60 : Colors.black54),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -757,30 +847,57 @@ class _MyProgramPageState extends State<MyProgramPage> {
     required int totalTasks,
     required int activeDays,
   }) {
-    final title = program.title.trim().isEmpty ? 'Programım' : program.title.trim();
-    final subtitle = program.subtitle.trim().isEmpty ? 'Haftalık plan' : program.subtitle.trim();
+    final title = program.title.trim().isEmpty
+        ? 'Programım'
+        : program.title.trim();
+    final subtitle = program.subtitle.trim().isEmpty
+        ? 'Haftalık plan'
+        : program.subtitle.trim();
     final progress = (activeDays / 7.0).clamp(0.0, 1.0);
     final textPrimary = isDark ? Colors.white : AppColors.textPrimary;
-    final textSecondary = isDark ? Colors.white60 : AppColors.textSecondary;
+    final textSecondary = isDark ? Colors.white70 : AppColors.textSecondary;
 
-    Widget chip({required IconData icon, required String text}) {
+    Widget chip({
+      required IconData icon,
+      required String text,
+      required List<Color> gradient,
+    }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14)),
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: AppColors.gradientTealStart.withValues(alpha: 0.95)),
-            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: gradient),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 14, color: Colors.white),
+            ),
+            const SizedBox(width: 8),
             Text(
               text,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.2,
                 color: textPrimary,
               ),
             ),
@@ -789,33 +906,11 @@ class _MyProgramPageState extends State<MyProgramPage> {
       );
     }
 
-    final actionSize = isCompact ? 40.0 : 44.0;
-
-    Widget actionButton({
-      required IconData icon,
-      required String tooltip,
-      required VoidCallback onPressed,
-    }) {
-      return Container(
-        width: actionSize,
-        height: actionSize,
-        decoration: BoxDecoration(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.18 : 0.14)),
-        ),
-        child: IconButton(
-          tooltip: tooltip,
-          onPressed: onPressed,
-          icon: Icon(icon, color: isDark ? Colors.white70 : Colors.black54),
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Column(
@@ -823,92 +918,222 @@ class _MyProgramPageState extends State<MyProgramPage> {
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: isCompact ? 18 : 20,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
                       color: textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: isCompact ? 12.5 : 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            actionButton(
+            const SizedBox(width: 12),
+            _buildActionButton(
               icon: _editMode ? Icons.check_rounded : Icons.edit_rounded,
               tooltip: _editMode ? 'Bitti' : 'Düzenle',
+              isDark: isDark,
               onPressed: () => setState(() => _editMode = !_editMode),
+              isPrimary: _editMode,
             ),
             const SizedBox(width: 8),
-            PopupMenuButton<String>(
-              icon: Container(
-                width: actionSize,
-                height: actionSize,
-                decoration: BoxDecoration(
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.18 : 0.14)),
-                ),
-                child: Icon(Icons.more_vert_rounded, color: isDark ? Colors.white70 : Colors.black54),
+            _buildMoreMenu(isDark),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: chip(
+                icon: Icons.checklist_rounded,
+                text: '$totalTasks Görev',
+                gradient: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
               ),
-              onSelected: (v) async {
-                if (v == 'delete') await _confirmClearProgram();
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Programı sil'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: chip(
+                icon: Icons.calendar_today_rounded,
+                text: '$activeDays/7 Gün',
+                gradient: [const Color(0xFF10B981), const Color(0xFF3B82F6)],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Haftalık İlerleme',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: textSecondary,
+                  ),
+                ),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: isDark
+                        ? AppColors.gradientTealStart
+                        : AppColors.primaryBlue,
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            chip(icon: Icons.checklist_rounded, text: '$totalTasks görev'),
-            chip(icon: Icons.calendar_view_week_rounded, text: '$activeDays/7 gün'),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            height: 10,
-            color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.08 : 0.06),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: progress,
-                child: Container(
-                  height: 10,
+            const SizedBox(height: 8),
+            Container(
+              height: 12,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: UnconstrainedBox(
+                alignment: Alignment.centerLeft,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 1000),
+                  curve: Curves.easeOutCubic,
+                  height: 12,
+                  width:
+                      (MediaQuery.of(context).size.width -
+                          (MediaQuery.of(context).size.width > 860
+                              ? (MediaQuery.of(context).size.width - 860)
+                              : 32)) *
+                      progress,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
                       colors: [
                         AppColors.gradientTealStart,
                         AppColors.gradientBlueEnd,
                       ],
                     ),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.gradientTealStart.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required bool isDark,
+    bool isPrimary = false,
+  }) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: isPrimary
+            ? const LinearGradient(
+                colors: [
+                  AppColors.gradientTealStart,
+                  AppColors.gradientBlueEnd,
+                ],
+              )
+            : null,
+        color: isPrimary
+            ? null
+            : (isDark ? Colors.white.withOpacity(0.08) : Colors.white),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isPrimary
+              ? Colors.transparent
+              : (isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isPrimary
+                ? AppColors.gradientTealStart.withOpacity(0.3)
+                : Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          color: isPrimary
+              ? Colors.white
+              : (isDark ? Colors.white70 : Colors.black87),
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreMenu(bool isDark) {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 50),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      icon: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+          ),
+        ),
+        child: Icon(
+          Icons.more_horiz_rounded,
+          color: isDark ? Colors.white70 : Colors.black87,
+        ),
+      ),
+      onSelected: (v) async {
+        if (v == 'delete') await _confirmClearProgram();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red.shade400,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              const Text('Programı sil'),
+            ],
           ),
         ),
       ],
@@ -946,8 +1171,13 @@ class _MyProgramPageState extends State<MyProgramPage> {
     for (var i = 0; i < 7; i++) {
       final weekday = i + 1;
       final date = weekStart.add(Duration(days: i));
-      final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
-      final tasks = _sortedTasks(dayForWeekday(weekday)?.tasks ?? const <StudyProgramTask>[]);
+      final isToday =
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+      final tasks = _sortedTasks(
+        dayForWeekday(weekday)?.tasks ?? const <StudyProgramTask>[],
+      );
 
       widgets.add(
         _buildDaySection(
@@ -974,318 +1204,377 @@ class _MyProgramPageState extends State<MyProgramPage> {
     required bool isDark,
     required bool compact,
   }) {
-    final bg = isDark ? const Color(0xFF0F1624) : Colors.white;
-    final listBg = isDark ? const Color(0xFF0B0F14) : const Color(0xFFF6F8FC);
+    final bg = isDark ? const Color(0xFF111827) : Colors.white;
+    final listBg = isDark
+        ? Colors.black.withOpacity(0.2)
+        : const Color(0xFFF8FAFC);
     final dayGrad = _gradientForWeekday(weekday);
-    final baseBorder = Colors.grey.withValues(alpha: isDark ? 0.16 : 0.14);
+    final baseBorder = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.black.withOpacity(0.05);
 
     Widget card({required bool dropHighlight}) {
       final borderColor = dropHighlight
-          ? dayGrad[0].withValues(alpha: 0.80)
-          : (isToday ? Colors.white.withValues(alpha: isDark ? 0.16 : 0.22) : baseBorder);
+          ? dayGrad[0]
+          : (isToday ? dayGrad[0].withOpacity(0.3) : baseBorder);
 
       return AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: borderColor, width: dropHighlight ? 1.6 : 1),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderColor, width: dropHighlight ? 2 : 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
-              blurRadius: 22,
-              offset: const Offset(0, 14),
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              // Subtle background gradient
+              Positioned(
+                top: -40,
+                right: -40,
                 child: Container(
+                  width: 120,
+                  height: 120,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
                       colors: [
-                        dayGrad[0].withValues(alpha: isDark ? 0.10 : 0.07),
-                        dayGrad[1].withValues(alpha: isDark ? 0.05 : 0.03),
+                        dayGrad[0].withValues(alpha: isDark ? 0.12 : 0.06),
+                        dayGrad[0].withOpacity(0),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: dayGrad),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: dayGrad[0].withValues(alpha: isDark ? 0.18 : 0.20),
-                              blurRadius: 14,
-                              offset: const Offset(0, 10),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: dayGrad,
                             ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          dayTitle.characters.first,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: dayGrad[0].withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            dayTitle.characters.first,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  dayTitle,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    dayTitle,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.3,
+                                      color: isDark
+                                          ? Colors.white
+                                          : AppColors.textPrimary,
+                                    ),
                                   ),
+                                  if (isToday) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: dayGrad[0].withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'BUGÜN',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                          color: dayGrad[0],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                dateLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : AppColors.textSecondary,
                                 ),
-                                const SizedBox(width: 8),
-                                if (isToday)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: dayGrad[0].withValues(alpha: isDark ? 0.22 : 0.14),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: dayGrad[0].withValues(alpha: isDark ? 0.28 : 0.20),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Bugün',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w900,
-                                        color: isDark ? Colors.white70 : AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              dateLabel,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white60 : AppColors.textSecondary,
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.16 : 0.16)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.task_alt_rounded,
-                                size: 16, color: isDark ? Colors.white70 : AppColors.textSecondary),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${tasks.length}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                color: isDark ? Colors.white70 : AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_editMode) ...[
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: 'Görev ekle',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _showTaskEditor(weekday: weekday),
-                          icon: Icon(
-                            Icons.add_circle_outline_rounded,
-                            color: isDark ? Colors.white70 : Colors.black54,
+                            ],
                           ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.04)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.bolt_rounded,
+                                size: 12,
+                                color: dayGrad[0],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${tasks.length}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_editMode) ...[
+                          const SizedBox(width: 8),
+                          _buildIconButton(
+                            icon: Icons.add_rounded,
+                            onPressed: () => _showTaskEditor(weekday: weekday),
+                            isDark: isDark,
+                            color: dayGrad[0],
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (tasks.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: listBg,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.12)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _editMode ? Icons.upload_rounded : Icons.inbox_rounded,
-                            size: 18,
-                            color: isDark ? Colors.white54 : Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _editMode ? 'Görev yok — buraya sürükleyip bırakabilirsin.' : 'Bu gün için görev yok.',
+                    ),
+                    const SizedBox(height: 14),
+                    if (tasks.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        decoration: BoxDecoration(
+                          color: listBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: baseBorder),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              _editMode
+                                  ? Icons.add_circle_outline_rounded
+                                  : Icons.event_available_rounded,
+                              size: 32,
+                              color: isDark ? Colors.white12 : Colors.black12,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _editMode
+                                  ? 'Görev eklemek için dokun'
+                                  : 'Boş gün, tadını çıkar!',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white60 : Colors.grey.shade700,
+                                color: isDark ? Colors.white24 : Colors.black26,
                               ),
                             ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          color: listBg,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: baseBorder),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < tasks.length; i++) ...[
+                                DragTarget<_DraggedProgramTask>(
+                                  hitTestBehavior: HitTestBehavior.opaque,
+                                  onWillAcceptWithDetails: (_) => _editMode,
+                                  onAcceptWithDetails: (d) async {
+                                    await _moveTaskToIndex(
+                                      fromWeekday: d.data.fromWeekday,
+                                      toWeekday: weekday,
+                                      task: d.data.task,
+                                      toIndex: i,
+                                    );
+                                    HapticFeedback.selectionClick();
+                                  },
+                                  builder: (context, candidates, _) {
+                                    final active =
+                                        candidates.isNotEmpty && _editMode;
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          height: active ? 4 : 0,
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: dayGrad[0],
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                          ),
+                                        ),
+                                        _buildTaskRow(
+                                          weekday: weekday,
+                                          task: tasks[i],
+                                          isDark: isDark,
+                                          compact: compact,
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                if (i != tasks.length - 1)
+                                  Divider(
+                                    height: 1,
+                                    indent: 52,
+                                    endIndent: 16,
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.05)
+                                        : Colors.black.withOpacity(0.05),
+                                  ),
+                              ],
+                              if (_editMode)
+                                DragTarget<_DraggedProgramTask>(
+                                  hitTestBehavior: HitTestBehavior.opaque,
+                                  onWillAcceptWithDetails: (_) => true,
+                                  onAcceptWithDetails: (d) async {
+                                    await _moveTaskToIndex(
+                                      fromWeekday: d.data.fromWeekday,
+                                      toWeekday: weekday,
+                                      task: d.data.task,
+                                      toIndex: tasks.length,
+                                    );
+                                    HapticFeedback.selectionClick();
+                                  },
+                                  builder: (context, candidates, _) {
+                                    final active = candidates.isNotEmpty;
+                                    return AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: active
+                                            ? dayGrad[0].withOpacity(0.1)
+                                            : Colors.transparent,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          active
+                                              ? 'Buraya bırak'
+                                              : 'Sürükle bırak',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: active
+                                                ? dayGrad[0]
+                                                : (isDark
+                                                      ? Colors.white10
+                                                      : Colors.black12),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (dropHighlight)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: dayGrad[0].withValues(alpha: isDark ? 0.2 : 0.1),
+                    ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: dayGrad[0],
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: dayGrad[0].withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                    )
-                  else
-                    Container(
-                      decoration: BoxDecoration(
-                        color: listBg,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.12)),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < tasks.length; i++) ...[
-                              DragTarget<_DraggedProgramTask>(
-                                hitTestBehavior: HitTestBehavior.opaque,
-                                onWillAcceptWithDetails: (_) => _editMode,
-                                onAcceptWithDetails: (d) async {
-                                  await _moveTaskToIndex(
-                                    fromWeekday: d.data.fromWeekday,
-                                    toWeekday: weekday,
-                                    task: d.data.task,
-                                    toIndex: i,
-                                  );
-                                  HapticFeedback.selectionClick();
-                                },
-                                builder: (context, candidates, _) {
-                                  final active = candidates.isNotEmpty && _editMode;
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 120),
-                                        height: active ? 3 : 0,
-                                        margin: EdgeInsets.symmetric(horizontal: active ? 10 : 0),
-                                        decoration: BoxDecoration(
-                                          color: dayGrad[0].withValues(alpha: isDark ? 0.75 : 0.85),
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                      _buildTaskRow(
-                                        weekday: weekday,
-                                        task: tasks[i],
-                                        isDark: isDark,
-                                        compact: compact,
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                              if (i != tasks.length - 1)
-                                Divider(
-                                  height: 1,
-                                  thickness: 1,
-                                  color: Colors.grey.withValues(alpha: isDark ? 0.10 : 0.10),
-                                ),
-                            ],
-                            if (_editMode)
-                              DragTarget<_DraggedProgramTask>(
-                                hitTestBehavior: HitTestBehavior.opaque,
-                                onWillAcceptWithDetails: (_) => true,
-                                onAcceptWithDetails: (d) async {
-                                  await _moveTaskToIndex(
-                                    fromWeekday: d.data.fromWeekday,
-                                    toWeekday: weekday,
-                                    task: d.data.task,
-                                    toIndex: tasks.length,
-                                  );
-                                  HapticFeedback.selectionClick();
-                                },
-                                builder: (context, candidates, _) {
-                                  final active = candidates.isNotEmpty;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 140),
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                                    decoration: BoxDecoration(
-                                      color: active
-                                          ? dayGrad[0].withValues(alpha: isDark ? 0.14 : 0.10)
-                                          : Colors.transparent,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        active ? 'Buraya bırak' : ' ',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          color: active
-                                              ? (isDark ? Colors.white70 : AppColors.textPrimary)
-                                              : Colors.transparent,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
+                      child: const Text(
+                        'Buraya Bırak',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            if (dropHighlight)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: dayGrad[0].withValues(alpha: isDark ? 0.16 : 0.12),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Bırak',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white70 : AppColors.textPrimary,
-                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -1311,7 +1600,8 @@ class _MyProgramPageState extends State<MyProgramPage> {
           );
           HapticFeedback.lightImpact();
         },
-        builder: (context, candidates, _) => card(dropHighlight: candidates.isNotEmpty),
+        builder: (context, candidates, _) =>
+            card(dropHighlight: candidates.isNotEmpty),
       ),
     );
   }
@@ -1345,24 +1635,34 @@ class _MyProgramPageState extends State<MyProgramPage> {
     final lesson = task.lesson.trim();
     final topic = task.topic.trim();
     final primary = (lesson.isNotEmpty || topic.isNotEmpty)
-        ? [if (lesson.isNotEmpty) lesson, if (topic.isNotEmpty) topic].join(' – ')
+        ? [
+            if (lesson.isNotEmpty) lesson,
+            if (topic.isNotEmpty) topic,
+          ].join(' – ')
         : task.title;
-    final secondary = (lesson.isNotEmpty || topic.isNotEmpty) ? task.title : (task.notes.trim());
+    final secondary = (lesson.isNotEmpty || topic.isNotEmpty)
+        ? task.title
+        : (task.notes.trim());
 
     Widget content = Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _editMode ? () => _showTaskEditor(weekday: weekday, existing: task) : null,
+        onTap: _editMode
+            ? () => _showTaskEditor(weekday: weekday, existing: task)
+            : null,
         splashColor: c.withValues(alpha: isDark ? 0.18 : 0.10),
         highlightColor: c.withValues(alpha: isDark ? 0.10 : 0.06),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 12 : 13),
+          padding: EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: compact ? 8 : 10,
+          ),
           child: Row(
             children: [
               Container(
-                width: 4,
-                height: 36,
-                margin: const EdgeInsets.only(right: 10),
+                width: 3.5,
+                height: 28,
+                margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
@@ -1376,19 +1676,25 @@ class _MyProgramPageState extends State<MyProgramPage> {
                 ),
               ),
               if (_editMode) ...[
-                Icon(Icons.drag_indicator_rounded, size: 18, color: isDark ? Colors.white54 : Colors.black45),
-                const SizedBox(width: 8),
+                Icon(
+                  Icons.drag_indicator_rounded,
+                  size: 16,
+                  color: isDark ? Colors.white38 : Colors.black26,
+                ),
+                const SizedBox(width: 4),
               ],
               Container(
-                width: 34,
-                height: 34,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: grad.map((x) => x.withValues(alpha: 0.95)).toList()),
-                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    colors: grad.map((x) => x.withValues(alpha: 0.95)).toList(),
+                  ),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(kindIcon(task.kind), size: 18, color: Colors.white),
+                child: Icon(kindIcon(task.kind), size: 15, color: Colors.white),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1398,48 +1704,48 @@ class _MyProgramPageState extends State<MyProgramPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
                         color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                     ),
                     if (secondary.trim().isNotEmpty) ...[
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 1),
                       Text(
                         secondary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white60 : AppColors.textSecondary,
+                          color: isDark
+                              ? Colors.white54
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      grad[0].withValues(alpha: isDark ? 0.72 : 0.92),
-                      grad[1].withValues(alpha: isDark ? 0.62 : 0.86),
-                    ],
+                  color: grad[0].withValues(alpha: isDark ? 0.15 : 0.08),
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                    color: grad[0].withValues(alpha: isDark ? 0.2 : 0.1),
+                    width: 0.5,
                   ),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white.withValues(alpha: isDark ? 0.12 : 0.18)),
                 ),
                 child: Text(
-                  task.kind,
+                  task.kind.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    letterSpacing: 0.5,
+                    color: isDark ? grad[0].withValues(alpha: 0.9) : grad[0],
                   ),
                 ),
               ),
@@ -1449,7 +1755,10 @@ class _MyProgramPageState extends State<MyProgramPage> {
                   tooltip: 'Sil',
                   visualDensity: VisualDensity.compact,
                   onPressed: () => _deleteTask(weekday, task),
-                  icon: Icon(Icons.delete_outline_rounded, color: isDark ? Colors.white70 : Colors.black54),
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
                 ),
               ],
             ],
@@ -1500,6 +1809,31 @@ class _MyProgramPageState extends State<MyProgramPage> {
     return (h * 60) + m;
   }
 
+  Widget _buildIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required bool isDark,
+    Color? color,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: (color ?? (isDark ? Colors.white : Colors.black)).withOpacity(
+          0.1,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: IconButton(
+        icon: Icon(
+          icon,
+          color: color ?? (isDark ? Colors.white70 : Colors.black87),
+          size: 20,
+        ),
+        onPressed: onPressed,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
   Color _colorForKind(String kind) {
     switch (kind) {
       case 'test':
@@ -1532,7 +1866,14 @@ class _TaskEditorSheet extends StatefulWidget {
 }
 
 class _TaskEditorSheetState extends State<_TaskEditorSheet> {
-  static const _kindOptions = <String>['konu', 'test', 'tekrar', 'video', 'podcast', 'diğer'];
+  static const _kindOptions = <String>[
+    'konu',
+    'test',
+    'tekrar',
+    'video',
+    'podcast',
+    'diğer',
+  ];
 
   late final TextEditingController _lessonController;
   late final TextEditingController _topicController;
@@ -1681,7 +2022,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.edit_rounded, color: Colors.white),
+                      child: const Icon(
+                        Icons.edit_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1696,7 +2040,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -1707,9 +2054,13 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF171A1F) : const Color(0xFFF8FAFC),
+                  color: isDark
+                      ? const Color(0xFF171A1F)
+                      : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.16)),
+                  border: Border.all(
+                    color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.16),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1720,7 +2071,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                         gradient: LinearGradient(colors: headerGrad),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Icon(_kindIcon(_selectedKind), color: Colors.white),
+                      child: Icon(
+                        _kindIcon(_selectedKind),
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1728,7 +2082,8 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            (_lessonController.text.trim().isEmpty && _topicController.text.trim().isEmpty)
+                            (_lessonController.text.trim().isEmpty &&
+                                    _topicController.text.trim().isEmpty)
                                 ? 'Ders – Konu'
                                 : [
                                     _lessonController.text.trim(),
@@ -1739,36 +2094,53 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            _taskController.text.trim().isEmpty ? 'Görev' : _taskController.text.trim(),
+                            _taskController.text.trim().isEmpty
+                                ? 'Görev'
+                                : _taskController.text.trim(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white60 : AppColors.textSecondary,
+                              color: isDark
+                                  ? Colors.white60
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: headerGrad[0].withValues(alpha: isDark ? 0.20 : 0.12),
+                        color: headerGrad[0].withValues(
+                          alpha: isDark ? 0.20 : 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: headerGrad[0].withValues(alpha: isDark ? 0.25 : 0.20)),
+                        border: Border.all(
+                          color: headerGrad[0].withValues(
+                            alpha: isDark ? 0.25 : 0.20,
+                          ),
+                        ),
                       ),
                       child: Text(
                         _selectedKind,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white70 : AppColors.textPrimary,
+                          color: isDark
+                              ? Colors.white70
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -1806,12 +2178,18 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                       k,
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: active ? Colors.white : (isDark ? Colors.white70 : AppColors.textPrimary),
+                        color: active
+                            ? Colors.white
+                            : (isDark ? Colors.white70 : AppColors.textPrimary),
                       ),
                     ),
                     selectedColor: c.withValues(alpha: 0.95),
-                    backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF8FAFC),
-                    side: BorderSide(color: c.withValues(alpha: active ? 0.0 : 0.28)),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1A1A1A)
+                        : const Color(0xFFF8FAFC),
+                    side: BorderSide(
+                      color: c.withValues(alpha: active ? 0.0 : 0.28),
+                    ),
                     onSelected: (_) => setState(() => _selectedKind = k),
                   );
                 }).toList(),
@@ -1828,7 +2206,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                         labelText: 'Ders',
                         hintText: 'Örn: Vatandaşlık',
                         prefixIcon: const Icon(Icons.book_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
@@ -1841,7 +2221,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                         labelText: 'Konu',
                         hintText: 'Örn: Temel Haklar',
                         prefixIcon: const Icon(Icons.topic_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
@@ -1856,7 +2238,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                   labelText: 'Görev',
                   hintText: 'Örn: Konu çalış / Test çöz / Tekrar',
                   prefixIcon: const Icon(Icons.checklist_rounded),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
 
@@ -1870,7 +2254,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                   labelText: 'Not (opsiyonel)',
                   hintText: 'Örn: Yanlışları not al, 2 test daha çöz',
                   prefixIcon: const Icon(Icons.notes_rounded),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
 
@@ -1879,7 +2265,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(context, _TaskEditorResult.save(_buildTask())),
+                      onPressed: () => Navigator.pop(
+                        context,
+                        _TaskEditorResult.save(_buildTask()),
+                      ),
                       icon: const Icon(Icons.save_rounded),
                       label: Text(e == null ? 'Ekle' : 'Kaydet'),
                     ),
@@ -1887,7 +2276,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                   if (e != null) ...[
                     const SizedBox(width: 10),
                     OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context, const _TaskEditorResult.delete()),
+                      onPressed: () => Navigator.pop(
+                        context,
+                        const _TaskEditorResult.delete(),
+                      ),
                       icon: const Icon(Icons.delete_outline_rounded),
                       label: const Text('Sil'),
                     ),
@@ -1909,4 +2301,3 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     );
   }
 }
-

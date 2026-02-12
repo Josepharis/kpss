@@ -127,11 +127,11 @@ class OngoingPodcastCard extends StatelessWidget {
                               ? podcast.topic
                               : podcast.title,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 8.5 : 9.5,
+                            fontSize: isSmallScreen ? 8 : 9,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             letterSpacing: -0.2,
-                            height: 1.1,
+                            height: 1.05,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -249,20 +249,6 @@ class OngoingPodcastCard extends StatelessWidget {
   }
 
   IconData _getIcon() {
-    final title = podcast.title.toLowerCase();
-    final topic = podcast.topic.toLowerCase();
-    if (title.contains('motivation') || topic.contains('motivasyon')) {
-      return Icons.self_improvement_rounded;
-    }
-    switch (podcast.icon) {
-      case 'chart':
-        return Icons.insights_rounded;
-      case 'globe':
-        return Icons.public_rounded;
-      case 'megaphone':
-        return Icons.campaign_rounded;
-      default:
-        return Icons.mic_external_on_rounded;
-    }
+    return Icons.mic_rounded;
   }
 }

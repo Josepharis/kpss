@@ -15,11 +15,10 @@ import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/register_page.dart';
 import 'core/services/storage_cleanup_service.dart';
-import 'core/services/firebase_data_uploader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
   try {
     await Firebase.initializeApp(
@@ -31,7 +30,7 @@ void main() async {
     print('❌ Firebase initialization error: $e');
     print('Error type: ${e.runtimeType}');
   }
-  
+
   // Initialize date formatting for Turkish locale
   try {
     await initializeDateFormatting('tr_TR', null);
@@ -39,7 +38,7 @@ void main() async {
     // Continue even if date formatting fails
     print('Date formatting initialization error: $e');
   }
-  
+
   runApp(const MyApp());
 }
 
@@ -59,9 +58,12 @@ Future<void> _runStorageCleanup() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   @override
   State<MyApp> createState() => _MyAppState();
-  
+
   static _MyAppState? of(BuildContext context) {
     return context.findAncestorStateOfType<_MyAppState>();
   }
@@ -99,6 +101,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: MyApp.scaffoldMessengerKey,
       key: ValueKey(_themeKey),
       title: 'Kadrox',
       theme: AppTheme.lightTheme,
@@ -120,18 +123,17 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
-  
+  State<MainScreen> createState() => MainScreenState();
+
   // Find MainScreen state from context
-  static _MainScreenState? of(BuildContext context) {
-    return context.findAncestorStateOfType<_MainScreenState>();
+  static MainScreenState? of(BuildContext context) {
+    return context.findAncestorStateOfType<MainScreenState>();
   }
 }
 
-class _MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final Map<int, Widget> _pageCache = {};
-  int _homePageKey = 0; // Key to force rebuild
   final GlobalKey _homePageStateKey = GlobalKey();
   int _themeKey = 0; // Key to force rebuild when theme changes
 
@@ -157,18 +159,18 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _getPage(int index) {
-    if (index == 0) {
-      // Always return fresh HomePage instance with unique key
-      return HomePage(key: ValueKey('home_$_homePageKey'));
-    }
-    
     // Use theme key to force rebuild when theme changes
     if (_pageCache.containsKey(index) && _themeKey == 0) {
       return _pageCache[index]!;
     }
-    
+
     Widget page;
     switch (index) {
+      case 0:
+        page = HomePage(
+          key: _homePageStateKey, // Use stable GlobalKey
+        );
+        break;
       case 1:
         page = LessonsPage(key: ValueKey('lessons_$_themeKey'));
         break;
@@ -185,34 +187,34 @@ class _MainScreenState extends State<MainScreen> {
         page = ProfilePage(key: ValueKey('profile_$_themeKey'));
         break;
       default:
-        page = HomePage(key: ValueKey('home_$_homePageKey'));
+        page = HomePage(key: _homePageStateKey);
     }
-    
-    if (index != 0 && _themeKey == 0) {
+
+    if (_themeKey == 0) {
       _pageCache[index] = page;
     }
     return page;
   }
 
   void _onTabTapped(int index) {
-    final previousIndex = _currentIndex;
+    if (_currentIndex == index) {
+      // If tapping same tab, optional: refresh or scroll to top
+      if (index == 0) {
+        refreshHomePage();
+      }
+      return;
+    }
+
     setState(() {
       _currentIndex = index;
     });
-    
-    // If returning to home page (index 0), refresh it by changing key
-    if (index == 0 && previousIndex != 0) {
-      setState(() {
-        _homePageKey++; // Change key to force rebuild
-      });
-    }
   }
-  
+
   // Public method to navigate to a tab
   void navigateToTab(int index) {
     _onTabTapped(index);
   }
-  
+
   // Public method to refresh home page
   void refreshHomePage() {
     // Try to call refreshContent on HomePage state if available
@@ -221,15 +223,10 @@ class _MainScreenState extends State<MainScreen> {
       // Use dynamic call to access refreshContent method
       try {
         (homePageState as dynamic).refreshContent();
-        return;
       } catch (e) {
-        // If method doesn't exist, fall through to rebuild
+        // Method doesn't exist
       }
     }
-    // Fallback: rebuild if state not available
-    setState(() {
-      _homePageKey++; // Change key to force rebuild
-    });
   }
 
   @override
@@ -245,5 +242,29 @@ class _MainScreenState extends State<MainScreen> {
         onTap: _onTabTapped,
       ),
     );
+  }
+}
+
+class SnackBarNavigatorObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    _dismissSnackBar();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    _dismissSnackBar();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    _dismissSnackBar();
+  }
+
+  void _dismissSnackBar() {
+    MyApp.scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
   }
 }
