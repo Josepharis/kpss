@@ -1,5 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../../main.dart';
@@ -340,226 +341,349 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     final isSmallScreen = screenHeight < 700;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : AppColors.backgroundLight,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: const FloatingHomeButton(),
-      extendBodyBehindAppBar: false,
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(isSmallScreen ? 70 : 80),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? null
-                : LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.primaryBlue, AppColors.primaryDarkBlue],
-                  ),
-            color: isDark ? const Color(0xFF1E1E1E) : null,
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withValues(alpha: 0.3)
-                    : AppColors.primaryBlue.withValues(alpha: 0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Stack(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: const FloatingHomeButton(),
+        body: Stack(
+          children: [
+            // Layer 1: Mesh Background
+            _buildMeshBackground(isDark, screenWidth),
+
+            // Layer 2: Main Content
+            Column(
               children: [
-                // Watermark
-                Positioned(
-                  top: -10,
-                  right: -10,
-                  child: Transform.rotate(
-                    angle: -0.5,
-                    child: Text(
-                      'KPSS',
-                      style: TextStyle(
-                        fontSize: 60,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white.withValues(alpha: 0.08),
-                        letterSpacing: 3,
-                      ),
-                    ),
-                  ),
+                // Layer 3: Premium Header (instead of AppBar)
+                _buildPremiumHeader(
+                  context,
+                  isDark,
+                  isSmallScreen,
+                  MediaQuery.of(context).padding.top,
                 ),
-                // Content
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isTablet ? 20 : 16,
-                    vertical: isSmallScreen ? 6 : 8,
-                  ),
-                  child: Row(
-                    children: [
-                      // Back button
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 1,
+
+                // Layer 4: Content
+                Expanded(
+                  child:
+                      !_canAccess && !_subscriptionService.isTopicFree(_topic)
+                      ? _buildPremiumRequiredScreen(
+                          context,
+                          isDark,
+                          isSmallScreen,
+                          isTablet,
+                        )
+                      : SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: isTablet ? 800 : double.infinity,
                               ),
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white,
-                              size: isSmallScreen ? 16 : 18,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isTablet ? 32 : 16,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    _buildModernHeader(isDark),
+                                    const SizedBox(height: 12),
+                                    _buildSuccessPathLayout(
+                                      context: context,
+                                      isSmallScreen: isSmallScreen,
+                                      isTablet: isTablet,
+                                      isDark: isDark,
+                                    ),
+                                    if (!_isLoadingAiContent &&
+                                        (_aiQuestions.isNotEmpty ||
+                                            _aiMaterial != null)) ...[
+                                      const SizedBox(height: 32),
+                                      _buildAiGeneratedSection(
+                                        isDark: isDark,
+                                        isSmallScreen: isSmallScreen,
+                                        isTablet: isTablet,
+                                      ),
+                                    ],
+                                    const SizedBox(
+                                      height: 120,
+                                    ), // For floating button
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      SizedBox(width: isSmallScreen ? 12 : 16),
-                      // Title
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _topic.name,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 16 : 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: isSmallScreen ? 8 : 12),
-                      // Favorite button
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () async {
-                            final oldFavoriteState = _isFavorite;
-                            final newFavoriteState = !oldFavoriteState;
-
-                            // Optimistic UI Update
-                            setState(() {
-                              _isFavorite = newFavoriteState;
-                            });
-
-                            try {
-                              // Perform actual toggle in background
-                              final result =
-                                  await QuickAccessService.toggleQuickAccessItem(
-                                    topicId: _topic.id,
-                                    lessonId: _topic.lessonId,
-                                    topicName: _topic.name,
-                                    lessonName: widget.lessonName,
-                                    podcastCount: _topic.podcastCount,
-                                    videoCount: _topic.videoCount,
-                                    flashCardCount: _topic.flashCardCount,
-                                    pdfCount: _topic.pdfCount,
-                                  );
-
-                              if (mounted && result != newFavoriteState) {
-                                setState(() {
-                                  _isFavorite = result;
-                                });
-                              }
-
-                              if (mounted) {
-                                final mainScreen = MainScreen.of(context);
-                                if (mainScreen != null) {
-                                  mainScreen.refreshHomePage();
-                                }
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                setState(() {
-                                  _isFavorite = oldFavoriteState;
-                                });
-                              }
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Icon(
-                              _isFavorite
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
-                              color: _isFavorite ? Colors.amber : Colors.white,
-                              size: isSmallScreen ? 18 : 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        color: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF8FAFF),
+        child: Stack(
+          children: [
+            _buildBlurCircle(
+              -screenWidth * 0.2,
+              -screenWidth * 0.2,
+              screenWidth * 0.8,
+              const Color(0xFF2563EB).withOpacity(isDark ? 0.12 : 0.08),
+            ),
+            _buildBlurCircle(
+              screenWidth * 0.4,
+              screenWidth * 0.1,
+              screenWidth * 0.7,
+              const Color(0xFF7C3AED).withOpacity(isDark ? 0.1 : 0.06),
+            ),
+            _buildBlurCircle(
+              screenWidth * 0.1,
+              screenWidth * 0.6,
+              screenWidth * 0.9,
+              const Color(0xFF2563EB).withOpacity(isDark ? 0.08 : 0.05),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle(double top, double left, double size, Color color) {
+    return Positioned(
+      top: top,
+      left: left,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+          child: const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumHeader(
+    BuildContext context,
+    bool isDark,
+    bool isSmallScreen,
+    double statusBarHeight,
+  ) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: statusBarHeight + 4,
+        bottom: 8,
+        left: 16,
+        right: 16,
+      ),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF0F0F1A) : Colors.white).withOpacity(
+          0.8,
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.black.withOpacity(0.05),
           ),
         ),
       ),
-      body: !_canAccess && !_subscriptionService.isTopicFree(_topic)
-          ? _buildPremiumRequiredScreen(
-              context,
-              isDark,
-              isSmallScreen,
-              isTablet,
-            )
-          : Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isTablet ? 20 : 14,
-                      vertical: isSmallScreen ? 10 : 14,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildSuccessPathLayout(
-                          context: context,
-                          isSmallScreen: isSmallScreen,
-                          isTablet: isTablet,
-                          isDark: isDark,
-                        ),
-                        if (!_isLoadingAiContent &&
-                            (_aiQuestions.isNotEmpty ||
-                                _aiMaterial != null)) ...[
-                          SizedBox(height: isSmallScreen ? 14 : 18),
-                          _buildAiGeneratedSection(
-                            isDark: isDark,
-                            isSmallScreen: isSmallScreen,
-                            isTablet: isTablet,
-                          ),
-                        ],
-                      ],
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                size: 20,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: isDark
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.black.withOpacity(0.03),
+                padding: const EdgeInsets.all(10),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'KONU DETAYI',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF2563EB),
+                      letterSpacing: 1.5,
                     ),
                   ),
-                ),
-              ],
+                  Text(
+                    _topic.name,
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 16 : 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1E293B),
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: _toggleFavorite,
+              icon: Icon(
+                _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                color: _isFavorite
+                    ? Colors.amber
+                    : (isDark ? Colors.white70 : Colors.black54),
+                size: 24,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: (isDark ? Colors.white : Colors.black)
+                    .withOpacity(0.05),
+                padding: const EdgeInsets.all(10),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleFavorite() async {
+    final oldFavoriteState = _isFavorite;
+    final newFavoriteState = !oldFavoriteState;
+
+    setState(() {
+      _isFavorite = newFavoriteState;
+    });
+
+    try {
+      await QuickAccessService.toggleQuickAccessItem(
+        topicId: _topic.id,
+        lessonId: _topic.lessonId,
+        topicName: _topic.name,
+        lessonName: widget.lessonName,
+        podcastCount: _topic.podcastCount,
+        videoCount: _topic.videoCount,
+        flashCardCount: _topic.flashCardCount,
+        pdfCount: _topic.pdfCount,
+      );
+
+      if (mounted) {
+        final mainScreen = MainScreen.of(context);
+        if (mainScreen != null) {
+          mainScreen.refreshHomePage();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isFavorite = oldFavoriteState;
+        });
+      }
+    }
+  }
+
+  Widget _buildModernHeader(bool isDark) {
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/succes.jpg', // Using existing asset
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.7),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 12,
+              left: 16,
+              right: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'BAŞARI YOLU',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Adım adım hedefe doğru ilerleyelim.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -572,20 +696,39 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   }) {
     final allCards = <Widget>[];
 
-    void addCard(Widget card) {
-      allCards.add(card);
+    // Card styling tokens
+    Color getCardColor(String type) {
+      switch (type) {
+        case 'pdf':
+          return const Color(0xFFF59E0B); // Amber
+        case 'questions':
+          return const Color(0xFFEF4444); // Red
+        case 'tests':
+          return const Color(0xFF3B82F6); // Blue
+        case 'podcasts':
+          return const Color(0xFF8B5CF6); // Purple
+        case 'videos':
+          return const Color(0xFFF43F5E); // Rose
+        case 'flashcards':
+          return const Color(0xFF10B981); // Emerald
+        case 'notes':
+          return const Color(0xFF06B6D4); // Cyan
+        default:
+          return Colors.blue;
+      }
     }
 
     // Konu Anlatımı
     if (widget.lessonName.toLowerCase() != 'türkçe') {
-      addCard(
+      allCards.add(
         _buildModernPathCard(
           context: context,
+          type: 'pdf',
           title: 'Konu Anlatımı',
           count: _isLoadingContent ? 0 : _topic.pdfCount,
           countLabel: 'içerik',
-          icon: Icons.picture_as_pdf_rounded,
-          color: const Color(0xFFFF9800),
+          icon: Icons.auto_stories_rounded,
+          color: getCardColor('pdf'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
           onTap: () async {
@@ -611,15 +754,16 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     }
     // Çıkmış Sorular
     if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(
+      allCards.add(
         _buildModernPathCard(
           context: context,
+          type: 'questions',
           title: 'Çıkmış Sorular',
           subtitle: 'Soru Dağılımı',
           count: _topic.averageQuestionCount,
           countLabel: 'soru',
-          icon: Icons.analytics_rounded,
-          color: const Color(0xFFFF6B35),
+          icon: Icons.history_edu_rounded,
+          color: getCardColor('questions'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
           onTap: () {
@@ -637,14 +781,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       );
     }
     // Testler
-    addCard(
+    allCards.add(
       _buildModernPathCard(
         context: context,
-        title: 'Testler',
+        type: 'tests',
+        title: 'Konu Testleri',
         count: _isLoadingContent ? 0 : _topic.averageQuestionCount,
         countLabel: 'soru',
-        icon: Icons.quiz_rounded,
-        color: AppColors.primaryBlue,
+        icon: Icons.checklist_rtl_rounded,
+        color: getCardColor('tests'),
         isSmallScreen: isSmallScreen,
         isDark: isDark,
         isTestCompleted: _isTestCompleted,
@@ -693,14 +838,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     );
     // Podcastler
     if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(
+      allCards.add(
         _buildModernPathCard(
           context: context,
+          type: 'podcasts',
           title: 'Podcastler',
           count: _isLoadingContent ? 0 : _topic.podcastCount,
           countLabel: 'içerik',
-          icon: Icons.podcasts_rounded,
-          color: AppColors.gradientPurpleStart,
+          icon: Icons.headphones_rounded,
+          color: getCardColor('podcasts'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
           onTap: () async {
@@ -726,14 +872,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     // Videolar
     if (widget.lessonName.toLowerCase() != 'türkçe' &&
         widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(
+      allCards.add(
         _buildModernPathCard(
           context: context,
+          type: 'videos',
           title: 'Videolar',
           count: _isLoadingContent ? 0 : _topic.videoCount,
           countLabel: 'içerik',
-          icon: Icons.video_library_rounded,
-          color: const Color(0xFFE74C3C),
+          icon: Icons.play_circle_fill_rounded,
+          color: getCardColor('videos'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
           onTap: () async {
@@ -758,14 +905,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     }
     // Bilgi Kartları
     if (widget.lessonName.toLowerCase() != 'matematik') {
-      addCard(
+      allCards.add(
         _buildModernPathCard(
           context: context,
+          type: 'flashcards',
           title: 'Bilgi Kartları',
           count: _isLoadingContent ? 0 : _topic.flashCardCount,
           countLabel: 'içerik',
-          icon: Icons.style_rounded,
-          color: AppColors.gradientRedStart,
+          icon: Icons.layers_rounded,
+          color: getCardColor('flashcards'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
           onTap: () async {
@@ -789,14 +937,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       );
     }
     // Notlar
-    addCard(
+    allCards.add(
       _buildModernPathCard(
         context: context,
-        title: 'Notlar',
+        type: 'notes',
+        title: 'Özel Notlar',
         count: _isLoadingContent ? 0 : _topic.noteCount,
         countLabel: 'içerik',
-        icon: Icons.note_rounded,
-        color: AppColors.gradientGreenStart,
+        icon: Icons.push_pin_rounded,
+        color: getCardColor('notes'),
         isSmallScreen: isSmallScreen,
         isDark: isDark,
         onTap: () {
@@ -813,31 +962,24 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       ),
     );
 
-    // Her zaman dar ekran düzenini kullan: önce görsel, altında kartlar (tek sütun)
-    return Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: SizedBox(
-            width: double.infinity,
-            height: 160,
-            child: Image.asset('assets/images/succes.jpg', fit: BoxFit.cover),
-          ),
-        ),
-        SizedBox(height: isSmallScreen ? 16 : 20),
-        ...allCards.map(
-          (w) => Padding(
-            padding: EdgeInsets.only(bottom: isSmallScreen ? 10 : 12),
-            child: w,
-          ),
-        ),
-      ],
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: allCards.length,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: allCards[index],
+        );
+      },
     );
   }
 
-  /// Görsele uyumlu, modern yol kenarı kartı.
+  /// Redesigned Modern Card
   Widget _buildModernPathCard({
     required BuildContext context,
+    required String type,
     required String title,
     String? subtitle,
     required int count,
@@ -850,126 +992,151 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     bool isTestCompleted = false,
   }) {
     final label = countLabel == 'soru' ? '$count soru' : '$count içerik';
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isSmallScreen ? 14 : 16,
-            vertical: isSmallScreen ? 12 : 14,
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : color.withValues(alpha: 0.18),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: isDark ? 0.12 : 0.08),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: isDark ? 0.3 : 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Center(child: Icon(icon, size: 22, color: color)),
-                    if (isTestCompleted)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: AppColors.gradientGreenStart,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF1E1E1E)
-                                  : Colors.white,
-                              width: 1.5,
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : color.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                // Icon Box with specific type style
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        color.withValues(alpha: 0.2),
+                        color.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.2),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(icon, color: color, size: 22),
+                      if (isTestCompleted)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 12,
                             ),
                           ),
-                          child: const Icon(
-                            Icons.check_rounded,
-                            size: 10,
-                            color: Colors.white,
-                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: isSmallScreen ? 12 : 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 14 : 15,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : AppColors.textPrimary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (subtitle != null) ...[
-                      SizedBox(height: 2),
+                const SizedBox(width: 16),
+                // Text Column
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        subtitle,
+                        title,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                           color: isDark
-                              ? Colors.white60
-                              : AppColors.textSecondary,
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF334155),
+                          height: 1.2,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (subtitle != null) ...[
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color:
+                                    (isDark
+                                            ? Colors.white
+                                            : const Color(0xFF64748B))
+                                        .withValues(alpha: 0.6),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 3,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.4),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: color,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 12,
-                color: isDark ? Colors.white38 : AppColors.textLight,
-              ),
-            ],
+                // Trailing Arrow
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : Colors.black).withValues(
+                      alpha: 0.03,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -403,3 +403,24 @@ class _LessonCardState extends State<LessonCard>
     );
   }
 }
+
+class MeshPainter extends CustomPainter {
+  final Color color;
+  MeshPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const spacing = 15.0;
+    for (double i = 0; i < size.width + spacing; i += spacing) {
+      canvas.drawLine(Offset(i, 0), Offset(i - 20, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

@@ -192,8 +192,8 @@ class _ProfilePageState extends State<ProfilePage> {
             // Header with user name
             Container(
               padding: EdgeInsets.only(
-                top: statusBarHeight + (isSmallScreen ? 8 : 12),
-                bottom: isSmallScreen ? 12 : 16,
+                top: statusBarHeight + (isSmallScreen ? 4 : 6),
+                bottom: isSmallScreen ? 8 : 10,
                 left: isTablet ? 24 : compactPadding,
                 right: isTablet ? 24 : compactPadding,
               ),
@@ -255,7 +255,12 @@ class _ProfilePageState extends State<ProfilePage> {
             // Content
             Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(compactPadding),
+                padding: EdgeInsets.fromLTRB(
+                  compactPadding,
+                  compactSpacing,
+                  compactPadding,
+                  compactPadding,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

@@ -294,7 +294,7 @@ class _HomePageState extends State<HomePage> {
                             Padding(
                               padding: const EdgeInsets.fromLTRB(
                                 12.0,
-                                8.0,
+                                4.0,
                                 12.0,
                                 2.0,
                               ),
@@ -473,8 +473,8 @@ class _HomePageState extends State<HomePage> {
   ) {
     return Container(
       padding: EdgeInsets.only(
-        top: statusBarHeight + 10,
-        bottom: 14,
+        top: statusBarHeight + 4,
+        bottom: 8,
         left: 20,
         right: 20,
       ),

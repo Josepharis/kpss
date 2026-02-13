@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/services/saved_cards_service.dart';
 import '../../../core/widgets/premium_snackbar.dart';
 
@@ -119,10 +118,7 @@ class _AllSavedCardsPageState extends State<AllSavedCardsPage> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark, // Android
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+        statusBarIconBrightness: Brightness.light,
         systemNavigationBarColor: isDark
             ? const Color(0xFF0F0F1A)
             : const Color(0xFFF8FAFF),
@@ -139,26 +135,21 @@ class _AllSavedCardsPageState extends State<AllSavedCardsPage> {
             // Mesh Background
             _buildMeshBackground(isDark, screenWidth),
 
-            // Content
-            Column(
-              children: [
-                SizedBox(height: statusBarHeight + 70), // Header space
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _savedCards.isEmpty
-                      ? _buildEmptyState(isDark)
-                      : _buildCardsList(isDark),
-                ),
-              ],
-            ),
-
-            // Custom Header
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildCustomHeader(context, isDark, statusBarHeight),
+            // Main Content
+            SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  _buildPremiumHeader(context, isDark, statusBarHeight),
+                  Expanded(
+                    child: _isLoading
+                        ? _buildLoader(isDark)
+                        : _savedCards.isEmpty
+                        ? _buildEmptyState(isDark)
+                        : _buildCardsList(isDark),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -191,28 +182,18 @@ class _AllSavedCardsPageState extends State<AllSavedCardsPage> {
               child: _buildBlurCircle(
                 size: screenWidth * 1.2,
                 color: isDark
-                    ? const Color(0xFF4C1D95).withOpacity(0.15)
-                    : const Color(0xFFC4B5FD).withOpacity(0.2),
-              ),
-            ),
-            Positioned(
-              top: 200,
-              right: -screenWidth * 0.4,
-              child: _buildBlurCircle(
-                size: screenWidth * 1.0,
-                color: isDark
-                    ? const Color(0xFFBE185D).withOpacity(0.1)
-                    : const Color(0xFFFBCFE8).withOpacity(0.2),
+                    ? const Color(0xFF4C1D95).withValues(alpha: 0.15)
+                    : const Color(0xFFC4B5FD).withValues(alpha: 0.2),
               ),
             ),
             Positioned(
               bottom: -100,
-              left: 50,
+              right: -50,
               child: _buildBlurCircle(
                 size: screenWidth * 0.8,
                 color: isDark
-                    ? const Color(0xFF0F766E).withOpacity(0.1)
-                    : const Color(0xFFCCFBF1).withOpacity(0.2),
+                    ? const Color(0xFFBE185D).withValues(alpha: 0.1)
+                    : const Color(0xFFFBCFE8).withValues(alpha: 0.2),
               ),
             ),
           ],
@@ -230,7 +211,7 @@ class _AllSavedCardsPageState extends State<AllSavedCardsPage> {
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 0.5,
-          colors: [color, color.withOpacity(0)],
+          colors: [color, color.withValues(alpha: 0)],
           stops: const [0.1, 1.0],
         ),
       ),
@@ -241,318 +222,504 @@ class _AllSavedCardsPageState extends State<AllSavedCardsPage> {
     );
   }
 
-  Widget _buildCustomHeader(
+  Widget _buildPremiumHeader(
     BuildContext context,
     bool isDark,
     double statusBarHeight,
   ) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: statusBarHeight + 10,
-            bottom: 12,
-            left: 20,
-            right: 20,
+    const accentColor = Color(0xFF6366F1);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.2),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1,
           ),
-          color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
-          child: Row(
-            children: [
-              _buildGlassIconButton(
-                context,
-                icon: Icons.arrow_back_ios_new_rounded,
-                isDark: isDark,
-                onTap: () => Navigator.pop(context),
+        ),
+      ),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(20, statusBarHeight + 10, 20, 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [
+                        accentColor.withValues(alpha: 0.8),
+                        const Color(0xFF16213E).withValues(alpha: 0.6),
+                      ]
+                    : [
+                        accentColor.withValues(alpha: 0.8),
+                        accentColor.withValues(alpha: 0.6),
+                      ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  widget.lessonName ?? 'Kaydedilen Kartlar',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
-                  ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'KOLEKSİYON',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white.withValues(alpha: 0.7),
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.lessonName ?? 'Tüm Kartlar',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Material(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).pop(),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    _buildHeaderStatChip(
+                      icon: Icons.style_rounded,
+                      count: _savedCards.length,
+                      label: 'Kart',
+                      color: const Color(0xFF10B981),
+                    ),
+                    const Spacer(),
+                    _buildSelectionIndicator(isDark),
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.black.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${_savedCards.length}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : AppColors.primaryBlue,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildGlassIconButton(
-    BuildContext context, {
+  Widget _buildHeaderStatChip({
     required IconData icon,
-    required bool isDark,
-    required VoidCallback onTap,
+    required int count,
+    required String label,
+    required Color color,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionIndicator(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
         ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white : const Color(0xFF1E293B),
-        ),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_fix_high_rounded, size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Text(
+            'Tüm Liste',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoader(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: isDark ? const Color(0xFF4F46E5) : const Color(0xFF3B82F6),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Yükleniyor...',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyState(bool isDark) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.blue.withOpacity(0.05),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: (isDark
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.05)),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.bookmark_border_rounded,
+                size: 60,
+                color: isDark ? Colors.white24 : Colors.black26,
+              ),
             ),
-            child: Icon(
-              Icons.bookmark_border_rounded,
-              size: 64,
-              color: isDark ? Colors.white24 : Colors.blue.withOpacity(0.3),
+            const SizedBox(height: 24),
+            Text(
+              'Kaydedilen Kart Yok',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Henüz kaydedilmiş kart yok',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : Colors.black54,
+            const SizedBox(height: 12),
+            Text(
+              'Henüz hiçbir kart kaydetmediniz. Beğendiğiniz kartları kaydettiğinizde burada görebilirsiniz.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                height: 1.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Beğendiğiniz kartları kaydettiğinizde\nburada görünecekler.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white38 : Colors.black38,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildCardsList(bool isDark) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      itemCount: _savedCards.length,
-      itemBuilder: (context, index) {
-        final card = _savedCards[index];
-        return _buildCardItem(context, card, isDark);
-      },
+    return RefreshIndicator(
+      onRefresh: _loadSavedCards,
+      color: const Color(0xFF3B82F6),
+      backgroundColor: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+      child: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+        itemCount: _savedCards.length,
+        itemBuilder: (context, index) {
+          final card = _savedCards[index];
+          return _buildPremiumCardItem(context, card, isDark);
+        },
+      ),
     );
   }
 
-  Widget _buildCardItem(BuildContext context, SavedCard card, bool isDark) {
+  Widget _buildPremiumCardItem(
+    BuildContext context,
+    SavedCard card,
+    bool isDark,
+  ) {
+    const accentColor = Color(0xFF6366F1);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.black.withOpacity(0.03),
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: (isDark ? Colors.black : accentColor).withValues(
+              alpha: 0.05,
+            ),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: Material(
-          color: Colors.transparent,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header of the card (Topic Name)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.grey.withOpacity(0.05),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.05)
-                          : Colors.black.withOpacity(0.03),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: (isDark ? const Color(0xFF1E1E2E) : Colors.white)
+                  .withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: isDark ? 0.05 : 0.5),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Card Header
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : accentColor).withValues(
+                      alpha: 0.05,
+                    ),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: (isDark ? Colors.white : accentColor).withValues(
+                          alpha: 0.1,
+                        ),
+                        width: 1,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlue.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.library_books_rounded,
-                        size: 14,
-                        color: AppColors.primaryBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        card.topicName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white70 : Colors.black54,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: const Icon(
+                          Icons.folder_shared_rounded,
+                          size: 14,
+                          color: accentColor,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline_rounded,
-                        size: 20,
-                        color: Colors.redAccent,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          card.topicName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isDark
+                                ? Colors.white70
+                                : const Color(0xFF1E293B),
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      onPressed: () => _showDeleteConfirmation(card),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showDeleteConfirmation(card),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: Color(0xFFEF4444),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              // Content (Question & Answer)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'S:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.gradientRedStart,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            card.frontText,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1E293B),
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: isDark
-                            ? Colors.white.withOpacity(0.05)
-                            : Colors.black.withOpacity(0.03),
+                // Card Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFlashcardSection(
+                        label: 'SORU',
+                        content: card.frontText,
+                        color: const Color(0xFFEF4444),
+                        isDark: isDark,
                       ),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'C:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF10B981),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            card.backText,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: DashDivider(),
+                      ),
+                      _buildFlashcardSection(
+                        label: 'CEVAP',
+                        content: card.backText,
+                        color: const Color(0xFF10B981),
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFlashcardSection({
+    required String label,
+    required String content,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 14,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: color,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          content,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DashDivider extends StatelessWidget {
+  const DashDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final boxWidth = constraints.constrainWidth();
+        const dashWidth = 4.0;
+        const dashHeight = 1.0;
+        final dashCount = (boxWidth / (2 * dashWidth)).floor();
+        return Flex(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          direction: Axis.horizontal,
+          children: List.generate(dashCount, (_) {
+            return SizedBox(
+              width: dashWidth,
+              height: dashHeight,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.05),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

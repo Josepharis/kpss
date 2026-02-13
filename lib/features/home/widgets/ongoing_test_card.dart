@@ -23,7 +23,6 @@ class OngoingTestCard extends StatelessWidget {
     final primaryColor = AppColors.gradientBlueStart;
     final secondaryColor = AppColors.gradientBlueEnd;
     final borderRadius = isSmallScreen ? 18.0 : 22.0;
-
     return Container(
       width: size,
       height: size,

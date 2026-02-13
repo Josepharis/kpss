@@ -29,8 +29,14 @@ class CustomBottomNavBar extends StatelessWidget {
     final isSmallPhone = screenWidth < 380;
     final isMediumPhone = screenWidth < 420;
 
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Padding(
-      padding: EdgeInsets.only(bottom: isSmallPhone ? 10 : 20),
+      padding: EdgeInsets.only(
+        bottom: bottomPadding > 0
+            ? 8 // Tightened for modern feel
+            : (isSmallPhone ? 10 : 20),
+      ),
       child: CurvedNavigationBar(
         index: currentIndex,
         color: barColor,

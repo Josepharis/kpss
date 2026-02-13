@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/lesson.dart';
 import '../../../core/services/saved_cards_service.dart';
@@ -142,13 +141,10 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark, // Android
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+        statusBarIconBrightness: Brightness.light,
         systemNavigationBarColor: isDark
-            ? const Color(0xFF141414)
-            : Colors.white,
+            ? const Color(0xFF0F0F1A)
+            : const Color(0xFFF8FAFF),
         systemNavigationBarIconBrightness: isDark
             ? Brightness.light
             : Brightness.dark,
@@ -159,72 +155,69 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
             : const Color(0xFFF8FAFF),
         body: Stack(
           children: [
+            // Mesh Background
             _buildMeshBackground(isDark, screenWidth),
 
             if (_isLoading)
-              const Center(child: CircularProgressIndicator())
+              _buildLoader(isDark)
             else if (_savedCards.isEmpty)
               _buildEmptyState(isDark)
             else
-              Column(
-                children: [
-                  SizedBox(height: statusBarHeight + 60),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isVerySmall = constraints.maxWidth < 360;
-                        return Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isSmallScreen ? 12 : 20,
-                            vertical: isSmallScreen ? 8 : 16,
-                          ),
-                          child: GestureDetector(
-                            onTap: _flipCard,
-                            child: AnimatedBuilder(
-                              animation: _flipAnimation,
-                              builder: (context, child) {
-                                final angle = _flipAnimation.value * 3.14159;
-                                final isFrontVisible =
-                                    _flipAnimation.value < 0.5;
-                                return Transform(
-                                  alignment: Alignment.center,
-                                  transform: Matrix4.identity()
-                                    ..setEntry(3, 2, 0.001)
-                                    ..rotateY(angle),
-                                  child: isFrontVisible
-                                      ? _buildCardFront(
-                                          _savedCards[_currentCardIndex],
-                                          isSmallScreen,
-                                          isVerySmall,
-                                        )
-                                      : Transform(
-                                          alignment: Alignment.center,
-                                          transform: Matrix4.identity()
-                                            ..rotateY(3.14159),
-                                          child: _buildCardBack(
+              SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    _buildPremiumHeader(context, isDark, statusBarHeight),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isVerySmall = constraints.maxWidth < 360;
+                          return Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallScreen ? 12 : 20,
+                              vertical: isSmallScreen ? 8 : 16,
+                            ),
+                            child: GestureDetector(
+                              onTap: _flipCard,
+                              child: AnimatedBuilder(
+                                animation: _flipAnimation,
+                                builder: (context, child) {
+                                  final angle = _flipAnimation.value * 3.14159;
+                                  final isFrontVisible =
+                                      _flipAnimation.value < 0.5;
+                                  return Transform(
+                                    alignment: Alignment.center,
+                                    transform: Matrix4.identity()
+                                      ..setEntry(3, 2, 0.001)
+                                      ..rotateY(angle),
+                                    child: isFrontVisible
+                                        ? _buildCardFront(
                                             _savedCards[_currentCardIndex],
                                             isSmallScreen,
                                             isVerySmall,
+                                          )
+                                        : Transform(
+                                            alignment: Alignment.center,
+                                            transform: Matrix4.identity()
+                                              ..rotateY(3.14159),
+                                            child: _buildCardBack(
+                                              _savedCards[_currentCardIndex],
+                                              isSmallScreen,
+                                              isVerySmall,
+                                            ),
                                           ),
-                                        ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                  _buildBottomControls(isDark, bottomPadding, isSmallScreen),
-                ],
+                    _buildBottomControls(isDark, bottomPadding, isSmallScreen),
+                  ],
+                ),
               ),
-
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildCustomHeader(context, isDark, statusBarHeight),
-            ),
           ],
         ),
       ),
@@ -256,18 +249,18 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
               child: _buildBlurCircle(
                 size: screenWidth * 1.2,
                 color: isDark
-                    ? const Color(0xFF4C1D95).withOpacity(0.15)
-                    : const Color(0xFFC4B5FD).withOpacity(0.2),
+                    ? const Color(0xFF4C1D95).withValues(alpha: 0.15)
+                    : const Color(0xFFC4B5FD).withValues(alpha: 0.2),
               ),
             ),
             Positioned(
-              bottom: -screenWidth * 0.4,
-              right: -screenWidth * 0.2,
+              bottom: -100,
+              right: -50,
               child: _buildBlurCircle(
-                size: screenWidth * 1.2,
+                size: screenWidth * 0.8,
                 color: isDark
-                    ? const Color(0xFFBE185D).withOpacity(0.15)
-                    : const Color(0xFFFBCFE8).withOpacity(0.2),
+                    ? const Color(0xFFBE185D).withValues(alpha: 0.1)
+                    : const Color(0xFFFBCFE8).withValues(alpha: 0.2),
               ),
             ),
           ],
@@ -285,7 +278,7 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 0.5,
-          colors: [color, color.withOpacity(0)],
+          colors: [color, color.withValues(alpha: 0)],
           stops: const [0.1, 1.0],
         ),
       ),
@@ -296,125 +289,158 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
     );
   }
 
-  Widget _buildCustomHeader(
+  Widget _buildPremiumHeader(
     BuildContext context,
     bool isDark,
     double statusBarHeight,
   ) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: statusBarHeight + 10,
-            bottom: 12,
-            left: 20,
-            right: 20,
-          ),
-          color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
-          child: Row(
-            children: [
-              _buildGlassIconButton(
-                context,
-                icon: Icons.arrow_back_ios_new_rounded,
-                isDark: isDark,
-                onTap: () => Navigator.pop(context),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  widget.topicName,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
-                  ),
-                ),
-              ),
-              if (!_isLoading && _savedCards.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.black.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_currentCardIndex + 1}/${_savedCards.length}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : AppColors.primaryBlue,
-                    ),
-                  ),
-                ),
-            ],
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(12, statusBarHeight + 8, 12, 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F0F1A) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.black.withOpacity(0.05),
+            width: 1,
           ),
         ),
+      ),
+      child: Row(
+        children: [
+          // 1. Back Button
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 16,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 2. Center Title
+          Expanded(
+            child: Text(
+              widget.topicName,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 3. Counter Badge
+          if (_savedCards.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2FE),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                '${_currentCardIndex + 1}/${_savedCards.length}',
+                style: const TextStyle(
+                  color: Color(0xFF0369A1),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildGlassIconButton(
-    BuildContext context, {
-    required IconData icon,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+  Widget _buildLoader(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: isDark ? const Color(0xFF4F46E5) : const Color(0xFF3B82F6),
             ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white : const Color(0xFF1E293B),
-        ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Yükleniyor...',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyState(bool isDark) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.style_outlined,
-            size: 64,
-            color: isDark ? Colors.white24 : Colors.grey.withOpacity(0.3),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Bu konuda kaydedilmiş kart yok',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark ? Colors.white54 : Colors.black45,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: (isDark
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.05)),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.style_outlined,
+                size: 60,
+                color: isDark ? Colors.white24 : Colors.black26,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              'Kaydedilen Kart Yok',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Bu konuda henüz kaydedilmiş kartınız bulunmuyor.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -431,21 +457,20 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
       padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
       decoration: BoxDecoration(
         color: const Color(0xFFF43F5E),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFFFF7E93),
-            const Color(0xFFF43F5E),
-            const Color(0xFFBE123C),
-          ],
-          stops: const [0.0, 0.4, 1.0],
+          colors: [Color(0xFFFF7E93), Color(0xFFF43F5E), Color(0xFFBE123C)],
+          stops: [0.0, 0.4, 1.0],
         ),
         borderRadius: BorderRadius.circular(36),
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFBE123C).withOpacity(0.4),
+            color: const Color(0xFFBE123C).withValues(alpha: 0.4),
             blurRadius: 30,
             offset: const Offset(0, 15),
             spreadRadius: -5,
@@ -454,20 +479,19 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
       ),
       child: Stack(
         children: [
-          // Fully visible watermark - Top Right
           Positioned(
             top: 10,
             right: 10,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.help_outline_rounded,
                 size: 64,
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
               ),
             ),
           ),
@@ -476,7 +500,6 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 3),
-
               Expanded(
                 flex: 6,
                 child: Center(
@@ -493,7 +516,7 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                         letterSpacing: -0.5,
                         shadows: [
                           Shadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             offset: const Offset(0, 2),
                             blurRadius: 4,
                           ),
@@ -503,19 +526,19 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                   ),
                 ),
               ),
-
               const Spacer(flex: 2),
-
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.white.withOpacity(0.25)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -537,7 +560,7 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -568,48 +591,41 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
       padding: EdgeInsets.all(isSmallScreen ? 20 : 28),
       decoration: BoxDecoration(
         color: const Color(0xFF10B981),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF34D399),
-            const Color(0xFF10B981),
-            const Color(0xFF059669),
-          ],
-          stops: const [0.0, 0.5, 1.0],
+          colors: [Color(0xFF34D399), Color(0xFF10B981), Color(0xFF059669)],
+          stops: [0.0, 0.5, 1.0],
         ),
         borderRadius: BorderRadius.circular(36),
-        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF059669).withOpacity(0.35),
+            color: const Color(0xFF059669).withValues(alpha: 0.35),
             blurRadius: 30,
             offset: const Offset(0, 15),
             spreadRadius: -5,
-          ),
-          BoxShadow(
-            color: const Color(0xFF059669).withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Stack(
         children: [
-          // Fully visible watermark - Top Right
           Positioned(
             top: 10,
             right: 10,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.check_rounded,
                 size: 64,
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
               ),
             ),
           ),
@@ -641,7 +657,7 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Row(
@@ -650,13 +666,13 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
                     Icon(
                       Icons.refresh_rounded,
                       size: 14,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Kartı çevir',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -682,110 +698,150 @@ class _SavedCardTopicDetailPageState extends State<SavedCardTopicDetailPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildGlassButton(
+          _buildControlIconButton(
             icon: Icons.arrow_back_rounded,
             onTap: _previousCard,
             isDark: isDark,
             enabled: _currentCardIndex > 0,
           ),
-
           const Spacer(),
-
-          GestureDetector(
+          _buildActionChip(
+            icon: Icons.delete_outline_rounded,
+            label: 'Kaldır',
             onTap: _removeCard,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.red.withOpacity(0.2),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.delete_outline_rounded,
-                    color: Colors.red,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Kaldır',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            color: const Color(0xFFEF4444),
+            isDark: isDark,
           ),
-
           const Spacer(),
-
-          _buildGlassButton(
+          _buildControlIconButton(
             icon: Icons.arrow_forward_rounded,
             onTap: _nextCard,
             isDark: isDark,
             enabled: _currentCardIndex < _savedCards.length - 1,
-            isPrimary: true,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildGlassButton({
+  Widget _buildControlIconButton({
     required IconData icon,
     required VoidCallback onTap,
     required bool isDark,
     bool enabled = true,
-    bool isPrimary = false,
   }) {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Opacity(
         opacity: enabled ? 1.0 : 0.3,
         child: Container(
-          width: 56,
-          height: 56,
+          width: 58,
+          height: 58,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, Color(0xFFF8FAFC)],
+            ),
             boxShadow: [
-              if (enabled)
+              if (enabled) ...[
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                  spreadRadius: 2,
                 ),
+                BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 0,
+                  offset: const Offset(0, -2),
+                  spreadRadius: 0,
+                ),
+              ],
             ],
-            border: isPrimary
-                ? Border.all(
-                    color: AppColors.primaryBlue.withOpacity(0.5),
-                    width: 1.5,
-                  )
-                : null,
+            border: Border.all(
+              color: Colors.black.withOpacity(0.04),
+              width: 1.5,
+            ),
           ),
-          child: Icon(
-            icon,
-            color: isPrimary
-                ? AppColors.primaryBlue
-                : (isDark ? Colors.white : Colors.black87),
-            size: 26,
+          child: Center(
+            child: Icon(icon, color: const Color(0xFF1E293B), size: 26),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(100),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(100),
+          child: Container(
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [color.withOpacity(0.9), color, color.withOpacity(1.0)],
+              ),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black26,
+                        offset: Offset(0, 1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

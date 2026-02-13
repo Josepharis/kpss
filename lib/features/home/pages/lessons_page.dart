@@ -114,7 +114,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
             Container(
               padding: EdgeInsets.only(
                 top: statusBarHeight,
-                bottom: isSmallScreen ? 10.0 : 14.0,
+                bottom: isSmallScreen ? 6.0 : 8.0,
                 left: isTablet ? 24.0 : 16.0,
                 right: isTablet ? 24.0 : 16.0,
               ),
@@ -326,7 +326,12 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                   );
 
                   return ListView(
-                    padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                    padding: EdgeInsets.fromLTRB(
+                      isSmallScreen ? 10 : 12,
+                      4.0,
+                      isSmallScreen ? 10 : 12,
+                      isSmallScreen ? 10 : 12,
+                    ),
                     children: [
                       if (genelKultur.isNotEmpty)
                         _buildCategorySection(
