@@ -41,6 +41,7 @@ class _HomePageState extends State<HomePage> {
   static List<OngoingFlashCard> _cachedFlashCards = [];
   static List<InfoCard> _cachedInfoCards = [];
   static int _cachedScore = 0;
+  static String? _cachedUserId;
 
   List<OngoingTest> _ongoingTests = _cachedTests;
   List<OngoingPodcast> _ongoingPodcasts = _cachedPodcasts;
@@ -53,6 +54,14 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+
+    // Safety check: if user changed, clear memory statics
+    final currentUid = _authService.getUserId();
+    if (_cachedUserId != null && _cachedUserId != currentUid) {
+      _clearStaticMemoryCaches();
+    }
+    _cachedUserId = currentUid;
+
     _loadOngoingContentFromCache();
     _loadUserScore();
     _loadUserData();
@@ -63,10 +72,26 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _clearStaticMemoryCaches() {
+    _cachedTests = [];
+    _cachedPodcasts = [];
+    _cachedVideos = [];
+    _cachedFlashCards = [];
+    _cachedInfoCards = [];
+    _cachedScore = 0;
+    _ongoingTests = [];
+    _ongoingPodcasts = [];
+    _ongoingVideos = [];
+    _ongoingFlashCards = [];
+    _infoCards = [];
+    _userTotalScore = 0;
+  }
+
   Future<void> _loadUserScore() async {
     try {
+      final uid = _authService.getUserId();
       final prefs = await SharedPreferences.getInstance();
-      final cachedScore = prefs.getInt('user_total_score');
+      final cachedScore = prefs.getInt('user_total_score_${uid ?? "anon"}');
       if (cachedScore != null) {
         if (mounted) setState(() => _userTotalScore = cachedScore);
       }
@@ -77,7 +102,7 @@ class _HomePageState extends State<HomePage> {
           _cachedScore = score;
         });
       }
-      await prefs.setInt('user_total_score', score);
+      await prefs.setInt('user_total_score_${uid ?? "anon"}', score);
     } catch (e) {}
   }
 
@@ -92,8 +117,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadOngoingContentFromCache() async {
     try {
+      final uid = _authService.getUserId();
+      final userKey = uid ?? 'anon';
       final prefs = await SharedPreferences.getInstance();
-      final testsJson = prefs.getString('ongoing_tests_cache');
+
+      final testsJson = prefs.getString('ongoing_tests_cache_$userKey');
       if (testsJson != null && testsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(testsJson);
@@ -103,7 +131,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _ongoingTests = items);
         } catch (e) {}
       }
-      final podcastsJson = prefs.getString('ongoing_podcasts_cache');
+      final podcastsJson = prefs.getString('ongoing_podcasts_cache_$userKey');
       if (podcastsJson != null && podcastsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(podcastsJson);
@@ -113,7 +141,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _ongoingPodcasts = items);
         } catch (e) {}
       }
-      final videosJson = prefs.getString('ongoing_videos_cache');
+      final videosJson = prefs.getString('ongoing_videos_cache_$userKey');
       if (videosJson != null && videosJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(videosJson);
@@ -123,7 +151,9 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _ongoingVideos = items);
         } catch (e) {}
       }
-      final flashCardsJson = prefs.getString('ongoing_flash_cards_cache');
+      final flashCardsJson = prefs.getString(
+        'ongoing_flash_cards_cache_$userKey',
+      );
       if (flashCardsJson != null && flashCardsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(flashCardsJson);
@@ -133,7 +163,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _ongoingFlashCards = items);
         } catch (e) {}
       }
-      final infoCardsJson = prefs.getString('info_cards_cache');
+      final infoCardsJson = prefs.getString('info_cards_cache_$userKey');
       if (infoCardsJson != null && infoCardsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(infoCardsJson);
@@ -189,24 +219,27 @@ class _HomePageState extends State<HomePage> {
       }).toList();
 
       final prefs = await SharedPreferences.getInstance();
+      final uid = _authService.getUserId();
+      final userKey = uid ?? 'anon';
+
       await prefs.setString(
-        'ongoing_tests_cache',
+        'ongoing_tests_cache_$userKey',
         jsonEncode(tests.map((t) => t.toMap()).toList()),
       );
       await prefs.setString(
-        'ongoing_podcasts_cache',
+        'ongoing_podcasts_cache_$userKey',
         jsonEncode(podcasts.map((p) => p.toMap()).toList()),
       );
       await prefs.setString(
-        'ongoing_videos_cache',
+        'ongoing_videos_cache_$userKey',
         jsonEncode(videos.map((v) => v.toMap()).toList()),
       );
       await prefs.setString(
-        'ongoing_flash_cards_cache',
+        'ongoing_flash_cards_cache_$userKey',
         jsonEncode(flashCards.map((f) => f.toMap()).toList()),
       );
       await prefs.setString(
-        'info_cards_cache',
+        'info_cards_cache_$userKey',
         jsonEncode(infoCards.map((c) => c.toMap()).toList()),
       );
 
@@ -285,13 +318,11 @@ class _HomePageState extends State<HomePage> {
                           _ongoingFlashCards.isNotEmpty ||
                           _infoCards.isNotEmpty;
 
-                      return SingleChildScrollView(
+                      return CustomScrollView(
                         physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 1. Header Cards Group (CONTENT PRESERVED)
-                            Padding(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
                               padding: const EdgeInsets.fromLTRB(
                                 12.0,
                                 4.0,
@@ -307,78 +338,104 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   const SizedBox(height: 4.0),
                                   ExamCountdownCard(
-                                    examDate: DateTime(2026, 7, 1),
                                     isSmallScreen: isSmallScreen,
                                     isCompactLayout: true,
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 2.0),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 2.0),
+                          ),
 
-                            // 2. Quick Access Section (CONTENT PRESERVED)
-                            QuickAccessSection(isSmallScreen: isSmallScreen),
-                            const SizedBox(height: 2.0),
+                          // 2. Quick Access Section
+                          SliverToBoxAdapter(
+                            child: QuickAccessSection(
+                              isSmallScreen: isSmallScreen,
+                            ),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 2.0),
+                          ),
 
-                            // 3. Ongoing Tests Section (CONTENT PRESERVED)
-                            if (_ongoingTests.isNotEmpty)
-                              OngoingTestsSection(
+                          // 3. Ongoing Sections
+                          if (_ongoingTests.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: OngoingTestsSection(
                                 tests: _ongoingTests,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: isSmallScreen ? 160 : 200,
                               ),
-                            if (_ongoingTests.isNotEmpty)
-                              const SizedBox(height: 6.0),
+                            ),
+                          if (_ongoingTests.isNotEmpty)
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 6.0),
+                            ),
 
-                            // 4. Ongoing Podcasts Section (CONTENT PRESERVED)
-                            if (_ongoingPodcasts.isNotEmpty)
-                              OngoingPodcastsSection(
+                          if (_ongoingPodcasts.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: OngoingPodcastsSection(
                                 podcasts: _ongoingPodcasts,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: isSmallScreen ? 160 : 200,
                               ),
-                            if (_ongoingPodcasts.isNotEmpty)
-                              const SizedBox(height: 6.0),
+                            ),
+                          if (_ongoingPodcasts.isNotEmpty)
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 6.0),
+                            ),
 
-                            // 5. Ongoing Videos Section (CONTENT PRESERVED)
-                            if (_ongoingVideos.isNotEmpty)
-                              OngoingVideosSection(
+                          if (_ongoingVideos.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: OngoingVideosSection(
                                 videos: _ongoingVideos,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: isSmallScreen ? 160 : 200,
                               ),
-                            if (_ongoingVideos.isNotEmpty)
-                              const SizedBox(height: 6.0),
+                            ),
+                          if (_ongoingVideos.isNotEmpty)
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 6.0),
+                            ),
 
-                            // 6. Ongoing Flash Cards Section (CONTENT PRESERVED)
-                            if (_ongoingFlashCards.isNotEmpty)
-                              OngoingFlashCardsSection(
+                          if (_ongoingFlashCards.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: OngoingFlashCardsSection(
                                 flashCards: _ongoingFlashCards,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: isSmallScreen ? 160 : 200,
                               ),
-                            if (_ongoingFlashCards.isNotEmpty)
-                              const SizedBox(height: 6.0),
+                            ),
+                          if (_ongoingFlashCards.isNotEmpty)
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 6.0),
+                            ),
 
-                            // 7. Info Cards Section (CONTENT PRESERVED)
-                            if (_infoCards.isNotEmpty)
-                              InfoCardsSection(
+                          if (_infoCards.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: InfoCardsSection(
                                 infoCards: _infoCards,
                                 isSmallScreen: isSmallScreen,
                                 availableHeight: isSmallScreen ? 160 : 200,
                               ),
+                            ),
 
-                            // Empty State
-                            if (!hasOngoingContent) ...[
-                              const SizedBox(height: 32),
-                              _buildEmptyState(
+                          // Empty State Centering
+                          if (!hasOngoingContent)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _buildEmptyState(
                                 isSmallScreen,
                                 screenWidth > 600,
                               ),
-                            ],
-                            const SizedBox(height: 100),
-                          ],
-                        ),
+                            ),
+
+                          if (hasOngoingContent)
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 100),
+                            ),
+                        ],
                       );
                     },
                   ),
@@ -632,6 +689,7 @@ class _HomePageState extends State<HomePage> {
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // Centering contents
           children: [
             Icon(
               Icons.rocket_launch_rounded,

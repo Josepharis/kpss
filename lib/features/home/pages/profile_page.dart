@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/services/run_pdf_update.dart';
 import '../../../core/services/storage_cleanup_service.dart';
 import '../../../core/services/progress_service.dart';
@@ -34,6 +34,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // User statistics
   String _userName = 'Kullanıcı';
+  String _kpssType = '';
   int _solvedQuestions = 0;
   int _correctAnswers = 0;
   int _wrongAnswers = 0;
@@ -74,13 +75,31 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadUserData() async {
     try {
       final userName = await _authService.getUserName();
+      final kpssType = await _authService.getKpssType();
       if (mounted) {
         setState(() {
           _userName = userName ?? 'Kullanıcı';
+          _kpssType = _getKpssTypeLabel(kpssType);
         });
       }
     } catch (e) {
       // Silent error handling
+    }
+  }
+
+  String _getKpssTypeLabel(String? type) {
+    if (type == null) return '';
+    switch (type) {
+      case 'ortaOgretim':
+        return 'Ortaöğretim KPSS';
+      case 'onLisans':
+        return 'Ön Lisans KPSS';
+      case 'lisans':
+        return 'Lisans KPSS';
+      case 'ags':
+        return 'AGS';
+      default:
+        return type;
     }
   }
 
@@ -157,195 +176,186 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final statusBarHeight = MediaQuery.of(context).padding.top;
-    final isTablet = screenWidth > 600;
-    final isSmallScreen = screenHeight < 700;
-
-    final compactPadding = isSmallScreen ? 12.0 : 16.0;
-    final compactSpacing = isSmallScreen ? 8.0 : 12.0;
-    final iconSize = isSmallScreen ? 18.0 : 20.0;
-    final fontSize = isSmallScreen ? 13.0 : 14.0;
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final headerColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.primaryBlue;
-    final headerDarkColor = isDark
-        ? const Color(0xFF121212)
-        : AppColors.primaryDarkBlue;
+    final isSmallScreen = MediaQuery.of(context).size.height < 700;
+    final compactPadding = isSmallScreen ? 12.0 : 14.0;
+    final compactSpacing = isSmallScreen ? 6.0 : 10.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
         systemNavigationBarColor: isDark
-            ? const Color(0xFF121212)
+            ? const Color(0xFF010101)
             : Colors.white,
         systemNavigationBarIconBrightness: isDark
             ? Brightness.light
             : Brightness.dark,
       ),
       child: Scaffold(
-        body: Column(
+        backgroundColor: isDark
+            ? const Color(0xFF010101)
+            : const Color(0xFFF8FAFF),
+        body: Stack(
           children: [
-            // Header with user name
-            Container(
-              padding: EdgeInsets.only(
-                top: statusBarHeight + (isSmallScreen ? 4 : 6),
-                bottom: isSmallScreen ? 8 : 10,
-                left: isTablet ? 24 : compactPadding,
-                right: isTablet ? 24 : compactPadding,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [headerColor, headerDarkColor],
+            // Layer 1: Mesh Background
+            _buildMeshBackground(isDark, screenWidth),
+
+            // Layer 2: Content
+            Column(
+              children: [
+                // Premium Header
+                _buildPremiumHeader(
+                  statusBarHeight,
+                  isDark,
+                  screenWidth,
+                  isSmallScreen,
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: isSmallScreen ? 48 : 56,
-                    height: isSmallScreen ? 48 : 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        width: 2,
-                      ),
+
+                // Main Content Area
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      compactPadding,
+                      4,
+                      compactPadding,
+                      100,
                     ),
-                    child: Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: isSmallScreen ? 24 : 28,
-                    ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 12 : 16),
-                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _userName,
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 16 : 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                        // Statistics
+                        _buildStatisticsCard(isSmallScreen, compactSpacing),
+                        SizedBox(height: compactSpacing),
+
+                        // Subscription
+                        _buildSubscriptionCard(isSmallScreen, compactSpacing),
+                        SizedBox(height: compactSpacing + 4),
+
+                        // Settings Sections
+                        _buildSectionTitle('AYARLAR', isSmallScreen, isDark),
+                        const SizedBox(height: 4),
+                        _buildSettingsCard(
+                          isDark: isDark,
+                          children: [
+                            _buildSettingTile(
+                              icon: Icons.palette_rounded,
+                              title: 'Tema Görünümü',
+                              subtitle: 'Şu anki: $_selectedTheme',
+                              onTap: () => _showThemeDialog(),
+                              isSmallScreen: isSmallScreen,
+                              isDark: isDark,
+                              color: Colors.purpleAccent,
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Kadrox',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 11 : 12,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        SizedBox(height: compactSpacing + 4),
+
+                        _buildSectionTitle(
+                          'DEPOLAMA YÖNETİMİ',
+                          isSmallScreen,
+                          isDark,
                         ),
+                        const SizedBox(height: 4),
+                        _buildStorageCard(
+                          isSmallScreen,
+                          compactSpacing,
+                          isDark,
+                        ),
+                        SizedBox(height: compactSpacing + 4),
+
+                        _buildSectionTitle(
+                          'HAKKINDA & YARDIM',
+                          isSmallScreen,
+                          isDark,
+                        ),
+                        const SizedBox(height: 4),
+                        _buildSettingsCard(
+                          isDark: isDark,
+                          children: [
+                            _buildSettingTile(
+                              icon: Icons.info_rounded,
+                              title: 'Uygulama Bilgisi',
+                              subtitle: 'Versiyon 1.0.0',
+                              onTap: () => _showAboutDialog(),
+                              isSmallScreen: isSmallScreen,
+                              isDark: isDark,
+                              color: Colors.blueAccent,
+                            ),
+                            _buildDivider(isDark),
+                            _buildSettingTile(
+                              icon: Icons.cloud_sync_rounded,
+                              title: 'Veri Eşitleme',
+                              subtitle: _isUpdatingPdfUrls
+                                  ? 'Güncelleniyor...'
+                                  : 'İçerikleri senkronize et',
+                              onTap: _isUpdatingPdfUrls
+                                  ? null
+                                  : () => _updatePdfUrls(),
+                              isSmallScreen: isSmallScreen,
+                              isDark: isDark,
+                              color: Colors.tealAccent,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: compactSpacing + 8),
+
+                        // Account Actions
+                        _buildLogoutButton(isSmallScreen, isDark),
+                        const SizedBox(height: 8),
+                        _buildDeleteAccountButton(isSmallScreen, isDark),
                       ],
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeshBackground(bool isDark, double screenWidth) {
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF010101) : const Color(0xFFF8FAFF),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF0D0221),
+                    const Color(0xFF010101),
+                    const Color(0xFF050505),
+                  ]
+                : [const Color(0xFFF0F4FF), const Color(0xFFFFFFFF)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -screenWidth * 0.3,
+              right: -screenWidth * 0.3,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.5,
+                color: isDark
+                    ? const Color(0xFF6366F1).withOpacity(0.2)
+                    : const Color(0xFF818CF8).withOpacity(0.15),
               ),
             ),
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  compactPadding,
-                  compactSpacing,
-                  compactPadding,
-                  compactPadding,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Statistics Card
-                    _buildStatisticsCard(isSmallScreen, compactSpacing),
-                    SizedBox(height: compactSpacing),
-
-                    // Abonelik Durumu
-                    _buildSubscriptionCard(
-                      isSmallScreen,
-                      compactSpacing,
-                      iconSize,
-                      fontSize,
-                    ),
-                    SizedBox(height: compactSpacing),
-
-                    // Tema Ayarları
-                    _buildSectionTitle('Ayarlar', isSmallScreen),
-                    SizedBox(height: compactSpacing / 2),
-                    _buildSettingsCard(
-                      children: [
-                        _buildSettingTile(
-                          icon: Icons.palette_outlined,
-                          title: 'Tema',
-                          subtitle: _selectedTheme,
-                          onTap: () => _showThemeDialog(),
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compactSpacing),
-
-                    // Depolama Yönetimi
-                    _buildSectionTitle('Depolama Yönetimi', isSmallScreen),
-                    SizedBox(height: compactSpacing / 2),
-                    _buildStorageCard(
-                      isSmallScreen,
-                      compactSpacing,
-                      iconSize,
-                      fontSize,
-                    ),
-                    SizedBox(height: compactSpacing),
-
-                    // Hakkında
-                    _buildSectionTitle('Hakkında', isSmallScreen),
-                    SizedBox(height: compactSpacing / 2),
-                    _buildSettingsCard(
-                      children: [
-                        _buildSettingTile(
-                          icon: Icons.info_outline,
-                          title: 'Uygulama Hakkında',
-                          subtitle: 'Versiyon 1.0.0',
-                          onTap: () {
-                            _showAboutDialog();
-                          },
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                        _buildDivider(),
-                        _buildSettingTile(
-                          icon: Icons.picture_as_pdf_outlined,
-                          title: 'PDF URL\'lerini Güncelle',
-                          subtitle: _isUpdatingPdfUrls
-                              ? 'Güncelleniyor...'
-                              : 'Storage\'daki PDF\'leri eşleştir',
-                          onTap: _isUpdatingPdfUrls
-                              ? null
-                              : () => _updatePdfUrls(),
-                          iconSize: iconSize,
-                          fontSize: fontSize,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compactSpacing),
-
-                    // Çıkış
-                    _buildLogoutButton(isSmallScreen, fontSize),
-                    SizedBox(height: compactSpacing),
-
-                    // Hesap Silme
-                    _buildDeleteAccountButton(isSmallScreen, fontSize),
-                    SizedBox(height: compactSpacing),
-                  ],
-                ),
+            Positioned(
+              bottom: -screenWidth * 0.4,
+              left: -screenWidth * 0.4,
+              child: _buildBlurCircle(
+                size: screenWidth * 1.6,
+                color: isDark
+                    ? const Color(0xFFA855F7).withOpacity(0.15)
+                    : const Color(0xFFC084FC).withOpacity(0.1),
               ),
             ),
           ],
@@ -354,88 +364,343 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildStatisticsCard(bool isSmallScreen, double spacing) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.cardBackground;
-    final shadowColor = isDark
-        ? Colors.black.withOpacity(0.5)
-        : AppColors.cardShadow;
-
+  Widget _buildBlurCircle({required double size, required Color color}) {
     return Container(
-      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
-        ],
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, color.withOpacity(0)],
+          stops: const [0.1, 1.0],
+        ),
       ),
-      child: _isLoadingStats
-          ? Center(
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.primaryBlue,
-                  ),
-                ),
-              ),
-            )
-          : Builder(
-              builder: (context) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                final dividerColor = isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : AppColors.progressGray;
+    );
+  }
 
-                return Row(
+  Widget _buildPremiumHeader(
+    double statusBarHeight,
+    bool isDark,
+    double screenWidth,
+    bool isSmallScreen,
+  ) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.only(
+            top: statusBarHeight + 8,
+            bottom: 16,
+            left: 20,
+            right: 20,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                (isDark ? Colors.black : const Color(0xFF1E1E2E)).withOpacity(
+                  isDark ? 0.4 : 0.05,
+                ),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar with premium glow
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.blueAccent.withOpacity(0.4),
+                          Colors.purpleAccent.withOpacity(0.4),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2.5),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1E1E2E)
+                              : Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blueAccent.withOpacity(0.1),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.person_rounded,
+                            size: 30,
+                            color: isDark
+                                ? Colors.blueAccent.shade100
+                                : Colors.blueAccent,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_subscriptionStatus.isPremium)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.amber.shade400,
+                              Colors.orange.shade700,
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF010101)
+                                : Colors.white,
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.star_rounded,
+                          size: 8,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: _buildStatItem(
-                        icon: Icons.quiz_outlined,
-                        value: _solvedQuestions.toString(),
-                        label: 'Çözülen',
-                        color: AppColors.primaryBlue,
-                        isSmallScreen: isSmallScreen,
+                    Text(
+                      _userName,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : Colors.black87,
+                        letterSpacing: -0.5,
+                        height: 1.1,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Container(width: 1, height: 30, color: dividerColor),
-                    Expanded(
-                      child: _buildStatItem(
-                        icon: Icons.check_circle_outline,
-                        value: _correctAnswers.toString(),
-                        label: 'Doğru',
-                        color: Colors.green,
-                        isSmallScreen: isSmallScreen,
-                      ),
-                    ),
-                    Container(width: 1, height: 30, color: dividerColor),
-                    Expanded(
-                      child: _buildStatItem(
-                        icon: Icons.cancel_outlined,
-                        value: _wrongAnswers.toString(),
-                        label: 'Yanlış',
-                        color: Colors.red,
-                        isSmallScreen: isSmallScreen,
-                      ),
-                    ),
-                    Container(width: 1, height: 30, color: dividerColor),
-                    Expanded(
-                      child: _buildStatItem(
-                        icon: Icons.trending_up_outlined,
-                        value: '${_successRate.toStringAsFixed(0)}%',
-                        label: 'Oran',
-                        color: AppColors.gradientPurpleStart,
-                        isSmallScreen: isSmallScreen,
-                      ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _subscriptionStatus.isPremium
+                                ? Colors.amber.withOpacity(0.1)
+                                : Colors.blueAccent.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _subscriptionStatus.isPremium
+                                  ? Colors.amber.withOpacity(0.2)
+                                  : Colors.blueAccent.withOpacity(0.1),
+                            ),
+                          ),
+                          child: Text(
+                            _subscriptionStatus.isPremium
+                                ? 'PREMIUM'
+                                : 'ÜCRETSİZ',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              color: _subscriptionStatus.isPremium
+                                  ? Colors.amber.shade700
+                                  : Colors.blueAccent,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                        if (_kpssType.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.05)
+                                  : Colors.black.withOpacity(0.03),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.black.withOpacity(0.05),
+                              ),
+                            ),
+                            child: Text(
+                              _kpssType,
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
-                );
-              },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassCard({
+    required Widget child,
+    required bool isDark,
+    double borderRadius = 20,
+    EdgeInsets? padding,
+    Color? borderColor,
+    VoidCallback? onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color:
+              borderColor ??
+              (isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.black.withOpacity(0.05)),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatisticsCard(bool isSmallScreen, double spacing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return _buildGlassCard(
+      isDark: isDark,
+      borderRadius: 16,
+      padding: EdgeInsets.all(isSmallScreen ? 12 : 14),
+      child: _isLoadingStats
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.auto_graph_rounded,
+                    value: _solvedQuestions.toString(),
+                    label: 'ÇÖZÜLEN',
+                    color: Colors.blueAccent,
+                    isSmallScreen: isSmallScreen,
+                    isDark: isDark,
+                  ),
+                ),
+                _buildStatDivider(isDark),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.check_circle_rounded,
+                    value: _correctAnswers.toString(),
+                    label: 'DOĞRU',
+                    color: Colors.greenAccent,
+                    isSmallScreen: isSmallScreen,
+                    isDark: isDark,
+                  ),
+                ),
+                _buildStatDivider(isDark),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.cancel_rounded,
+                    value: _wrongAnswers.toString(),
+                    label: 'YANLIŞ',
+                    color: Colors.redAccent,
+                    isSmallScreen: isSmallScreen,
+                    isDark: isDark,
+                  ),
+                ),
+                _buildStatDivider(isDark),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.shutter_speed_rounded,
+                    value: '${_successRate.toStringAsFixed(0)}%',
+                    label: 'BAŞARI',
+                    color: Colors.orangeAccent,
+                    isSmallScreen: isSmallScreen,
+                    isDark: isDark,
+                  ),
+                ),
+              ],
             ),
+    );
+  }
+
+  Widget _buildStatDivider(bool isDark) {
+    return Container(
+      width: 1,
+      height: 40,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+            Colors.transparent,
+          ],
+        ),
+      ),
     );
   }
 
@@ -445,76 +710,68 @@ class _ProfilePageState extends State<ProfilePage> {
     required String label,
     required Color color,
     required bool isSmallScreen,
+    required bool isDark,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : AppColors.textSecondary;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: isSmallScreen ? 16 : 18, color: color),
-        SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(height: 8),
         Text(
           value,
           style: TextStyle(
-            fontSize: isSmallScreen ? 14 : 16,
-            fontWeight: FontWeight.bold,
-            color: textColor,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : Colors.black87,
+            letterSpacing: -0.5,
           ),
         ),
-        SizedBox(height: 2),
+        const SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
-            fontSize: isSmallScreen ? 9 : 10,
-            color: secondaryTextColor,
+            fontSize: 8,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white54 : Colors.black54,
+            letterSpacing: 0.5,
           ),
           textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
-  Widget _buildSectionTitle(String title, bool isSmallScreen) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white70 : AppColors.textSecondary;
-
+  Widget _buildSectionTitle(String title, bool isSmallScreen, bool isDark) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
       child: Text(
         title,
         style: TextStyle(
-          fontSize: isSmallScreen ? 13 : 14,
-          fontWeight: FontWeight.w600,
-          color: textColor,
-          letterSpacing: 0.5,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: isDark
+              ? Colors.blueAccent.shade100
+              : Colors.blueAccent.shade700,
+          letterSpacing: 1.0,
         ),
       ),
     );
   }
 
-  Widget _buildSettingsCard({required List<Widget> children}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.cardBackground;
-    final shadowColor = isDark
-        ? Colors.black.withOpacity(0.5)
-        : AppColors.cardShadow;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
+  Widget _buildSettingsCard({
+    required List<Widget> children,
+    required bool isDark,
+  }) {
+    return _buildGlassCard(
+      isDark: isDark,
+      borderRadius: 16,
       child: Column(children: children),
     );
   }
@@ -524,203 +781,233 @@ class _ProfilePageState extends State<ProfilePage> {
     required String title,
     required String subtitle,
     VoidCallback? onTap,
-    required double iconSize,
-    required double fontSize,
+    required bool isSmallScreen,
+    required bool isDark,
+    required Color color,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : AppColors.textSecondary;
-    final lightTextColor = isDark ? Colors.white60 : AppColors.textLight;
-
     return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       enabled: onTap != null,
       leading: Container(
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.primaryBlue.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, size: iconSize, color: AppColors.primaryBlue),
+        child: Icon(icon, size: 18, color: color),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          color: textColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : Colors.black87,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(fontSize: fontSize - 2, color: secondaryTextColor),
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? Colors.white54 : Colors.black54,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      trailing: Icon(Icons.chevron_right, size: 20, color: lightTextColor),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        size: 18,
+        color: isDark ? Colors.white24 : Colors.black26,
+      ),
       onTap: onTap,
     );
   }
 
-  Widget _buildDivider() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dividerColor = isDark
-        ? Colors.white.withOpacity(0.1)
-        : AppColors.progressGray;
-
-    return Divider(height: 1, thickness: 1, indent: 60, color: dividerColor);
+  Widget _buildDivider(bool isDark) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 60,
+      endIndent: 16,
+      color: isDark
+          ? Colors.white.withOpacity(0.05)
+          : Colors.black.withOpacity(0.03),
+    );
   }
 
-  Widget _buildStorageCard(
-    bool isSmallScreen,
-    double spacing,
-    double iconSize,
-    double fontSize,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : AppColors.textSecondary;
-    final progressBgColor = isDark
-        ? Colors.white.withOpacity(0.1)
-        : AppColors.progressGray;
-    final iconColor = isDark ? Colors.white70 : AppColors.textSecondary;
+  Widget _buildStorageCard(bool isSmallScreen, double spacing, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white54 : Colors.black54;
 
     return _buildSettingsCard(
+      isDark: isDark,
       children: [
         Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.storage,
-                    size: iconSize,
-                    color: AppColors.primaryBlue,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Depolama Kullanımı',
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orangeAccent.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.storage_rounded,
+                      size: 18,
+                      color: Colors.orangeAccent,
                     ),
                   ),
-                  Spacer(),
-                  if (_isLoadingStorage)
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primaryBlue,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Depolama Durumu',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                          ),
                         ),
-                      ),
+                        Text(
+                          'İndirilen içeriklerin boyutu',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isLoadingStorage)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   else
                     IconButton(
-                      icon: Icon(Icons.refresh, size: 18, color: iconColor),
-                      onPressed: _refreshStorageInfo,
                       padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        Icons.refresh_rounded,
+                        size: 18,
+                        color: secondaryTextColor,
+                      ),
+                      onPressed: _refreshStorageInfo,
                     ),
                 ],
               ),
-              SizedBox(height: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${_currentStorageGB.toStringAsFixed(2)} GB',
-                        style: TextStyle(
-                          fontSize: fontSize - 1,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: _currentStorageGB.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: textColor,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '/ ${_maxStorageGB.toStringAsFixed(1)} GB',
-                        style: TextStyle(
-                          fontSize: fontSize - 1,
-                          color: secondaryTextColor,
+                        TextSpan(
+                          text: ' GB',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: secondaryTextColor,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _maxStorageGB > 0
-                          ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0)
-                          : 0.0,
-                      minHeight: 8,
-                      backgroundColor: progressBgColor,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        _currentStorageGB > _maxStorageGB * 0.9
-                            ? Colors.red
-                            : _currentStorageGB > _maxStorageGB * 0.7
-                            ? Colors.orange
-                            : AppColors.primaryBlue,
-                      ),
+                  Text(
+                    '%${(_maxStorageGB > 0 ? (_currentStorageGB / _maxStorageGB * 100) : 0).toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: _currentStorageGB > _maxStorageGB * 0.9
+                          ? Colors.redAccent
+                          : Colors.blueAccent,
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _maxStorageGB > 0
+                      ? (_currentStorageGB / _maxStorageGB).clamp(0.0, 1.0)
+                      : 0.0,
+                  minHeight: 4,
+                  backgroundColor: isDark
+                      ? Colors.white10
+                      : Colors.black.withOpacity(0.05),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _currentStorageGB > _maxStorageGB * 0.9
+                        ? Colors.redAccent
+                        : _currentStorageGB > _maxStorageGB * 0.7
+                        ? Colors.orangeAccent
+                        : Colors.blueAccent,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        _buildDivider(),
+        _buildDivider(isDark),
         _buildSwitchTile(
-          icon: Icons.auto_delete_outlined,
+          icon: Icons.auto_delete_rounded,
           title: 'Otomatik Temizleme',
           subtitle: _autoCleanupEnabled
-              ? 'Kullanılmayan içerikler otomatik silinir'
-              : 'Otomatik temizleme kapalı',
+              ? 'Kullanılmayanlar silinir'
+              : 'Manuel yönetim aktif',
           value: _autoCleanupEnabled,
           onChanged: (value) async {
             setState(() => _autoCleanupEnabled = value);
             await _cleanupService.setAutoCleanupEnabled(value);
           },
-          iconSize: iconSize,
-          fontSize: fontSize,
+          isDark: isDark,
+          color: Colors.redAccent,
         ),
-        _buildDivider(),
+        _buildDivider(isDark),
         _buildSettingTile(
-          icon: Icons.calendar_today_outlined,
-          title: 'Temizleme Süresi',
-          subtitle: '$_cleanupDays gün (kullanılmayan içerikler silinir)',
-          onTap: () => _showCleanupDaysDialog(),
-          iconSize: iconSize,
-          fontSize: fontSize,
-        ),
-        _buildDivider(),
-        _buildSettingTile(
-          icon: Icons.data_usage_outlined,
+          icon: Icons.data_usage_rounded,
           title: 'Maksimum Depolama',
           subtitle: _maxStorageGB == 0.0
-              ? 'Sınırsız'
-              : '${_maxStorageGB.toStringAsFixed(1)} GB (limit aşıldığında en az kullanılan silinir)',
+              ? 'Sınırsız Kapasite'
+              : '${_maxStorageGB.toStringAsFixed(1)} GB Limit',
           onTap: () => _showMaxStorageDialog(),
-          iconSize: iconSize,
-          fontSize: fontSize,
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          color: Colors.amberAccent,
         ),
-        _buildDivider(),
+        _buildDivider(isDark),
         _buildSettingTile(
-          icon: Icons.cleaning_services_outlined,
-          title: 'Manuel Temizleme',
-          subtitle: 'Şimdi temizle',
+          icon: Icons.calendar_today_rounded,
+          title: 'Temizleme Aralığı',
+          subtitle: '$_cleanupDays gün sonra sil',
+          onTap: () => _showCleanupDaysDialog(),
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          color: Colors.blueAccent,
+        ),
+        _buildDivider(isDark),
+        _buildSettingTile(
+          icon: Icons.cleaning_services_rounded,
+          title: 'Şimdi Temizle',
+          subtitle: 'Gereksiz dosyaları temizle',
           onTap: () => _runManualCleanup(),
-          iconSize: iconSize,
-          fontSize: fontSize,
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          color: Colors.greenAccent,
         ),
       ],
     );
@@ -732,41 +1019,42 @@ class _ProfilePageState extends State<ProfilePage> {
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
-    required double iconSize,
-    required double fontSize,
+    required bool isDark,
+    required Color color,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : AppColors.textSecondary;
-
     return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Container(
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.primaryBlue.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, size: iconSize, color: AppColors.primaryBlue),
+        child: Icon(icon, size: 18, color: color),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          color: textColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : Colors.black87,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(fontSize: fontSize - 2, color: secondaryTextColor),
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? Colors.white54 : Colors.black54,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      trailing: Switch(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.primaryBlue,
+      trailing: Transform.scale(
+        scale: 0.8,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.blueAccent,
+        ),
       ),
     );
   }
@@ -872,103 +1160,82 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Widget _buildLogoutButton(bool isSmallScreen, double fontSize) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.cardBackground;
-    final shadowColor = isDark
-        ? Colors.black.withOpacity(0.5)
-        : AppColors.cardShadow;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
+  Widget _buildLogoutButton(bool isSmallScreen, bool isDark) {
+    return _buildGlassCard(
+      isDark: isDark,
+      borderRadius: 16,
+      borderColor: Colors.redAccent.withOpacity(0.2),
+      onTap: () => _showLogoutDialog(),
       child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.redAccent.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            Icons.logout,
-            size: isSmallScreen ? 18 : 20,
-            color: Colors.red,
+          child: const Icon(
+            Icons.logout_rounded,
+            size: 18,
+            color: Colors.redAccent,
           ),
         ),
         title: Text(
           'Çıkış Yap',
           style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w600,
-            color: Colors.red,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : Colors.black87,
           ),
         ),
-        onTap: () {
-          _showLogoutDialog();
-        },
+        subtitle: Text(
+          'Giriş sayfasına döner',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildDeleteAccountButton(bool isSmallScreen, double fontSize) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.cardBackground;
-    final shadowColor = isDark
-        ? Colors.black.withOpacity(0.5)
-        : AppColors.cardShadow;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
+  Widget _buildDeleteAccountButton(bool isSmallScreen, bool isDark) {
+    return _buildGlassCard(
+      isDark: isDark,
+      borderRadius: 16,
+      borderColor: Colors.redAccent.withOpacity(0.1),
+      onTap: () => _showDeleteAccountDialog(),
       child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.redAccent.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            Icons.delete_forever,
-            size: isSmallScreen ? 18 : 20,
-            color: Colors.red,
+          child: const Icon(
+            Icons.no_accounts_rounded,
+            size: 18,
+            color: Colors.redAccent,
           ),
         ),
-        title: Text(
-          'Hesabı Sil',
+        title: const Text(
+          'Hesabımı Sil',
           style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w700,
-            color: Colors.red,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: Colors.redAccent,
           ),
         ),
         subtitle: Text(
-          'Bu işlem geri alınamaz',
+          'Tüm veriler temizlenir',
           style: TextStyle(
-            fontSize: fontSize - 2,
-            color: isDark ? Colors.white70 : AppColors.textSecondary,
+            fontSize: 11,
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        onTap: () {
-          _showDeleteAccountDialog();
-        },
       ),
     );
   }
@@ -1129,107 +1396,108 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSubscriptionCard(
-    bool isSmallScreen,
-    double spacing,
-    double iconSize,
-    double fontSize,
-  ) {
+  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E1E)
-        : AppColors.cardBackground;
-    final shadowColor = isDark
-        ? Colors.black.withOpacity(0.5)
-        : AppColors.cardShadow;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : AppColors.textSecondary;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white54 : Colors.black54;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: _subscriptionStatus.isPremium
-            ? Border.all(
-                color: AppColors.primaryBlue.withValues(alpha: 0.5),
-                width: 2,
-              )
-            : null,
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.all(16),
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _subscriptionStatus.isPremium
-                ? AppColors.primaryBlue.withValues(alpha: 0.2)
-                : Colors.grey.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            _subscriptionStatus.isPremium
-                ? Icons.star_rounded
-                : Icons.star_outline,
-            size: iconSize,
-            color: _subscriptionStatus.isPremium
-                ? AppColors.primaryBlue
-                : Colors.grey,
-          ),
-        ),
-        title: Text(
-          _subscriptionStatus.isPremium ? 'Premium Aktif' : 'Premium\'a Geç',
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return _buildGlassCard(
+      isDark: isDark,
+      borderRadius: 24,
+      borderColor: _subscriptionStatus.isPremium
+          ? Colors.amber.withOpacity(0.3)
+          : Colors.blueAccent.withOpacity(0.1),
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+        );
+        if (result == true) {
+          _loadSubscriptionStatus();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        child: Row(
           children: [
-            SizedBox(height: 4),
-            Text(
-              _subscriptionStatus.isPremium
-                  ? _subscriptionStatus.displayText
-                  : 'Tüm konulara erişim için Premium\'a geçin',
-              style: TextStyle(
-                fontSize: fontSize - 2,
-                color: secondaryTextColor,
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _subscriptionStatus.isPremium
+                      ? [Colors.amber.shade300, Colors.orange.shade600]
+                      : [Colors.blue.shade400, Colors.indigo.shade700],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        (_subscriptionStatus.isPremium
+                                ? Colors.orange
+                                : Colors.blue)
+                            .withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _subscriptionStatus.isPremium
+                    ? Icons.star_rounded
+                    : Icons.workspace_premium_rounded,
+                size: 20,
+                color: Colors.white,
               ),
             ),
-            if (_subscriptionStatus.isPremium &&
-                _subscriptionStatus.endDate != null) ...[
-              SizedBox(height: 4),
-              Text(
-                'Bitiş: ${_formatDate(_subscriptionStatus.endDate!)}',
-                style: TextStyle(
-                  fontSize: fontSize - 3,
-                  color: secondaryTextColor,
-                ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _subscriptionStatus.isPremium
+                        ? 'Premium Aktif'
+                        : 'Premium\'a Yükselt',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: textColor,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _subscriptionStatus.isPremium
+                        ? 'Sınırsız erişimin tadını çıkarın'
+                        : 'Özel içerikler için yükseltin',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: secondaryTextColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (_subscriptionStatus.isPremium &&
+                      _subscriptionStatus.endDate != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Bitiş: ${_formatDate(_subscriptionStatus.endDate!)}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: secondaryTextColor.withOpacity(0.7),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: isDark ? Colors.white24 : Colors.black26,
+            ),
           ],
         ),
-        trailing: Icon(
-          Icons.chevron_right,
-          size: 20,
-          color: secondaryTextColor,
-        ),
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SubscriptionPage()),
-          );
-          // Premium aktif edildiyse abonelik durumunu yenile
-          if (result == true) {
-            _loadSubscriptionStatus();
-          }
-        },
       ),
     );
   }

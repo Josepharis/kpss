@@ -23,7 +23,8 @@ class _TaskEditorResult {
 }
 
 class MyProgramPage extends StatefulWidget {
-  const MyProgramPage({super.key});
+  final bool isTransparent;
+  const MyProgramPage({super.key, this.isTransparent = false});
 
   @override
   State<MyProgramPage> createState() => _MyProgramPageState();
@@ -401,7 +402,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
     final card = isDark ? const Color(0xFF121826) : Colors.white;
 
     return Container(
-      color: bg,
+      color: widget.isTransparent ? Colors.transparent : bg,
       child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
@@ -575,7 +576,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
     final bg = isDark ? const Color(0xFF0B0F14) : const Color(0xFFF6F8FC);
 
     return Container(
-      color: bg,
+      color: widget.isTransparent ? Colors.transparent : bg,
       child: RefreshIndicator(
         onRefresh: _load,
         child: LayoutBuilder(
