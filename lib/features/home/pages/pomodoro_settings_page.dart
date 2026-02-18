@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/constants/app_colors.dart';
+import 'dart:ui';
 
 class PomodoroSettingsPage extends StatefulWidget {
   final int sessionCount;
@@ -9,6 +9,9 @@ class PomodoroSettingsPage extends StatefulWidget {
   final int longBreakDuration;
   final bool useLongBreak;
   final bool isDarkMode;
+  final bool showSessionHistory;
+  final String selectedTheme;
+  final String selectedOrbDesign;
   final Function(Map<String, dynamic>) onSettingsChanged;
 
   const PomodoroSettingsPage({
@@ -19,6 +22,9 @@ class PomodoroSettingsPage extends StatefulWidget {
     required this.longBreakDuration,
     required this.useLongBreak,
     required this.isDarkMode,
+    required this.showSessionHistory,
+    required this.selectedTheme,
+    required this.selectedOrbDesign,
     required this.onSettingsChanged,
   });
 
@@ -32,6 +38,9 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
   late int _shortBreakDuration;
   late int _longBreakDuration;
   late bool _useLongBreak;
+  late bool _showSessionHistory;
+  late String _selectedTheme;
+  late String _selectedOrbDesign;
 
   @override
   void initState() {
@@ -41,6 +50,9 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     _shortBreakDuration = widget.shortBreakDuration;
     _longBreakDuration = widget.longBreakDuration;
     _useLongBreak = widget.useLongBreak;
+    _showSessionHistory = widget.showSessionHistory;
+    _selectedTheme = widget.selectedTheme;
+    _selectedOrbDesign = widget.selectedOrbDesign;
   }
 
   void _saveSettings() {
@@ -50,7 +62,10 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
       'shortBreakDuration': _shortBreakDuration,
       'longBreakDuration': _longBreakDuration,
       'useLongBreak': _useLongBreak,
-      'isDarkMode': widget.isDarkMode, // Keep existing dark mode setting
+      'isDarkMode': widget.isDarkMode,
+      'showSessionHistory': _showSessionHistory,
+      'selectedTheme': _selectedTheme,
+      'selectedOrbDesign': _selectedOrbDesign,
     });
     Navigator.pop(context);
   }
@@ -58,223 +73,209 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark 
-          ? SystemUiOverlayStyle.light.copyWith(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light,
-              systemNavigationBarColor: const Color(0xFF121212),
-              systemNavigationBarIconBrightness: Brightness.light,
-            )
-          : SystemUiOverlayStyle.dark.copyWith(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              systemNavigationBarColor: Colors.white,
-              systemNavigationBarIconBrightness: Brightness.dark,
-            ),
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
-        appBar: AppBar(
-          title: const Text(
-            'Pomodoro Ayarları',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            ),
+    final themeColor = _getThemeColor(_selectedTheme);
+
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF020617)
+          : const Color(0xFFF8FAFC),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(
+            Icons.close_rounded,
+            color: isDark ? Colors.white : Colors.black87,
+            size: 20,
           ),
-          backgroundColor: appBarColor,
-          foregroundColor: isDark ? Colors.white : Colors.black87,
-          elevation: 0,
-          systemOverlayStyle: isDark 
-              ? SystemUiOverlayStyle.light.copyWith(
-                  statusBarColor: Colors.transparent,
-                  statusBarIconBrightness: Brightness.light,
-                )
-              : SystemUiOverlayStyle.dark.copyWith(
-                  statusBarColor: Colors.transparent,
-                  statusBarIconBrightness: Brightness.dark,
-                ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(
-              height: 1,
-              color: isDark 
-                  ? Colors.white.withOpacity(0.1) 
-                  : Colors.black.withOpacity(0.1),
-            ),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: _saveSettings,
-              icon: Icon(
-                Icons.check_rounded,
-                size: 20,
-                color: isDark ? Colors.white : AppColors.primaryBlue,
-              ),
-              label: Text(
-                'Kaydet',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: isDark ? Colors.white : AppColors.primaryBlue,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-            ),
-          ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Column(
-            children: [
-              // Oturum Ayarları - Profesyonel Tasarım
-              _buildProfessionalSection(
-                title: 'Oturum Ayarları',
-                icon: Icons.timer,
-                gradientColors: const [], // Not used anymore
-                children: [
-                  _buildProfessionalSlider(
-                    icon: Icons.repeat,
-                    label: 'Oturum Sayısı',
-                    description: 'Toplam çalışma oturumu sayısı',
-                    value: _sessionCount,
-                    min: 1,
-                    max: 8,
-                    unit: 'oturum',
-                    onChanged: (v) => setState(() => _sessionCount = v),
-                  ),
-                  const Divider(height: 24),
-                  _buildProfessionalSlider(
-                    icon: Icons.access_time,
-                    label: 'Oturum Süresi',
-                    description: 'Her oturumun süresi',
-                    value: _sessionDuration,
-                    min: 5,
-                    max: 60,
-                    unit: 'dakika',
-                    onChanged: (v) => setState(() => _sessionDuration = v),
-                  ),
-                ],
+        title: Text(
+          'AYARLAR',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: _saveSettings,
+            icon: Icon(Icons.check_rounded, color: themeColor, size: 24),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -50,
+            right: -50,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: themeColor.withOpacity(0.05),
               ),
-              
-              const SizedBox(height: 16),
-              
-              // Mola Ayarları - Profesyonel Tasarım
-              _buildProfessionalSection(
-                title: 'Mola Ayarları',
-                icon: Icons.coffee,
-                gradientColors: const [], // Not used anymore
-                children: [
-                  _buildProfessionalSlider(
-                    icon: Icons.pause_circle_outline,
-                    label: 'Kısa Mola',
-                    description: 'Her oturum arası kısa mola süresi',
-                    value: _shortBreakDuration,
-                    min: 1,
-                    max: 15,
-                    unit: 'dakika',
-                    onChanged: (v) => setState(() => _shortBreakDuration = v),
-                  ),
-                  const Divider(height: 24),
-                  _buildProfessionalSwitch(
-                    icon: Icons.extension,
-                    label: 'Uzun Mola Kullan',
-                    description: 'Belirli oturumlardan sonra uzun mola al',
-                    value: _useLongBreak,
-                    onChanged: (v) => setState(() => _useLongBreak = v),
-                  ),
-                  if (_useLongBreak) ...[
-                    const Divider(height: 24),
-                    _buildProfessionalSlider(
-                      icon: Icons.hourglass_empty,
-                      label: 'Uzun Mola Süresi',
-                      description: 'Uzun mola süresi',
-                      value: _longBreakDuration,
-                      min: 10,
-                      max: 30,
-                      unit: 'dakika',
-                      onChanged: (v) => setState(() => _longBreakDuration = v),
+            ),
+          ),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              children: [
+                _buildCompactSection(
+                  title: 'TEMA SEÇİMİ',
+                  icon: Icons.palette_outlined,
+                  isDark: isDark,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildThemeOption(
+                          'indigo',
+                          const Color(0xFF6366F1),
+                          isDark,
+                        ),
+                        _buildThemeOption(
+                          'emerald',
+                          const Color(0xFF10B981),
+                          isDark,
+                        ),
+                        _buildThemeOption(
+                          'rose',
+                          const Color(0xFFF43F5E),
+                          isDark,
+                        ),
+                        _buildThemeOption(
+                          'amber',
+                          const Color(0xFFF59E0B),
+                          isDark,
+                        ),
+                      ],
                     ),
                   ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfessionalSection({
-    required String title,
-    required IconData icon,
-    required List<Color> gradientColors,
-    required List<Widget> children,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark 
-              ? Colors.white.withOpacity(0.1) 
-              : Colors.black.withOpacity(0.08),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isDark 
-                        ? Colors.white.withOpacity(0.1) 
-                        : Colors.black.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    icon, 
-                    color: isDark ? Colors.white : Colors.black87,
-                    size: 22,
-                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.3,
+                const SizedBox(height: 12),
+                _buildCompactSection(
+                  title: 'SAYAÇ TASARIMI',
+                  icon: Icons.auto_awesome_mosaic_outlined,
+                  isDark: isDark,
+                  children: [
+                    Row(
+                      children: [
+                        _buildDesignOption(
+                          'liquid',
+                          'Sıvı',
+                          Icons.waves_rounded,
+                          isDark,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildDesignOption(
+                          'rings',
+                          'Halka',
+                          Icons.blur_circular_rounded,
+                          isDark,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildDesignOption(
+                          'modern',
+                          'Modern',
+                          Icons.adjust_rounded,
+                          isDark,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildDesignOption(
+                          'none',
+                          'Sade',
+                          Icons.circle_outlined,
+                          isDark,
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildCompactSection(
+                  title: 'ZAMANLAYICI',
+                  icon: Icons.timer_outlined,
+                  isDark: isDark,
+                  children: [
+                    _buildCompactSlider(
+                      'Oturum Sayısı',
+                      _sessionCount,
+                      'Adet',
+                      1,
+                      10,
+                      isDark,
+                      (v) => setState(() => _sessionCount = v),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildCompactSlider(
+                      'Oturum Süresi',
+                      _sessionDuration,
+                      'Dk',
+                      5,
+                      90,
+                      isDark,
+                      (v) => setState(() => _sessionDuration = v),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildCompactSection(
+                  title: 'MOLA',
+                  icon: Icons.coffee_outlined,
+                  isDark: isDark,
+                  children: [
+                    _buildCompactSlider(
+                      'Kısa Mola',
+                      _shortBreakDuration,
+                      'Dk',
+                      1,
+                      20,
+                      isDark,
+                      (v) => setState(() => _shortBreakDuration = v),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCompactSwitch(
+                      'Uzun Mola Aktif',
+                      _useLongBreak,
+                      isDark,
+                      (v) => setState(() => _useLongBreak = v),
+                    ),
+                    if (_useLongBreak) ...[
+                      const SizedBox(height: 12),
+                      _buildCompactSlider(
+                        'Uzun Mola Sür.',
+                        _longBreakDuration,
+                        'Dk',
+                        10,
+                        60,
+                        isDark,
+                        (v) => setState(() => _longBreakDuration = v),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildCompactSection(
+                  title: 'GÖRÜNÜM',
+                  icon: Icons.auto_awesome_outlined,
+                  isDark: isDark,
+                  children: [
+                    _buildCompactSwitch(
+                      'Oturum Kayıtları',
+                      _showSessionHistory,
+                      isDark,
+                      (v) => setState(() => _showSessionHistory = v),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: isDark 
-                ? Colors.white.withOpacity(0.1) 
-                : Colors.black.withOpacity(0.08),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: children,
             ),
           ),
         ],
@@ -282,162 +283,224 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     );
   }
 
-  Widget _buildProfessionalSlider({
-    required IconData icon,
-    required String label,
-    required String description,
-    required int value,
-    required int min,
-    required int max,
-    required String unit,
-    required ValueChanged<int> onChanged,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = isDark ? Colors.white : Colors.black87;
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark 
-                    ? Colors.white.withOpacity(0.1) 
-                    : Colors.black.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon, 
-                size: 20, 
-                color: primaryColor,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: primaryColor,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: isDark 
-                    ? Colors.white.withOpacity(0.1) 
-                    : Colors.black.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark 
-                      ? Colors.white.withOpacity(0.2) 
-                      : Colors.black.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                '$value $unit',
-                style: TextStyle(
-                  color: primaryColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ),
-          ],
+  Widget _buildThemeOption(String theme, Color color, bool isDark) {
+    bool isSelected = _selectedTheme == theme;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTheme = theme),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? color : Colors.transparent,
+            width: 2,
+          ),
         ),
-        const SizedBox(height: 16),
-        Slider(
-          value: value.toDouble(),
-          min: min.toDouble(),
-          max: max.toDouble(),
-          divisions: max - min,
-          activeColor: primaryColor,
-          inactiveColor: isDark 
-              ? Colors.white.withOpacity(0.1) 
-              : Colors.black.withOpacity(0.1),
-          onChanged: (v) => onChanged(v.toInt()),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              if (isSelected)
+                BoxShadow(
+                  color: color.withOpacity(0.4),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+            ],
+          ),
+          child: isSelected
+              ? const Icon(Icons.check, color: Colors.white, size: 16)
+              : null,
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildProfessionalSwitch({
-    required IconData icon,
-    required String label,
-    required String description,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = isDark ? Colors.white : Colors.black87;
-    
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
+  Widget _buildDesignOption(
+    String design,
+    String label,
+    IconData icon,
+    bool isDark,
+  ) {
+    bool isSelected = _selectedOrbDesign == design;
+    final themeColor = _getThemeColor(_selectedTheme);
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedOrbDesign = design),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isDark 
-                ? Colors.white.withOpacity(0.1) 
-                : Colors.black.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(8),
+            color: isSelected
+                ? themeColor
+                : (isDark ? Colors.white : Colors.black).withOpacity(0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? themeColor : Colors.transparent,
+            ),
           ),
-          child: Icon(
-            icon, 
-            size: 20, 
-            color: primaryColor,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Icon(
+                icon,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white54 : Colors.black54),
+                size: 18,
+              ),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: primaryColor,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Colors.white60 : Colors.black54,
-                  height: 1.3,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.white70 : Colors.black87),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
         ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: primaryColor,
+      ),
+    );
+  }
+
+  Color _getThemeColor(String theme) {
+    switch (theme) {
+      case 'emerald':
+        return const Color(0xFF10B981);
+      case 'rose':
+        return const Color(0xFFF43F5E);
+      case 'amber':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF6366F1);
+    }
+  }
+
+  Widget _buildCompactSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withOpacity(0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: _getThemeColor(_selectedTheme)),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactSlider(
+    String label,
+    int value,
+    String unit,
+    double min,
+    double max,
+    bool isDark,
+    ValueChanged<int> onChanged,
+  ) {
+    final themeColor = _getThemeColor(_selectedTheme);
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black87,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              '$value $unit',
+              style: TextStyle(
+                color: themeColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderThemeData(
+            trackHeight: 1.5,
+            activeTrackColor: themeColor,
+            inactiveTrackColor: (isDark ? Colors.white : Colors.black)
+                .withOpacity(0.05),
+            thumbColor: Colors.white,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          ),
+          child: Slider(
+            value: value.toDouble(),
+            min: min,
+            max: max,
+            onChanged: (v) => onChanged(v.toInt()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactSwitch(
+    String label,
+    bool value,
+    bool isDark,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.white70 : Colors.black87,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(
+          height: 24,
+          child: Switch.adaptive(
+            value: value,
+            activeColor: _getThemeColor(_selectedTheme),
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

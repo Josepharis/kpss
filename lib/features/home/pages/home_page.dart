@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
@@ -21,6 +22,8 @@ import '../widgets/daily_quote_card.dart';
 import '../widgets/exam_countdown_card.dart';
 import '../../../core/services/auth_service.dart';
 import '../widgets/quick_access_section.dart';
+import '../../../core/models/study_program.dart';
+import '../../../core/services/study_program_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,6 +54,18 @@ class _HomePageState extends State<HomePage> {
   String _userName = 'Kullanıcı';
   int _userTotalScore = _cachedScore;
 
+  // Study Program Active Task
+  bool _showCurrentTask = true;
+  StudyProgramTask? _activeTask;
+  int? _activeTaskWeekday;
+  StreamSubscription? _programSubscription;
+
+  @override
+  void dispose() {
+    _programSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -69,7 +84,15 @@ class _HomePageState extends State<HomePage> {
       _loadOngoingContent();
       _loadUserScore();
       _loadUserData();
+      _loadUserData();
+      _loadActiveTask();
     });
+
+    _programSubscription = StudyProgramService.instance.onProgramUpdated.listen(
+      (_) {
+        if (mounted) _loadActiveTask();
+      },
+    );
   }
 
   void _clearStaticMemoryCaches() {
@@ -264,6 +287,83 @@ class _HomePageState extends State<HomePage> {
     _loadOngoingContentFromCache();
     _loadOngoingContent();
     _loadUserScore();
+    _loadActiveTask();
+  }
+
+  Future<void> _loadActiveTask() async {
+    final prefs = await SharedPreferences.getInstance();
+    final show = prefs.getBool('show_current_task_on_home') ?? true;
+
+    if (!show) {
+      if (mounted) {
+        setState(() {
+          _showCurrentTask = false;
+          _activeTask = null;
+        });
+      }
+      return;
+    }
+
+    final program = await StudyProgramService.instance.getProgram();
+    if (program == null) {
+      if (mounted) setState(() => _showCurrentTask = false);
+      return;
+    }
+
+    final now = DateTime.now();
+    final weekday = now.weekday;
+    final dayData = program.days.firstWhere(
+      (d) => d.weekday == weekday,
+      orElse: () => StudyProgramDay(weekday: weekday, tasks: []),
+    );
+
+    StudyProgramTask? active;
+    for (var t in dayData.tasks) {
+      if (!t.isCompleted) {
+        active = t;
+        break;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _showCurrentTask = true;
+        _activeTask = active;
+        _activeTaskWeekday = weekday;
+      });
+    }
+  }
+
+  Future<void> _completeActiveTask() async {
+    if (_activeTask == null || _activeTaskWeekday == null) return;
+
+    final program = await StudyProgramService.instance.getProgram();
+    if (program == null) return;
+
+    final updatedDays = program.days.map((day) {
+      if (day.weekday == _activeTaskWeekday) {
+        final updatedTasks = day.tasks.map((task) {
+          if (task.start == _activeTask!.start &&
+              task.title == _activeTask!.title) {
+            return task.copyWith(isCompleted: true);
+          }
+          return task;
+        }).toList();
+        return StudyProgramDay(weekday: day.weekday, tasks: updatedTasks);
+      }
+      return day;
+    }).toList();
+
+    final updatedProgram = StudyProgram(
+      createdAtMillis: program.createdAtMillis,
+      title: program.title,
+      subtitle: program.subtitle,
+      days: updatedDays,
+    );
+
+    await StudyProgramService.instance.saveProgram(updatedProgram);
+    HapticFeedback.mediumImpact();
+    _loadActiveTask();
   }
 
   String _getGreeting() {
@@ -341,6 +441,14 @@ class _HomePageState extends State<HomePage> {
                                     isSmallScreen: isSmallScreen,
                                     isCompactLayout: true,
                                   ),
+                                  if (_showCurrentTask &&
+                                      _activeTask != null) ...[
+                                    const SizedBox(height: 4.0),
+                                    _buildActiveTaskSection(
+                                      isDark,
+                                      isSmallScreen,
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -709,6 +817,122 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActiveTaskSection(bool isDark, bool isSmallScreen) {
+    if (_activeTask == null) return const SizedBox.shrink();
+
+    final grad = [
+      AppColors.primaryBlue,
+      AppColors.primaryBlue.withOpacity(0.7),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: grad),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: grad[0].withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.rocket_launch_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "SIRADAKİ GÖREV",
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    color: isDark
+                        ? Colors.blueAccent.shade100
+                        : Colors.blueAccent.shade700,
+                  ),
+                ),
+                Text(
+                  _activeTask!.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+                if (_activeTask!.lesson.isNotEmpty)
+                  Text(
+                    "${_activeTask!.start} - ${_activeTask!.lesson}",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: (isDark ? Colors.white : AppColors.textSecondary)
+                          .withOpacity(0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _completeActiveTask,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: (isDark ? Colors.white : Colors.black).withOpacity(
+                    0.05,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (isDark ? Colors.white : Colors.black).withOpacity(
+                      0.1,
+                    ),
+                  ),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 20,
+                  color: isDark ? Colors.greenAccent : Colors.green.shade700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

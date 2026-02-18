@@ -7,6 +7,7 @@ class StudyProgramTask {
   final String topic; // "Temel Haklar"
   final String notes; // optional free text
   final String detail; // legacy: "60 dk" / "20 soru" etc. (UI may hide)
+  final bool isCompleted;
 
   const StudyProgramTask({
     required this.start,
@@ -17,6 +18,7 @@ class StudyProgramTask {
     this.topic = '',
     this.notes = '',
     required this.detail,
+    this.isCompleted = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +31,7 @@ class StudyProgramTask {
       'topic': topic,
       'notes': notes,
       'detail': detail,
+      'isCompleted': isCompleted,
     };
   }
 
@@ -42,6 +45,31 @@ class StudyProgramTask {
       topic: (map['topic'] ?? '') as String,
       notes: (map['notes'] ?? '') as String,
       detail: (map['detail'] ?? '') as String,
+      isCompleted: (map['isCompleted'] ?? false) as bool,
+    );
+  }
+
+  StudyProgramTask copyWith({
+    String? start,
+    String? end,
+    String? title,
+    String? kind,
+    String? lesson,
+    String? topic,
+    String? notes,
+    String? detail,
+    bool? isCompleted,
+  }) {
+    return StudyProgramTask(
+      start: start ?? this.start,
+      end: end ?? this.end,
+      title: title ?? this.title,
+      kind: kind ?? this.kind,
+      lesson: lesson ?? this.lesson,
+      topic: topic ?? this.topic,
+      notes: notes ?? this.notes,
+      detail: detail ?? this.detail,
+      isCompleted: isCompleted ?? this.isCompleted,
     );
   }
 }
@@ -51,16 +79,10 @@ class StudyProgramDay {
   final int weekday;
   final List<StudyProgramTask> tasks;
 
-  const StudyProgramDay({
-    required this.weekday,
-    required this.tasks,
-  });
+  const StudyProgramDay({required this.weekday, required this.tasks});
 
   Map<String, dynamic> toMap() {
-    return {
-      'weekday': weekday,
-      'tasks': tasks.map((t) => t.toMap()).toList(),
-    };
+    return {'weekday': weekday, 'tasks': tasks.map((t) => t.toMap()).toList()};
   }
 
   factory StudyProgramDay.fromMap(Map<String, dynamic> map) {
@@ -69,9 +91,11 @@ class StudyProgramDay {
       weekday: (map['weekday'] ?? 1) as int,
       tasks: (tasksRaw is List)
           ? tasksRaw
-              .whereType<Map>()
-              .map((e) => StudyProgramTask.fromMap(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => StudyProgramTask.fromMap(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : const <StudyProgramTask>[],
     );
   }
@@ -107,11 +131,12 @@ class StudyProgram {
       subtitle: (map['subtitle'] ?? '') as String,
       days: (daysRaw is List)
           ? daysRaw
-              .whereType<Map>()
-              .map((e) => StudyProgramDay.fromMap(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => StudyProgramDay.fromMap(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : const <StudyProgramDay>[],
     );
   }
 }
-

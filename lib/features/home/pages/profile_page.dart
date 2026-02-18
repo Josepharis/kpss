@@ -31,6 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   double _maxStorageGB = 5.0;
   double _currentStorageGB = 0.0;
   bool _isLoadingStorage = false;
+  bool _showCurrentTaskOnHome = true;
 
   // User statistics
   String _userName = 'Kullanıcı';
@@ -64,6 +65,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
       setState(() {
         _selectedTheme = prefs.getString('selected_theme') ?? 'Açık';
+        _showCurrentTaskOnHome =
+            prefs.getBool('show_current_task_on_home') ?? true;
       });
     } catch (e) {
       if (mounted) {
@@ -249,6 +252,22 @@ class _ProfilePageState extends State<ProfilePage> {
                               isSmallScreen: isSmallScreen,
                               isDark: isDark,
                               color: Colors.purpleAccent,
+                            ),
+                            _buildDivider(isDark),
+                            _buildSwitchTile(
+                              icon: Icons.task_alt_rounded,
+                              title: 'Günün Görevi',
+                              subtitle: 'Anasayfada günün görevini göster',
+                              value: _showCurrentTaskOnHome,
+                              onChanged: (val) async {
+                                setState(() => _showCurrentTaskOnHome = val);
+                                await _saveSetting(
+                                  'show_current_task_on_home',
+                                  val,
+                                );
+                              },
+                              isDark: isDark,
+                              color: Colors.orangeAccent,
                             ),
                           ],
                         ),

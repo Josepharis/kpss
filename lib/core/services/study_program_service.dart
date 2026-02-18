@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/study_program.dart';
@@ -26,14 +27,22 @@ class StudyProgramService {
     }
   }
 
+  final _programUpdateController = StreamController<void>.broadcast();
+  Stream<void> get onProgramUpdated => _programUpdateController.stream;
+
   Future<void> saveProgram(StudyProgram program) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(program.toMap()));
+    _programUpdateController.add(null);
   }
 
   Future<void> clearProgram() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+    _programUpdateController.add(null);
+  }
+
+  void dispose() {
+    _programUpdateController.close();
   }
 }
-
