@@ -4,6 +4,9 @@ import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/services/subscription_service.dart';
+import '../../../core/services/iap_service.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'dart:async';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -15,9 +18,14 @@ class SubscriptionPage extends StatefulWidget {
 class _SubscriptionPageState extends State<SubscriptionPage>
     with TickerProviderStateMixin {
   final SubscriptionService _subscriptionService = SubscriptionService();
+  final IAPService _iapService = IAPService();
   SubscriptionStatus _subscriptionStatus = SubscriptionStatus.free();
   bool _isLoading = true;
   String? _selectedPlan;
+  List<ProductDetails> _products = [];
+  late StreamSubscription<List<ProductDetails>> _productsSub;
+  late StreamSubscription<PurchaseStatus> _purchaseStatusSub;
+  bool _isPurchasing = false;
 
   late AnimationController _waveController;
   late AnimationController _particleController;
@@ -44,21 +52,69 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       duration: const Duration(milliseconds: 5000),
       vsync: this,
     )..repeat();
+
+    // Initialize IAP
+    _iapService.initialize();
+    _productsSub = _iapService.productsStream.listen((products) {
+      setState(() {
+        _products = products;
+      });
+    });
+
+    _purchaseStatusSub = _iapService.purchaseStatusStream.listen((status) {
+      if (status == PurchaseStatus.pending) {
+        setState(() => _isPurchasing = true);
+      } else if (status == PurchaseStatus.purchased ||
+          status == PurchaseStatus.restored) {
+        setState(() => _isPurchasing = false);
+        _loadSubscriptionStatus(forceRefresh: true);
+        PremiumSnackBar.show(
+          context,
+          message: status == PurchaseStatus.restored
+              ? 'Satın alımlar başarıyla geri yüklendi!'
+              : 'Premium aktif edildi! Tüm içerikler erişilebilir.',
+          type: SnackBarType.success,
+        );
+
+        // Satın alma başarılı olduktan sonra ekranı kapat ve ana ekranı güncelle
+        if (mounted) {
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted) {
+              Navigator.pop(context, true);
+            }
+          });
+        }
+      } else if (status == PurchaseStatus.error) {
+        setState(() => _isPurchasing = false);
+        PremiumSnackBar.show(
+          context,
+          message: 'İşlem sırasında bir hata oluştu.',
+          type: SnackBarType.error,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _waveController.dispose();
     _particleController.dispose();
+    _productsSub.cancel();
+    _purchaseStatusSub.cancel();
+    _iapService.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSubscriptionStatus() async {
-    final status = await _subscriptionService.getSubscriptionStatus();
-    setState(() {
-      _subscriptionStatus = status;
-      _isLoading = false;
-    });
+  Future<void> _loadSubscriptionStatus({bool forceRefresh = false}) async {
+    final status = await _subscriptionService.getSubscriptionStatus(
+      forceRefresh: forceRefresh,
+    );
+    if (mounted) {
+      setState(() {
+        _subscriptionStatus = status;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -84,199 +140,222 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       child: Scaffold(
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF1E3C72),
-                      const Color(0xFF2A5298),
-                      AppColors.primaryBlue,
-                      AppColors.gradientBlueEnd,
-                      const Color(0xFF1565C0),
-                    ],
-                    stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Animated waves background
-                    AnimatedBuilder(
-                      animation: _waveAnimation,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: WavePainter(_waveAnimation.value),
-                          size: Size.infinite,
-                        );
-                      },
+            : Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF1E3C72),
+                          const Color(0xFF2A5298),
+                          AppColors.primaryBlue,
+                          AppColors.gradientBlueEnd,
+                          const Color(0xFF1565C0),
+                        ],
+                        stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+                      ),
                     ),
-                    // Floating particles
-                    ...List.generate(20, (index) {
-                      final random = math.Random(index);
-                      final startX = random.nextDouble() * screenWidth;
-                      final startY = random.nextDouble() * screenHeight;
-                      final speed = 0.2 + random.nextDouble() * 0.3;
-                      final angle = random.nextDouble() * 2 * math.pi;
-                      final size = 2.0 + random.nextDouble() * 3.0;
-                      final delay = random.nextDouble();
+                    child: Stack(
+                      children: [
+                        // Animated waves background
+                        AnimatedBuilder(
+                          animation: _waveAnimation,
+                          builder: (context, child) {
+                            return CustomPaint(
+                              painter: WavePainter(_waveAnimation.value),
+                              size: Size.infinite,
+                            );
+                          },
+                        ),
+                        // Floating particles
+                        ...List.generate(20, (index) {
+                          final random = math.Random(index);
+                          final startX = random.nextDouble() * screenWidth;
+                          final startY = random.nextDouble() * screenHeight;
+                          final speed = 0.2 + random.nextDouble() * 0.3;
+                          final angle = random.nextDouble() * 2 * math.pi;
+                          final size = 2.0 + random.nextDouble() * 3.0;
+                          final delay = random.nextDouble();
 
-                      return AnimatedBuilder(
-                        animation: _particleController,
-                        builder: (context, child) {
-                          final progress =
-                              ((_particleController.value + delay) * speed) %
-                              1.0;
-                          final moveDistance = screenHeight * 1.5;
-                          final x =
-                              startX +
-                              math.cos(angle) * moveDistance * progress;
-                          final y =
-                              startY +
-                              math.sin(angle) * moveDistance * progress;
-                          final wrappedX = x % screenWidth;
-                          final wrappedY = y % screenHeight;
-                          final opacity =
-                              (math.sin(progress * math.pi)).clamp(0.0, 1.0) *
-                              0.6;
+                          return AnimatedBuilder(
+                            animation: _particleController,
+                            builder: (context, child) {
+                              final progress =
+                                  ((_particleController.value + delay) *
+                                      speed) %
+                                  1.0;
+                              final moveDistance = screenHeight * 1.5;
+                              final x =
+                                  startX +
+                                  math.cos(angle) * moveDistance * progress;
+                              final y =
+                                  startY +
+                                  math.sin(angle) * moveDistance * progress;
+                              final wrappedX = x % screenWidth;
+                              final wrappedY = y % screenHeight;
+                              final opacity =
+                                  (math.sin(
+                                    progress * math.pi,
+                                  )).clamp(0.0, 1.0) *
+                                  0.6;
 
-                          return Positioned(
-                            left: wrappedX,
-                            top: wrappedY,
-                            child: Opacity(
-                              opacity: opacity,
-                              child: Container(
-                                width: size,
-                                height: size,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.white.withOpacity(0.8),
-                                      blurRadius: 6,
-                                      spreadRadius: 1,
+                              return Positioned(
+                                left: wrappedX,
+                                top: wrappedY,
+                                child: Opacity(
+                                  opacity: opacity,
+                                  child: Container(
+                                    width: size,
+                                    height: size,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.white.withOpacity(0.8),
+                                          blurRadius: 6,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }),
+                        // Content
+                        Column(
+                          children: [
+                            // Compact Header
+                            Container(
+                              padding: EdgeInsets.only(
+                                top: statusBarHeight + (isSmallScreen ? 8 : 12),
+                                bottom: isSmallScreen ? 12 : 16,
+                                left: isTablet ? 20 : 16,
+                                right: isTablet ? 20 : 16,
+                              ),
+                              child: Row(
+                                children: [
+                                  Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () => Navigator.pop(context),
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Container(
+                                        padding: EdgeInsets.all(
+                                          isSmallScreen ? 6 : 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.arrow_back_ios_new_rounded,
+                                          color: Colors.white,
+                                          size: isSmallScreen ? 16 : 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: isSmallScreen ? 12 : 16),
+                                  Expanded(
+                                    child: Text(
+                                      'Premium',
+                                      style: TextStyle(
+                                        fontSize: isSmallScreen ? 22 : 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_subscriptionStatus.isPremium)
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isSmallScreen ? 10 : 12,
+                                        vertical: isSmallScreen ? 6 : 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.25,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.star_rounded,
+                                            color: Colors.amber,
+                                            size: isSmallScreen ? 16 : 18,
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Aktif',
+                                            style: TextStyle(
+                                              fontSize: isSmallScreen ? 11 : 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Content - Tek sayfada göster
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: EdgeInsets.all(isTablet ? 20 : 16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Premium Features - Kompakt
+                                    _buildPremiumFeatures(
+                                      isDark,
+                                      isSmallScreen,
+                                    ),
+                                    SizedBox(height: isSmallScreen ? 12 : 14),
+
+                                    // Compact Pricing Plans
+                                    _buildCompactPricingPlans(
+                                      isDark,
+                                      isSmallScreen,
+                                      isTablet,
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      );
-                    }),
-                    // Content
-                    Column(
-                      children: [
-                        // Compact Header
-                        Container(
-                          padding: EdgeInsets.only(
-                            top: statusBarHeight + (isSmallScreen ? 8 : 12),
-                            bottom: isSmallScreen ? 12 : 16,
-                            left: isTablet ? 20 : 16,
-                            right: isTablet ? 20 : 16,
-                          ),
-                          child: Row(
-                            children: [
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () => Navigator.pop(context),
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Container(
-                                    padding: EdgeInsets.all(
-                                      isSmallScreen ? 6 : 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.arrow_back_ios_new_rounded,
-                                      color: Colors.white,
-                                      size: isSmallScreen ? 16 : 18,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: isSmallScreen ? 12 : 16),
-                              Expanded(
-                                child: Text(
-                                  'Premium',
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 22 : 26,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              if (_subscriptionStatus.isPremium)
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isSmallScreen ? 10 : 12,
-                                    vertical: isSmallScreen ? 6 : 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.25),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.star_rounded,
-                                        color: Colors.amber,
-                                        size: isSmallScreen ? 16 : 18,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Aktif',
-                                        style: TextStyle(
-                                          fontSize: isSmallScreen ? 11 : 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Content - Tek sayfada göster
-                        Expanded(
-                          child: SingleChildScrollView(
-                            padding: EdgeInsets.all(isTablet ? 20 : 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Premium Features - Kompakt
-                                _buildPremiumFeatures(isDark, isSmallScreen),
-                                SizedBox(height: isSmallScreen ? 12 : 14),
-
-                                // Compact Pricing Plans
-                                _buildCompactPricingPlans(
-                                  isDark,
-                                  isSmallScreen,
-                                  isTablet,
-                                ),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (_isPurchasing)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.5),
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
               ),
       ),
     );
@@ -286,27 +365,27 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     final features = [
       {
         'icon': Icons.library_books_rounded,
-        'text': 'Tüm konulara erişim',
+        'text': 'Tüm konulara sınırsız erişim',
         'color': AppColors.primaryBlue,
       },
       {
-        'icon': Icons.video_library_rounded,
-        'text': 'Sınırsız içerik',
+        'icon': Icons.psychology_rounded,
+        'text': 'Yapay Zeka asistanı desteği',
         'color': AppColors.gradientPurpleStart,
       },
       {
-        'icon': Icons.picture_as_pdf_rounded,
-        'text': 'PDF indirme',
+        'icon': Icons.quiz_rounded,
+        'text': 'Sınırsız deneme testi',
         'color': AppColors.gradientRedStart,
       },
       {
-        'icon': Icons.analytics_rounded,
-        'text': 'Gelişmiş istatistikler',
+        'icon': Icons.video_library_rounded,
+        'text': 'Özel video ve podcastler',
         'color': AppColors.gradientGreenStart,
       },
       {
-        'icon': Icons.block_rounded,
-        'text': 'Reklamsız',
+        'icon': Icons.analytics_rounded,
+        'text': 'Gelişmiş başarı analizi',
         'color': AppColors.gradientOrangeStart,
       },
     ];
@@ -512,21 +591,55 @@ class _SubscriptionPageState extends State<SubscriptionPage>
           ),
         ),
         SizedBox(height: isSmallScreen ? 8 : 10),
-        ...plans.map(
-          (plan) => Padding(
+        ...plans.map((plan) {
+          final productId = plan['type'] == 'monthly'
+              ? IAPService.productIdMonthly
+              : plan['type'] == '6monthly'
+              ? IAPService.productId6Monthly
+              : IAPService.productIdYearly;
+
+          final product = _products.any((p) => p.id == productId)
+              ? _products.firstWhere((p) => p.id == productId)
+              : null;
+
+          return Padding(
             padding: EdgeInsets.only(bottom: isSmallScreen ? 7 : 9),
             child: _buildCompactPlanCard(
               title: plan['title'] as String,
-              price: plan['price'] as String,
+              price: product?.price ?? plan['price'] as String,
               period: plan['period'] as String,
               type: plan['type'] as String,
               isPopular: plan['isPopular'] as bool,
               savings: plan['savings'] as String?,
               isSmallScreen: isSmallScreen,
               isSelected: _selectedPlan == plan['type'],
+              isDynamicPrice: product != null,
               onTap: () {
-                _handlePurchase(plan['type'] as String);
+                if (product != null) {
+                  _iapService.buyProduct(product);
+                } else {
+                  PremiumSnackBar.show(
+                    context,
+                    message:
+                        'Mağaza ürünleri yüklenemedi. Lütfen internet bağlantınızı kontrol edin ve cihazın mağaza girişinin yapıldığından emin olun.',
+                    type: SnackBarType.error,
+                  );
+                }
               },
+            ),
+          );
+        }),
+        SizedBox(height: 20),
+        Center(
+          child: TextButton(
+            onPressed: () => _iapService.restorePurchases(),
+            child: Text(
+              'Satın Alımları Geri Yükle',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 14,
+                decoration: TextDecoration.underline,
+              ),
             ),
           ),
         ),
@@ -543,6 +656,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     String? savings,
     required bool isSmallScreen,
     required bool isSelected,
+    required bool isDynamicPrice,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -668,7 +782,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                                   top: isSmallScreen ? 5 : 6,
                                 ),
                                 child: Text(
-                                  'TL$period',
+                                  isDynamicPrice ? period : 'TL$period',
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 11 : 12,
                                     color: Colors.white.withValues(alpha: 0.9),
@@ -749,38 +863,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         ),
       ),
     );
-  }
-
-  void _handlePurchase(String type) async {
-    // Şuanlık direkt premium açılsın ve erişimler açılsın
-    setState(() {
-      _selectedPlan = type;
-    });
-
-    final days = type == 'yearly'
-        ? 365
-        : type == '6monthly'
-        ? 180
-        : 30;
-    final endDate = DateTime.now().add(Duration(days: days));
-
-    await _subscriptionService.setSubscriptionStatus(
-      status: 'premium',
-      type: type,
-      endDate: endDate,
-    );
-
-    await _loadSubscriptionStatus();
-
-    if (mounted) {
-      PremiumSnackBar.show(
-        context,
-        message: 'Premium aktif edildi! Tüm içerikler erişilebilir.',
-        type: SnackBarType.success,
-      );
-      // Premium aktif edildi, true döndür ki önceki sayfa durumu güncelleyebilsin
-      Navigator.pop(context, true);
-    }
   }
 }
 

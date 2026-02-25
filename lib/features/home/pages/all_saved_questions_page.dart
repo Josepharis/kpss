@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/models/weakness_question.dart';
 import '../../../core/services/weaknesses_service.dart';
 import '../../../core/widgets/premium_snackbar.dart';
+import '../../../core/widgets/formatted_text.dart';
 
 class AllSavedQuestionsPage extends StatefulWidget {
   final String? lessonId;
@@ -638,11 +639,11 @@ class _AllSavedQuestionsPageState extends State<AllSavedQuestionsPage> {
                             ),
                           ),
                         ),
-                      Text(
-                        weakness.question,
+                      FormattedText(
+                        text: weakness.question,
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           color: isDark
                               ? Colors.white
                               : const Color(0xFF1E293B),
@@ -754,8 +755,8 @@ class _AllSavedQuestionsPageState extends State<AllSavedQuestionsPage> {
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
-                                  weakness.explanation,
+                                child: FormattedText(
+                                  text: weakness.explanation,
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: isDark

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/initial_sync_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,24 +35,27 @@ class _SplashScreenState extends State<SplashScreen>
 
     _logoScaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.3)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.3,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 1,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.3, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.3,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 1,
       ),
     ]).animate(_logoController);
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: const Interval(0.2, 1.0, curve: Curves.easeIn),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeIn),
+      ),
+    );
 
     // Wave animation
     _waveController = AnimationController(
@@ -76,13 +80,9 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    _glowAnimation = Tween<double>(
-      begin: 0.3,
-      end: 0.8,
-    ).animate(CurvedAnimation(
-      parent: _glowController,
-      curve: Curves.easeInOut,
-    ));
+    _glowAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
 
     _logoController.forward();
     _checkAuthAndNavigate();
@@ -92,6 +92,9 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(seconds: 3));
 
     if (!mounted) return;
+
+    // Arka planda initial sync başlat (uygulamayı bloklamaz)
+    Future.microtask(() => InitialSyncService().runInitialSync());
 
     final authService = AuthService();
     final isLoggedIn = await authService.isLoggedIn();
@@ -148,30 +151,36 @@ class _SplashScreenState extends State<SplashScreen>
             ...List.generate(30, (index) {
               // Generate random values for each particle
               final random = math.Random(index);
-              final startX = random.nextDouble() * MediaQuery.of(context).size.width;
-              final startY = random.nextDouble() * MediaQuery.of(context).size.height;
-              final speed = 0.3 + random.nextDouble() * 0.4; // Random speed between 0.3-0.7
+              final startX =
+                  random.nextDouble() * MediaQuery.of(context).size.width;
+              final startY =
+                  random.nextDouble() * MediaQuery.of(context).size.height;
+              final speed =
+                  0.3 +
+                  random.nextDouble() * 0.4; // Random speed between 0.3-0.7
               final angle = random.nextDouble() * 2 * math.pi; // Random angle
               final size = 2.0 + random.nextDouble() * 4.0; // Random size 2-6
               final delay = random.nextDouble(); // Random delay
-              
+
               return AnimatedBuilder(
                 animation: _particleController,
                 builder: (context, child) {
-                  final progress = ((_particleController.value + delay) * speed) % 1.0;
-                  
+                  final progress =
+                      ((_particleController.value + delay) * speed) % 1.0;
+
                   // Calculate movement in random direction
                   final moveDistance = MediaQuery.of(context).size.height * 1.5;
                   final x = startX + math.cos(angle) * moveDistance * progress;
                   final y = startY + math.sin(angle) * moveDistance * progress;
-                  
+
                   // Wrap around screen edges
                   final wrappedX = x % MediaQuery.of(context).size.width;
                   final wrappedY = y % MediaQuery.of(context).size.height;
-                  
+
                   // Opacity based on progress (fade in/out)
-                  final opacity = (math.sin(progress * math.pi)).clamp(0.0, 1.0) * 0.8;
-                  
+                  final opacity =
+                      (math.sin(progress * math.pi)).clamp(0.0, 1.0) * 0.8;
+
                   return Positioned(
                     left: wrappedX,
                     top: wrappedY,
@@ -206,7 +215,7 @@ class _SplashScreenState extends State<SplashScreen>
                   final logoWidth = screenSize.width; // Full screen width
                   final logoHeight = logoWidth; // Square aspect ratio
                   final glowSize = logoWidth * 1.3;
-                  
+
                   return FadeTransition(
                     opacity: _fadeAnimation,
                     child: Transform.scale(
@@ -222,7 +231,9 @@ class _SplashScreenState extends State<SplashScreen>
                               shape: BoxShape.circle,
                               gradient: RadialGradient(
                                 colors: [
-                                  Colors.white.withOpacity(_glowAnimation.value * 0.08),
+                                  Colors.white.withOpacity(
+                                    _glowAnimation.value * 0.08,
+                                  ),
                                   Colors.transparent,
                                 ],
                                 stops: const [0.0, 0.8],
@@ -276,12 +287,16 @@ class _SplashScreenState extends State<SplashScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.3 + _glowAnimation.value * 0.2),
+                            color: Colors.white.withOpacity(
+                              0.3 + _glowAnimation.value * 0.2,
+                            ),
                             width: 3,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(_glowAnimation.value * 0.5),
+                              color: Colors.white.withOpacity(
+                                _glowAnimation.value * 0.5,
+                              ),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
@@ -330,8 +345,10 @@ class WavePainter extends CustomPainter {
     path.moveTo(0, size.height * 0.65);
 
     for (double x = 0; x <= size.width; x++) {
-      final y = size.height * 0.65 +
-          waveHeight * math.sin((x / waveLength * 2 * math.pi) + animationValue);
+      final y =
+          size.height * 0.65 +
+          waveHeight *
+              math.sin((x / waveLength * 2 * math.pi) + animationValue);
       path.lineTo(x, y);
     }
 
@@ -346,9 +363,13 @@ class WavePainter extends CustomPainter {
     path2.moveTo(0, size.height * 0.75);
 
     for (double x = 0; x <= size.width; x++) {
-      final y = size.height * 0.75 +
-          waveHeight * 0.8 *
-              math.sin((x / waveLength * 2 * math.pi) + animationValue + math.pi);
+      final y =
+          size.height * 0.75 +
+          waveHeight *
+              0.8 *
+              math.sin(
+                (x / waveLength * 2 * math.pi) + animationValue + math.pi,
+              );
       path2.lineTo(x, y);
     }
 
@@ -367,8 +388,10 @@ class WavePainter extends CustomPainter {
     path3.moveTo(0, size.height * 0.85);
 
     for (double x = 0; x <= size.width; x++) {
-      final y = size.height * 0.85 +
-          waveHeight * 0.6 *
+      final y =
+          size.height * 0.85 +
+          waveHeight *
+              0.6 *
               math.sin((x / waveLength * 1.5 * math.pi) + animationValue * 1.5);
       path3.lineTo(x, y);
     }

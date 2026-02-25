@@ -15,6 +15,7 @@ import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/register_page.dart';
 import 'core/services/storage_cleanup_service.dart';
+import 'core/services/iap_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,13 @@ void main() async {
     // Continue even if Firebase fails to initialize
     print('❌ Firebase initialization error: $e');
     print('Error type: ${e.runtimeType}');
+  }
+
+  // Initialize IAP (Must be after Firebase)
+  try {
+    IAPService().initialize();
+  } catch (e) {
+    debugPrint('❌ IAP initialization error: $e');
   }
 
   // Initialize date formatting for Turkish locale
@@ -135,6 +143,7 @@ class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final Map<int, Widget> _pageCache = {};
   final GlobalKey _homePageStateKey = GlobalKey();
+  final GlobalKey _profilePageStateKey = GlobalKey();
   int _themeKey = 0; // Key to force rebuild when theme changes
 
   @override
@@ -184,7 +193,9 @@ class MainScreenState extends State<MainScreen> {
         page = const AiAssistantPage();
         break;
       case 5:
-        page = ProfilePage(key: ValueKey('profile_$_themeKey'));
+        page = ProfilePage(
+          key: _profilePageStateKey, // Use stable GlobalKey
+        );
         break;
       default:
         page = HomePage(key: _homePageStateKey);
@@ -201,6 +212,8 @@ class MainScreenState extends State<MainScreen> {
       // If tapping same tab, optional: refresh or scroll to top
       if (index == 0) {
         refreshHomePage();
+      } else if (index == 5) {
+        refreshProfilePage();
       }
       return;
     }
@@ -208,11 +221,30 @@ class MainScreenState extends State<MainScreen> {
     setState(() {
       _currentIndex = index;
     });
+
+    // Refresh pages when switching to them
+    if (index == 0) {
+      refreshHomePage();
+    } else if (index == 5) {
+      refreshProfilePage();
+    }
   }
 
   // Public method to navigate to a tab
   void navigateToTab(int index) {
     _onTabTapped(index);
+  }
+
+  // Public method to refresh profile page
+  void refreshProfilePage() {
+    final profilePageState = _profilePageStateKey.currentState;
+    if (profilePageState != null) {
+      try {
+        (profilePageState as dynamic).refreshContent();
+      } catch (e) {
+        // Method doesn't exist
+      }
+    }
   }
 
   // Public method to refresh home page

@@ -18,6 +18,7 @@ class TestsPage extends StatefulWidget {
   final int testCount;
   final String lessonId; // Ders ID
   final String topicId; // Konu ID (Firebase'den soruları çekmek için)
+  final String? testFileName; // Specific test file to load
 
   const TestsPage({
     super.key,
@@ -25,6 +26,7 @@ class TestsPage extends StatefulWidget {
     required this.testCount,
     required this.lessonId,
     required this.topicId,
+    this.testFileName,
   });
 
   @override
@@ -47,6 +49,8 @@ class _TestsPageState extends State<TestsPage> {
   bool _showExplanationManually =
       false; // Açıklama manuel olarak gösteriliyor mu?
   Set<String> _savedQuestionIds = {}; // Kaydedilmiş soru ID'leri
+  bool _isRetake = false; // Daha önce çözülmüş mü?
+  int _attemptCount = 0; // Çözülme sayısı
 
   @override
   void initState() {
@@ -60,15 +64,42 @@ class _TestsPageState extends State<TestsPage> {
         _isLoading = true;
       });
 
-      // Load saved progress FIRST, before loading questions
+      // 1. Check if this is a retake and get attempt count
+      final existingResult = await _progressService.getTestResult(
+        widget.topicId,
+      );
+      if (existingResult != null) {
+        _isRetake = true;
+        _attemptCount = existingResult['attemptCount'] ?? 1;
+        debugPrint(
+          '🔄 Retake detected for topic: ${widget.topicId}, attempt: $_attemptCount',
+        );
+      }
+
+      // 2. Load saved progress FIRST, before loading questions
       final savedProgress = await _progressService.getTestProgress(
         widget.topicId,
       );
+
+      // Eger test bitmisse ve kayıtlı ilerleme yoksa (sonradan tekrar giriliyorsa)
+      if (existingResult != null && savedProgress == null) {
+        if (mounted) {
+          final shouldRetake = await _showRetakeDialog();
+          if (!shouldRetake) {
+            Navigator.of(context).pop();
+            return;
+          }
+          // Tekrar coz deyince 1. sorudan baslaması icin _isRetake true kalsın ama ilerlemeyi pas gecelim
+          _isRetake = true;
+          // Mevcut attemptCount'u artırarak devam edebiliriz ya da kaydedince artacak
+        }
+      }
 
       // Load questions (will try Storage first, then Firestore)
       final questions = await _questionsService.getQuestionsByTopicId(
         widget.topicId,
         lessonId: widget.lessonId,
+        testFileName: widget.testFileName,
       );
 
       if (mounted) {
@@ -77,6 +108,7 @@ class _TestsPageState extends State<TestsPage> {
         int initialScore = 0;
         List<int?> initialAnswers = List<int?>.filled(questions.length, null);
 
+        // Sadece bitmis olmayan bir testten devam ediliyorsa veya retake esnasında cıkılmıssa yukle
         if (savedProgress != null && questions.isNotEmpty) {
           final savedIndex = savedProgress['index'] as int? ?? 0;
           if (savedIndex < questions.length) {
@@ -228,8 +260,14 @@ class _TestsPageState extends State<TestsPage> {
 
       if (isCorrect) {
         _score += 10;
-        // Puanı kullanıcının toplam puanına ekle (her doğru cevap için +10 puan)
-        _progressService.addScore(10);
+        // Puanı kullanıcının toplam puanına ekle (Sadece İLK çözüşte puan verilir)
+        if (!_isRetake) {
+          _progressService.addScore(10);
+        } else {
+          debugPrint(
+            'ℹ️ Retake mode: Score added locally but not to global total.',
+          );
+        }
       }
     });
 
@@ -644,11 +682,121 @@ class _TestsPageState extends State<TestsPage> {
     }
   }
 
+  Future<bool> _showRetakeDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // Kullanıcı mutlaka seçim yapmalı
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          elevation: 24,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.black.withOpacity(0.05),
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.history_rounded,
+                  color: Colors.amber,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Testi Tamamladınız',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Bu testi daha önce çözmüşsünüz. Bilgilerinizi tazelemek için tekrar çözmek ister misiniz?',
+            style: TextStyle(
+              fontSize: 15,
+              color: isDark ? Colors.white70 : Colors.black87,
+              height: 1.5,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.all(16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? Colors.white60 : Colors.black54,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                'Hayır, Çık',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Evet, Tekrar Çöz',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
   Future<void> _saveProgress() async {
     if (_questions.isEmpty || _selectedAnswers.isEmpty) return;
 
     // Sadece sorular yüklendikten ve cevaplar listesi hazır olduğunda kaydet
     if (_selectedAnswers.length != _questions.length) return;
+
+    // Mevcut doğru/yanlış sayılarını hesapla
+    int correctCount = 0;
+    int wrongCount = 0;
+    for (int i = 0; i < _questions.length; i++) {
+      final ans = _selectedAnswers[i];
+      if (ans != null && ans >= 0) {
+        if (ans == _questions[i].correctAnswerIndex) {
+          correctCount++;
+        } else {
+          wrongCount++;
+        }
+      }
+    }
 
     await _progressService.saveTestProgress(
       topicId: widget.topicId,
@@ -656,8 +804,11 @@ class _TestsPageState extends State<TestsPage> {
       lessonId: widget.lessonId,
       currentQuestionIndex: _currentQuestionIndex,
       totalQuestions: _questions.length,
-      score: _score, // Puanı da kaydet
-      answers: _selectedAnswers, // Cevapları kaydet
+      score: _score,
+      correctAnswers: correctCount,
+      wrongAnswers: wrongCount,
+      attemptCount: _isRetake ? _attemptCount + 1 : 1,
+      answers: _selectedAnswers,
     );
   }
 
@@ -952,8 +1103,10 @@ class _TestsPageState extends State<TestsPage> {
                           if (mounted) {
                             Navigator.of(context).pop(true);
                             final mainScreen = MainScreen.of(context);
-                            if (mainScreen != null)
+                            if (mainScreen != null) {
                               mainScreen.refreshHomePage();
+                              mainScreen.refreshProfilePage();
+                            }
                           }
                         },
                         isDark: isDark,
@@ -1198,7 +1351,15 @@ class _TestsPageState extends State<TestsPage> {
                 ),
                 onPressed: () async {
                   if (_questions.isNotEmpty) await _saveProgress();
-                  if (mounted) Navigator.of(context).pop(true);
+                  if (mounted) {
+                    Navigator.of(context).pop(true);
+                    // Refresh stats when returning to main screen
+                    final mainScreen = MainScreen.of(context);
+                    if (mainScreen != null) {
+                      mainScreen.refreshHomePage();
+                      mainScreen.refreshProfilePage();
+                    }
+                  }
                 },
               ),
               const SizedBox(width: 8),
@@ -1313,11 +1474,26 @@ class _TestsPageState extends State<TestsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildInfoChip(
-              icon: Icons.tag_rounded,
-              label: 'Soru ${_currentQuestionIndex + 1}/${_questions.length}',
-              color: const Color(0xFF2563EB),
-              isDark: isDark,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoChip(
+                  icon: Icons.tag_rounded,
+                  label:
+                      'Soru ${_currentQuestionIndex + 1}/${_questions.length}',
+                  color: const Color(0xFF2563EB),
+                  isDark: isDark,
+                ),
+                if (_isRetake) ...[
+                  const SizedBox(height: 6),
+                  _buildInfoChip(
+                    icon: Icons.history_rounded,
+                    label: '${_attemptCount + 1}. Kez Çözülüyor',
+                    color: Colors.amber.shade700,
+                    isDark: isDark,
+                  ),
+                ],
+              ],
             ),
             Row(
               children: [
@@ -1542,7 +1718,7 @@ class _TestsPageState extends State<TestsPage> {
               if (question.imageUrl != null)
                 _buildQuestionImage(question.imageUrl!),
               Padding(
-                padding: const EdgeInsets.all(20), // Reduced from 24
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
                     if (_selectedAnswers.isNotEmpty &&
@@ -1552,12 +1728,12 @@ class _TestsPageState extends State<TestsPage> {
                     FormattedText(
                       text: question.question,
                       style: TextStyle(
-                        fontSize: 15, // Reduced from 16
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                         color: isDark
                             ? Colors.white.withOpacity(0.9)
                             : const Color(0xFF1E293B),
-                        height: 1.5, // Tighter leading
+                        height: 1.5,
                         letterSpacing: 0.1,
                       ),
                     ),

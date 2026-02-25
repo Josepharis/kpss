@@ -7,7 +7,8 @@ class TestsListPage extends StatelessWidget {
   final String lessonId;
   final String topicId;
   final int testCount;
-  final List<Map<String, dynamic>> tests; // [{name: "Test 1", questionCount: 10}, ...]
+  final List<Map<String, dynamic>>
+  tests; // [{name: "Test 1", questionCount: 10}, ...]
 
   const TestsListPage({
     super.key,
@@ -33,10 +34,7 @@ class TestsListPage extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                AppColors.primaryBlue,
-                AppColors.primaryDarkBlue,
-              ],
+              colors: [AppColors.primaryBlue, AppColors.primaryDarkBlue],
             ),
             boxShadow: [
               BoxShadow(
@@ -170,6 +168,7 @@ class TestsListPage extends StatelessWidget {
                               testCount: questionCount,
                               lessonId: lessonId,
                               topicId: topicId,
+                              testFileName: test['fileName'] as String?,
                             ),
                           ),
                         );
@@ -243,4 +242,3 @@ class TestsListPage extends StatelessWidget {
     );
   }
 }
-

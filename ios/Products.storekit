@@ -1,0 +1,88 @@
+{
+  "identifier" : "KPSS_PREMIUM_CONFIG",
+  "nonRenewingSubscriptions" : [ ],
+  "products" : [ ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "tr_TR",
+    "_storefront" : "TUR",
+    "_type" : "settings"
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "PREMIUM_GROUP",
+      "localizations" : [ ],
+      "name" : "Premium Plans",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [ ],
+          "codeOffers" : [ ],
+          "displayPrice" : "149",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "MONTHLY_ID",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Tüm özelliklere 1 ay boyunca tam erişim.",
+              "displayName" : "Aylık Premium",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "kpss_premium_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Subscription",
+          "subscriptionGroupID" : "PREMIUM_GROUP",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [ ],
+          "codeOffers" : [ ],
+          "displayPrice" : "799",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6MONTHS_ID",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Tüm özelliklere 6 ay boyunca tam erişim.",
+              "displayName" : "6 Aylık Premium",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "kpss_premium_6monthly",
+          "recurringSubscriptionPeriod" : "P6M",
+          "referenceName" : "6 Months Subscription",
+          "subscriptionGroupID" : "PREMIUM_GROUP",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [ ],
+          "codeOffers" : [ ],
+          "displayPrice" : "1299",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "YEARLY_ID",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Tüm özelliklere 1 yıl boyunca tam erişim.",
+              "displayName" : "Yıllık Premium",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "kpss_premium_yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Yearly Subscription",
+          "subscriptionGroupID" : "PREMIUM_GROUP",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

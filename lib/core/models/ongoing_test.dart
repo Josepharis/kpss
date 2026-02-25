@@ -8,7 +8,8 @@ class OngoingTest {
   final String icon;
   final String topicId;
   final String lessonId;
-  final int score; // Puan
+  final int score;
+  final int attemptCount;
 
   OngoingTest({
     required this.id,
@@ -20,7 +21,8 @@ class OngoingTest {
     required this.icon,
     required this.topicId,
     required this.lessonId,
-    this.score = 0, // Varsayılan 0
+    this.score = 0,
+    this.attemptCount = 1,
   });
 
   double get progress => currentQuestion / totalQuestions;
@@ -37,6 +39,7 @@ class OngoingTest {
       'topicId': topicId,
       'lessonId': lessonId,
       'score': score,
+      'attemptCount': attemptCount,
     };
   }
 
@@ -52,6 +55,7 @@ class OngoingTest {
       topicId: map['topicId'] ?? '',
       lessonId: map['lessonId'] ?? '',
       score: map['score'] ?? 0,
+      attemptCount: map['attemptCount'] ?? 1,
     );
   }
 }

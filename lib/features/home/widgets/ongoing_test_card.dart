@@ -54,7 +54,6 @@ class OngoingTestCard extends StatelessWidget {
               ),
             ),
 
-            // Decorative Watermark Icon
             Positioned(
               right: -10,
               bottom: -10,
@@ -64,6 +63,37 @@ class OngoingTestCard extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
+
+            // Attempt Count Badge
+            if (test.attemptCount > 1)
+              Positioned(
+                bottom: 30,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade700.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    '${test.attemptCount}. Kez',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 6.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
 
             // Content
             Material(

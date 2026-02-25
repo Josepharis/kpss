@@ -10,6 +10,7 @@ import '../../../core/services/subscription_service.dart';
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../../main.dart';
 import 'subscription_page.dart';
+import 'about_app_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -134,9 +135,11 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _loadSubscriptionStatus() async {
+  Future<void> _loadSubscriptionStatus({bool forceRefresh = false}) async {
     try {
-      final status = await _subscriptionService.getSubscriptionStatus();
+      final status = await _subscriptionService.getSubscriptionStatus(
+        forceRefresh: forceRefresh,
+      );
       if (mounted) {
         setState(() {
           _subscriptionStatus = status;
@@ -174,6 +177,18 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       // Silent error handling
     }
+  }
+
+  /// Public method to refresh all content on the profile page
+  Future<void> refreshContent() async {
+    if (!mounted) return;
+    await Future.wait([
+      _loadSettings(),
+      _loadUserData(),
+      _loadStatistics(),
+      _loadSubscriptionStatus(forceRefresh: true),
+      _refreshStorageInfo(),
+    ]);
   }
 
   @override
@@ -219,114 +234,131 @@ class _ProfilePageState extends State<ProfilePage> {
 
                 // Main Content Area
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(
-                      compactPadding,
-                      4,
-                      compactPadding,
-                      100,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Statistics
-                        _buildStatisticsCard(isSmallScreen, compactSpacing),
-                        SizedBox(height: compactSpacing),
+                  child: RefreshIndicator(
+                    onRefresh: refreshContent,
+                    color: Colors.blueAccent,
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E1E2E)
+                        : Colors.white,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        compactPadding,
+                        4,
+                        compactPadding,
+                        100,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Statistics
+                          _buildStatisticsCard(isSmallScreen, compactSpacing),
+                          SizedBox(height: compactSpacing),
 
-                        // Subscription
-                        _buildSubscriptionCard(isSmallScreen, compactSpacing),
-                        SizedBox(height: compactSpacing + 4),
+                          // Subscription
+                          _buildSubscriptionCard(isSmallScreen, compactSpacing),
+                          SizedBox(height: compactSpacing + 4),
 
-                        // Settings Sections
-                        _buildSectionTitle('AYARLAR', isSmallScreen, isDark),
-                        const SizedBox(height: 4),
-                        _buildSettingsCard(
-                          isDark: isDark,
-                          children: [
-                            _buildSettingTile(
-                              icon: Icons.palette_rounded,
-                              title: 'Tema Görünümü',
-                              subtitle: 'Şu anki: $_selectedTheme',
-                              onTap: () => _showThemeDialog(),
-                              isSmallScreen: isSmallScreen,
-                              isDark: isDark,
-                              color: Colors.purpleAccent,
-                            ),
-                            _buildDivider(isDark),
-                            _buildSwitchTile(
-                              icon: Icons.task_alt_rounded,
-                              title: 'Günün Görevi',
-                              subtitle: 'Anasayfada günün görevini göster',
-                              value: _showCurrentTaskOnHome,
-                              onChanged: (val) async {
-                                setState(() => _showCurrentTaskOnHome = val);
-                                await _saveSetting(
-                                  'show_current_task_on_home',
-                                  val,
-                                );
-                              },
-                              isDark: isDark,
-                              color: Colors.orangeAccent,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: compactSpacing + 4),
+                          // Settings Sections
+                          _buildSectionTitle('AYARLAR', isSmallScreen, isDark),
+                          const SizedBox(height: 4),
+                          _buildSettingsCard(
+                            isDark: isDark,
+                            children: [
+                              _buildSettingTile(
+                                icon: Icons.palette_rounded,
+                                title: 'Tema Görünümü',
+                                subtitle: 'Şu anki: $_selectedTheme',
+                                onTap: () => _showThemeDialog(),
+                                isSmallScreen: isSmallScreen,
+                                isDark: isDark,
+                                color: Colors.purpleAccent,
+                              ),
+                              _buildDivider(isDark),
+                              _buildSwitchTile(
+                                icon: Icons.task_alt_rounded,
+                                title: 'Günün Görevi',
+                                subtitle: 'Anasayfada günün görevini göster',
+                                value: _showCurrentTaskOnHome,
+                                onChanged: (val) async {
+                                  setState(() => _showCurrentTaskOnHome = val);
+                                  await _saveSetting(
+                                    'show_current_task_on_home',
+                                    val,
+                                  );
+                                },
+                                isDark: isDark,
+                                color: Colors.orangeAccent,
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: compactSpacing + 4),
 
-                        _buildSectionTitle(
-                          'DEPOLAMA YÖNETİMİ',
-                          isSmallScreen,
-                          isDark,
-                        ),
-                        const SizedBox(height: 4),
-                        _buildStorageCard(
-                          isSmallScreen,
-                          compactSpacing,
-                          isDark,
-                        ),
-                        SizedBox(height: compactSpacing + 4),
+                          _buildSectionTitle(
+                            'DEPOLAMA YÖNETİMİ',
+                            isSmallScreen,
+                            isDark,
+                          ),
+                          const SizedBox(height: 4),
+                          _buildStorageCard(
+                            isSmallScreen,
+                            compactSpacing,
+                            isDark,
+                          ),
+                          SizedBox(height: compactSpacing + 4),
 
-                        _buildSectionTitle(
-                          'HAKKINDA & YARDIM',
-                          isSmallScreen,
-                          isDark,
-                        ),
-                        const SizedBox(height: 4),
-                        _buildSettingsCard(
-                          isDark: isDark,
-                          children: [
-                            _buildSettingTile(
-                              icon: Icons.info_rounded,
-                              title: 'Uygulama Bilgisi',
-                              subtitle: 'Versiyon 1.0.0',
-                              onTap: () => _showAboutDialog(),
-                              isSmallScreen: isSmallScreen,
-                              isDark: isDark,
-                              color: Colors.blueAccent,
-                            ),
-                            _buildDivider(isDark),
-                            _buildSettingTile(
-                              icon: Icons.cloud_sync_rounded,
-                              title: 'Veri Eşitleme',
-                              subtitle: _isUpdatingPdfUrls
-                                  ? 'Güncelleniyor...'
-                                  : 'İçerikleri senkronize et',
-                              onTap: _isUpdatingPdfUrls
-                                  ? null
-                                  : () => _updatePdfUrls(),
-                              isSmallScreen: isSmallScreen,
-                              isDark: isDark,
-                              color: Colors.tealAccent,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: compactSpacing + 8),
+                          _buildSectionTitle(
+                            'HAKKINDA & YARDIM',
+                            isSmallScreen,
+                            isDark,
+                          ),
+                          const SizedBox(height: 4),
+                          _buildSettingsCard(
+                            isDark: isDark,
+                            children: [
+                              _buildSettingTile(
+                                icon: Icons.info_rounded,
+                                title: 'Uygulama Bilgisi',
+                                subtitle: 'Versiyon 1.0.0',
+                                onTap: () => _showAboutDialog(),
+                                isSmallScreen: isSmallScreen,
+                                isDark: isDark,
+                                color: Colors.blueAccent,
+                              ),
+                              _buildDivider(isDark),
+                              _buildSettingTile(
+                                icon: Icons.cloud_sync_rounded,
+                                title: 'Veri Eşitleme',
+                                subtitle: _isUpdatingPdfUrls
+                                    ? 'Güncelleniyor...'
+                                    : 'İçerikleri senkronize et',
+                                onTap: _isUpdatingPdfUrls
+                                    ? null
+                                    : () => _updatePdfUrls(),
+                                isSmallScreen: isSmallScreen,
+                                isDark: isDark,
+                                color: Colors.tealAccent,
+                              ),
+                              _buildDivider(isDark),
+                              _buildSettingTile(
+                                icon: Icons.star_outline_rounded,
+                                title: 'Premium Aktifleştir (Dev)',
+                                subtitle: 'Simülatör için geçici çözüm',
+                                onTap: () => _activatePremiumDev(),
+                                isSmallScreen: isSmallScreen,
+                                isDark: isDark,
+                                color: Colors.orangeAccent,
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: compactSpacing + 8),
 
-                        // Account Actions
-                        _buildLogoutButton(isSmallScreen, isDark),
-                        const SizedBox(height: 8),
-                        _buildDeleteAccountButton(isSmallScreen, isDark),
-                      ],
+                          // Account Actions
+                          _buildLogoutButton(isSmallScreen, isDark),
+                          const SizedBox(height: 8),
+                          _buildDeleteAccountButton(isSmallScreen, isDark),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1389,29 +1421,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Kadrox'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Versiyon: 1.0.0'),
-            SizedBox(height: 8),
-            Text(
-              'KPSS ve AGS sınavlarına hazırlık için kapsamlı bir çalışma uygulaması: Kadrox.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Tamam'),
-          ),
-        ],
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AboutAppPage()),
     );
   }
 
@@ -1432,7 +1444,7 @@ class _ProfilePageState extends State<ProfilePage> {
           MaterialPageRoute(builder: (context) => const SubscriptionPage()),
         );
         if (result == true) {
-          _loadSubscriptionStatus();
+          _loadSubscriptionStatus(forceRefresh: true);
         }
       },
       child: Container(
@@ -1554,68 +1566,12 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showDeleteAccountDialog() async {
-    final passwordController = TextEditingController();
-    bool isObscured = true;
-
-    final confirmed = await showDialog<bool>(
+    final password = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Hesabı Sil'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Hesabınız, ilerleme verileriniz ve kaydedilen içerikleriniz silinecek. Bu işlem geri alınamaz.',
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Devam etmek için şifrenizi girin:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: isObscured,
-                    decoration: InputDecoration(
-                      hintText: 'Şifre',
-                      suffixIcon: IconButton(
-                        onPressed: () =>
-                            setState(() => isObscured = !isObscured),
-                        icon: Icon(
-                          isObscured ? Icons.visibility : Icons.visibility_off,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('İptal'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Sil', style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => const _DeleteAccountDialog(),
     );
 
-    if (confirmed != true) {
-      passwordController.dispose();
-      return;
-    }
-
-    final password = passwordController.text;
-    passwordController.dispose();
+    if (password == null) return;
 
     if (password.trim().isEmpty) {
       if (!mounted) return;
@@ -1655,5 +1611,204 @@ class _ProfilePageState extends State<ProfilePage> {
         type: SnackBarType.error,
       );
     }
+  }
+
+  Future<void> _activatePremiumDev() async {
+    final result = await _subscriptionService.setSubscriptionStatus(
+      status: 'premium',
+      type: 'yearly',
+      endDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (result && mounted) {
+      await _loadSubscriptionStatus(forceRefresh: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Premium başarıyla aktifleştirildi (Dev)'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+}
+
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  late final TextEditingController _passwordController;
+  bool _isObscured = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1E1E2E).withOpacity(0.8)
+                  : Colors.white.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.redAccent.withOpacity(0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Warning Icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.redAccent,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Hesabınızı Silmek İstiyor musunuz?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Bu işlem geri alınamaz. İlerleme verileriniz, çözdüğünüz testler ve tüm kayıtlı içerikleriniz kalıcı olarak temizlenecektir.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Password field
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.black26
+                        : Colors.black.withOpacity(0.03),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white10
+                          : Colors.black.withOpacity(0.1),
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _passwordController,
+                    obscureText: _isObscured,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Onaylamak için şifrenizi girin',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white24 : Colors.black26,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 18,
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () =>
+                            setState(() => _isObscured = !_isObscured),
+                        icon: Icon(
+                          _isObscured ? Icons.visibility : Icons.visibility_off,
+                          size: 18,
+                        ),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'İptal',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pop(context, _passwordController.text),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Hesabımı Sil',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -16,84 +16,83 @@ class QuestionsService {
   CollectionReference get _questionsCollection =>
       _firestore.collection('questions');
 
-  /// Get all questions for a topic
-  /// First tries cache, then Storage, then Firestore
   Future<List<TestQuestion>> getQuestionsByTopicId(
     String topicId, {
-    String? lessonId,
+    required String lessonId,
+    String? testFileName,
   }) async {
     try {
-      // Önce cache'den kontrol et (hızlı açılış için)
-      final cachedQuestions = await _loadQuestionsFromCache(topicId);
+      // 1. Try Cache first
+      final cachedQuestions = await _loadQuestionsFromCache(
+        topicId,
+        testFileName: testFileName,
+      );
       if (cachedQuestions.isNotEmpty) {
-        // Coğrafya ise ve görseller eksikse cache'i geçersiz kılıp güncel veriyi çekmeye zorla
-        final isGeography =
-            topicId.toLowerCase().contains('cografya') ||
-            (lessonId?.toLowerCase().contains('cografya') ?? false);
-        final hasImagesInCache = cachedQuestions.any((q) => q.imageUrl != null);
-
-        if (isGeography && !hasImagesInCache) {
-          debugPrint(
-            '🔄 Coğrafya soruları için görseller eksik, cache atlanıyor...',
-          );
-        } else {
-          debugPrint('✅ Loaded ${cachedQuestions.length} questions from cache');
-          // Arka planda güncelle (non-blocking)
-          if (lessonId != null) {
-            _updateQuestionsInBackground(topicId, lessonId);
-          }
-          return cachedQuestions;
-        }
-      }
-
-      // Cache'de yoksa, Storage'dan veya Firestore'dan çek
-      if (lessonId != null) {
-        final storageQuestions = await _loadQuestionsFromStorage(
-          topicId,
-          lessonId,
+        debugPrint(
+          '📦 Questions loaded from cache for topic: $topicId, file: $testFileName',
         );
-        if (storageQuestions.isNotEmpty) {
-          debugPrint(
-            '✅ Loaded ${storageQuestions.length} questions from Storage',
-          );
-          // Cache'e kaydet
-          await _saveQuestionsToCache(topicId, storageQuestions);
-          return storageQuestions;
+        // Arka planda güncelle (non-blocking) - background update logic should be refined for specific files if needed
+        return cachedQuestions;
+      }
+
+      // 2. Load from Storage
+      final storageQuestions = await _loadQuestionsFromStorage(
+        topicId,
+        lessonId,
+        testFileName: testFileName,
+      );
+
+      if (storageQuestions.isNotEmpty) {
+        debugPrint(
+          '✅ Loaded ${storageQuestions.length} questions from Storage (topic: $topicId, file: $testFileName)',
+        );
+        // Cache storage questions
+        await _saveQuestionsToCache(
+          topicId,
+          storageQuestions,
+          testFileName: testFileName,
+        );
+        return storageQuestions;
+      }
+
+      // 3. Fallback to Firestore (Yedek olarak)
+      if (testFileName == null) {
+        final snapshot = await _questionsCollection
+            .where('topicId', isEqualTo: topicId)
+            .get();
+        final firestoreQuestions = snapshot.docs
+            .map(
+              (doc) => TestQuestion.fromMap(
+                doc.data() as Map<String, dynamic>,
+                doc.id,
+              ),
+            )
+            .toList();
+
+        if (firestoreQuestions.isNotEmpty) {
+          debugPrint('🔥 Questions loaded from Firestore for topic: $topicId');
+          await _saveQuestionsToCache(topicId, firestoreQuestions);
+          return firestoreQuestions;
         }
       }
 
-      // Fallback to Firestore
-      final snapshot = await _questionsCollection
-          .where('topicId', isEqualTo: topicId)
-          .get();
-      final questions = snapshot.docs
-          .map(
-            (doc) => TestQuestion.fromMap(
-              doc.data() as Map<String, dynamic>,
-              doc.id,
-            ),
-          )
-          .toList();
-      // Sort by order on client side
-      questions.sort((a, b) => a.order.compareTo(b.order));
-
-      // Cache'e kaydet
-      if (questions.isNotEmpty) {
-        await _saveQuestionsToCache(topicId, questions);
-      }
-
-      return questions;
+      return [];
     } catch (e) {
-      debugPrint('Error fetching questions: $e');
+      debugPrint('Error fetching questions for topic $topicId: $e');
       return [];
     }
   }
 
   /// Load questions from local cache
-  Future<List<TestQuestion>> _loadQuestionsFromCache(String topicId) async {
+  Future<List<TestQuestion>> _loadQuestionsFromCache(
+    String topicId, {
+    String? testFileName,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cacheKey = 'questions_$topicId';
+      final cacheKey = testFileName != null
+          ? 'questions_${topicId}_$testFileName'
+          : 'questions_$topicId';
       final cachedJson = prefs.getString(cacheKey);
 
       if (cachedJson != null && cachedJson.isNotEmpty) {
@@ -106,7 +105,9 @@ class QuestionsService {
               ),
             )
             .toList();
-        debugPrint('✅ Loaded ${questions.length} questions from cache');
+        debugPrint(
+          '✅ Loaded ${questions.length} questions from cache ($cacheKey)',
+        );
         return questions;
       }
       return [];
@@ -118,77 +119,91 @@ class QuestionsService {
   /// Save questions to local cache
   Future<void> _saveQuestionsToCache(
     String topicId,
-    List<TestQuestion> questions,
-  ) async {
+    List<TestQuestion> questions, {
+    String? testFileName,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cacheKey = 'questions_$topicId';
+      final cacheKey = testFileName != null
+          ? 'questions_${topicId}_$testFileName'
+          : 'questions_$topicId';
       final jsonList = questions.map((q) => q.toMap()..['id'] = q.id).toList();
       final jsonString = jsonEncode(jsonList);
       await prefs.setString(cacheKey, jsonString);
 
       // Soru sayısını da ayrı bir key ile kaydet (hızlı erişim için)
-      final countKey = 'questions_count_$topicId';
+      final countKey = testFileName != null
+          ? 'questions_count_${topicId}_$testFileName'
+          : 'questions_count_$topicId';
       await prefs.setInt(countKey, questions.length);
 
-      debugPrint('✅ Saved ${questions.length} questions to cache');
+      debugPrint('✅ Saved ${questions.length} questions to cache ($cacheKey)');
     } catch (e) {
       debugPrint('⚠️ Error saving questions to cache: $e');
     }
   }
 
-  /// Update questions in background (non-blocking)
-  /// Sadece cache yoksa veya geçersizse Storage'dan çek
-  /// Uygulama arka plandayken çalışmaz (Storage kullanımını önlemek için)
-  void _updateQuestionsInBackground(String topicId, String lessonId) async {
-    // Önce cache kontrolü yap - cache geçerliyse Storage'dan çekme
+  /// Sadece soru sayısını hesaplar/çeker, tüm soruları (Test objelerini) cache'e KAYDETMEZ.
+  /// Initial sync gibi uygulamayı yormaması gereken yerlerde kullanılır.
+  Future<int> syncQuestionCount(String topicId, String lessonId) async {
     try {
-      final cachedQuestions = await _loadQuestionsFromCache(topicId);
-      if (cachedQuestions.isNotEmpty) {
-        // Cache'de sorular var, Storage'dan çekme (gereksiz istek önleme)
-        debugPrint(
-          '✅ Questions already in cache, skipping background Storage request',
-        );
-        return;
+      final prefs = await SharedPreferences.getInstance();
+      final countKey = 'questions_count_$topicId';
+
+      // 1. Önce cache'de soru sayısı var mı kontrol et
+      final cachedCount = prefs.getInt(countKey);
+      if (cachedCount != null && cachedCount > 0) {
+        return cachedCount;
       }
+
+      // 2. Cache'de yoksa Storage'dan JSON indirip sadece boyutuna bakarak sayıyı hesapla
+      final storageQuestions = await _loadQuestionsFromStorage(
+        topicId,
+        lessonId,
+      );
+      final count = storageQuestions.length;
+
+      // 3. Sadece sayıyı cache'e yaz. Tüm soruları JSON dizi string'i olarak YAZMA.
+      if (count > 0) {
+        await prefs.setInt(countKey, count);
+
+        // Firestore update
+        await _firestore
+            .collection('topics')
+            .doc(topicId)
+            .update({'averageQuestionCount': count})
+            .catchError((_) => null);
+
+        debugPrint(
+          '✅ Sadece soru sayısı tespit edildi ve sayı cache\'lendi: $count for topic $topicId (Sorular cache edilmedi)',
+        );
+      }
+
+      return count;
     } catch (e) {
-      // Cache kontrolü başarısız, devam et
+      debugPrint('⚠️ Error syncing question count for $topicId: $e');
+      return 0;
     }
+  }
 
-    // Cache yoksa arka planda güncelle, sayfa açılışını engelleme
-    // NOT: Uygulama arka plandayken bu işlem çalışmaz (Storage kullanımını önlemek için)
-    Future.microtask(() async {
-      try {
-        // Uygulama durumunu kontrol et (arka plandaysa çalışma)
-        // Bu kontrol için WidgetsBinding.instance.lifecycleState kullanılabilir
-        // Ama bu servis katmanında olduğu için, sadece cache kontrolü yeterli
-        // Uygulama arka plandayken zaten bu metod çağrılmaz (sayfa açık değilse)
-
-        debugPrint(
-          '🌐 Loading questions from Storage in background (cache miss)',
-        );
-        debugPrint('⚠️ WARNING: This will make Storage requests!');
-        final storageQuestions = await _loadQuestionsFromStorage(
-          topicId,
-          lessonId,
-        );
-        if (storageQuestions.isNotEmpty) {
-          await _saveQuestionsToCache(topicId, storageQuestions);
-          debugPrint(
-            '✅ Background update: ${storageQuestions.length} questions cached',
-          );
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error in background question update: $e');
-      }
-    });
+  void _updateTestsListInBackground(String topicId, String lessonId) {
+    _fetchAndCacheAvailableTests(topicId, lessonId)
+        .then((_) {
+          debugPrint('✅ Background update finished for tests list: $topicId');
+        })
+        .catchError((e) {
+          debugPrint('⚠️ Background update failed for tests list: $e');
+        });
   }
 
   /// Load questions from Storage (soru folder)
+  /// If testFileName is provided, load only that file.
+  /// Otherwise, load and merge all JSON files (legacy behavior).
   Future<List<TestQuestion>> _loadQuestionsFromStorage(
     String topicId,
-    String lessonId,
-  ) async {
+    String lessonId, {
+    String? testFileName,
+  }) async {
     try {
       // Get lesson to construct path
       final lesson = await _lessonsService.getLessonById(lessonId);
@@ -218,8 +233,22 @@ class QuestionsService {
       // Check for soru folder
       final soruPath = '$basePath/soru';
 
-      // List JSON files in soru folder
-      final jsonUrls = await _storageService.listJsonFiles(soruPath);
+      List<String> jsonUrls = [];
+      if (testFileName != null) {
+        // Construct URL for specific file or just use the name if StorageService supports it
+        // Actually, let's list them and find the matching one to be safe
+        final allJsonFiles = await _storageService.listFilesWithPaths(soruPath);
+        final matchingFile = allJsonFiles.firstWhere(
+          (f) => f['name'] == testFileName,
+          orElse: () => {},
+        );
+        if (matchingFile.isNotEmpty && matchingFile['url'] != null) {
+          jsonUrls = [matchingFile['url']!];
+        }
+      } else {
+        // List all JSON files in soru folder
+        jsonUrls = await _storageService.listJsonFiles(soruPath);
+      }
 
       if (jsonUrls.isEmpty) {
         return [];
@@ -325,6 +354,163 @@ class QuestionsService {
     } catch (e) {
       return [];
     }
+  }
+
+  /// Get available tests (metadata only) for a topic
+  Future<List<Map<String, dynamic>>> getAvailableTestsByTopic(
+    String topicId,
+    String lessonId,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final listCacheKey = 'tests_list_cache_$topicId';
+
+      // 1. Check for cached list first for instant UI response
+      final cachedListJson = prefs.getString(listCacheKey);
+      if (cachedListJson != null && cachedListJson.isNotEmpty) {
+        try {
+          final List<dynamic> decoded = jsonDecode(cachedListJson);
+          final cachedList = decoded.cast<Map<String, dynamic>>();
+
+          // Return cached list immediately
+          debugPrint('📦 Returning cached tests list for topic: $topicId');
+
+          // Trigger background update to keep data fresh if it's been more than 1 hour
+          final lastSync = prefs.getInt('${listCacheKey}_time') ?? 0;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now - lastSync > 1000 * 60 * 60) {
+            _updateTestsListInBackground(topicId, lessonId);
+          }
+
+          return cachedList;
+        } catch (e) {
+          debugPrint('⚠️ Error decoding cached tests list: $e');
+        }
+      }
+
+      // 2. No cache or error, perform full fetch
+      return await _fetchAndCacheAvailableTests(topicId, lessonId);
+    } catch (e) {
+      debugPrint('Error getting available tests: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAndCacheAvailableTests(
+    String topicId,
+    String lessonId,
+  ) async {
+    try {
+      final lesson = await _lessonsService.getLessonById(lessonId);
+      if (lesson == null) return [];
+
+      final lessonNameForPath = _lessonsService.normalizeForStoragePath(
+        lesson.name,
+      );
+      final basePath = await _lessonsService.getTopicBasePath(
+        lessonId: lessonId,
+        topicId: topicId,
+        lessonNameForPath: lessonNameForPath,
+      );
+
+      final soruPath = '$basePath/soru';
+      final files = await _storageService.listFilesWithPaths(soruPath);
+
+      final List<Map<String, dynamic>> tests = [];
+      final prefs = await SharedPreferences.getInstance();
+
+      // Parallel fetch counts to save time
+      final List<Future<Map<String, dynamic>?>> testFutures = [];
+
+      for (final file in files) {
+        final fileName = file['name'];
+        final url = file['url'];
+
+        if (fileName != null &&
+            url != null &&
+            fileName.toLowerCase().endsWith('.json')) {
+          testFutures.add(() async {
+            try {
+              String displayName = fileName.replaceAll('.json', '');
+              int testNumber = 1;
+
+              final dashMatch = RegExp(r'-(\d+)$').firstMatch(displayName);
+              if (dashMatch != null) {
+                testNumber = int.parse(dashMatch.group(1)!);
+              } else {
+                final numMatch = RegExp(r'(\d+)$').firstMatch(displayName);
+                if (numMatch != null) {
+                  final n = int.parse(numMatch.group(1)!);
+                  if (n > 50) {
+                    testNumber = 1;
+                  } else {
+                    testNumber = n;
+                  }
+                }
+              }
+
+              final cacheKey = 'qcount_${topicId}_$fileName';
+              int? qCount = prefs.getInt(cacheKey);
+
+              if (qCount == null || qCount == 0) {
+                final jsonData = await _storageService
+                    .downloadAndParseJsonFromUrl(url);
+                qCount = 0;
+                if (jsonData != null && jsonData['questions'] is List) {
+                  qCount = (jsonData['questions'] as List).length;
+                }
+                if (qCount > 0) {
+                  await prefs.setInt(cacheKey, qCount);
+                }
+              }
+
+              return {
+                'name': 'Test $testNumber',
+                'testNumber': testNumber,
+                'fileName': fileName,
+                'url': url,
+                'questionCount': qCount,
+              };
+            } catch (e) {
+              debugPrint('⚠️ Error processing test file $fileName: $e');
+              return null;
+            }
+          }());
+        }
+      }
+
+      final results = await Future.wait(testFutures);
+      for (final res in results) {
+        if (res != null) tests.add(res);
+      }
+
+      // Sort tests numerically
+      tests.sort((a, b) => a['testNumber'].compareTo(b['testNumber']));
+
+      // Save to cache
+      final listCacheKey = 'tests_list_cache_$topicId';
+      await prefs.setString(listCacheKey, jsonEncode(tests));
+      await prefs.setInt(
+        '${listCacheKey}_time',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+      return tests;
+    } catch (e) {
+      debugPrint('Error fetching tests: $e');
+      return [];
+    }
+  }
+
+  // Method removed as caching is now handled differently
+
+  /// Get questions for a specific test file
+  Future<List<TestQuestion>> getQuestionsFromTestFile(
+    String topicId,
+    String lessonId,
+    String fileName,
+  ) async {
+    return _loadQuestionsFromStorage(topicId, lessonId, testFileName: fileName);
   }
 
   /// Parse JSON questions into TestQuestion objects

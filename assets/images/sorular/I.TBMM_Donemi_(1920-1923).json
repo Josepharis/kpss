@@ -1,0 +1,809 @@
+{
+    "meta": {
+        "unit": "I. TBMM Dönemi (1920-1923)",
+        "exam": "KPSS",
+        "batch": 1
+    },
+    "questions": [
+        {
+            "id": 1,
+            "question": "I. TBMM'nin açılışından sonra kabul edilen ve 'Meclis'in üstünde bir kuvvet yoktur' ifadesini içeren önerge dikkate alındığında, bu durumun aşağıdaki hangi kurumu 'hukuken' yok saydığı söylenebilir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "İtilaf Devletleri askeri komutanlığını"
+                },
+                {
+                    "key": "B",
+                    "text": "İstanbul Hükümeti ve saltanat makamını"
+                },
+                {
+                    "key": "C",
+                    "text": "Anadolu'daki yerel direniş cemiyetlerini"
+                },
+                {
+                    "key": "D",
+                    "text": "Amerikan Mandası'nı savunan grupları"
+                },
+                {
+                    "key": "E",
+                    "text": "Kuvayi Milliye'nin idari yetkilerini"
+                }
+            ],
+            "correctAnswer": "B",
+            "explanation": "24 Nisan 1920 tarihinde kabul edilen önerge, egemenliğin kaynağını doğrudan millete ve onun temsilcisi olan meclise devretmiştir. İstanbul'daki merkezi yönetimi ve padişahın mutlak otoritesini görmezden gelen bu madde, Ankara'da kurulan yeni yapının tek meşru iktidar odağı olduğunu dünyaya ilan etmiştir. Bu durum, fiili durumun hukuki bir statüye kavuşturulması sürecidir.",
+            "difficulty": "medium",
+            "questionType": "analiz",
+            "topic": "TBMM'nin Açılışı",
+            "subTopic": "Meşruiyet"
+        },
+        {
+            "id": 2,
+            "question": "I. TBMM'de uygulanan 'Meclis Hükümeti Sistemi'nde meclis başkanının aynı zamanda hükûmetin de başkanı sayılması, aşağıdaki hangi ihtiyacın bir sonucudur?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Bütün dış borçların hızlıca ödenmesi isteği"
+                },
+                {
+                    "key": "B",
+                    "text": "Azınlıkların yönetime katılımını artırma planı"
+                },
+                {
+                    "key": "C",
+                    "text": "Sadece ordu disiplinini saraydan gizleme hedefi"
+                },
+                {
+                    "key": "D",
+                    "text": "Savaş koşullarında hızlı karar alma ve yürütme"
+                },
+                {
+                    "key": "E",
+                    "text": "Eğitim sistemini tek bir merkezde toplama gayesi"
+                }
+            ],
+            "correctAnswer": "D",
+            "explanation": "Kurtuluş Savaşı'nın olağanüstü ve kısıtlı zaman diliminde, yasama ve yürütme erklerinin ayrı ellerde toplanması (kabine sistemi) karar alma süreçlerini yavaşlatabilirdi. Meclis başkanının hükûmete de liderlik etmesi, meclisin aldığı kararların anında uygulamaya konulmasını ve milli mücadelenin askeri/siyasi sevk-idaresinin tek bir merkezden, aksamadan yürütülmesini sağlamıştır.",
+            "difficulty": "medium",
+            "questionType": "kavramsal",
+            "topic": "Hükümet Sistemi",
+            "subTopic": "Meclis Hükümeti"
+        },
+        {
+            "id": 3,
+            "question": "I. Hıyanet-i Vataniye Kanunu'nun çıkarılması\nII. İstiklal Mahkemeleri'nin faaliyete geçmesi\nIII. Düzenli ordunun kurulması kararı\n\nYukarıdaki uygulamalardan hangileri I. TBMM'nin Anadolu'da 'otoritesini pekiştirmek' amacıyla attığı adımlardır?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Yalnız I"
+                },
+                {
+                    "key": "B",
+                    "text": "I ve II"
+                },
+                {
+                    "key": "C",
+                    "text": "II ve III"
+                },
+                {
+                    "key": "D",
+                    "text": "Yalnız III"
+                },
+                {
+                    "key": "E",
+                    "text": "I, II ve III"
+                }
+            ],
+            "correctAnswer": "E",
+            "explanation": "Meclis, açıldığı andan itibaren hem işgalcilerle hem de iç isyanlarla mücadele etmiştir. Vatana ihanet yasası (I) direnişin hukuki zırhını oluştururken; İstiklal Mahkemeleri (II) yargı gücünü kullanarak asayişi sağlamıştır. Düzenli ordu ise (III) meclisin emirlerini tanımayan odaklara karşı fiziksel yaptırım gücü oluşturmuştur. Her üç öncül de devlet otoritesinin tesisi için bütüncül bir stratejinin parçalarıdır.",
+            "difficulty": "medium",
+            "questionType": "öncüllü",
+            "topic": "Meclis Otoritesi",
+            "subTopic": "İç Gelişmeler"
+        },
+        {
+            "id": 4,
+            "question": "I. TBMM'nin açıldıktan hemen sonra çıkardığı ilk kanun aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Ağnam Vergisi'nin artırılmasına dair kanun"
+                },
+                {
+                    "key": "B",
+                    "text": "Teşkilat-ı Esasiye (Anayasa) kanunu"
+                },
+                {
+                    "key": "C",
+                    "text": "Hıyanet-i Vataniye (İhanet) kanunu"
+                },
+                {
+                    "key": "D",
+                    "text": "Firariler (Asker kaçakları) kanunu"
+                },
+                {
+                    "key": "E",
+                    "text": "Men-i İsrafat (Tüketim yasağı) kanunu"
+                }
+            ],
+            "correctAnswer": "A",
+            "explanation": "24 Nisan 1920'de kabul edilen ve hayvanlardan alınan bir vergi türü olan Ağnam Vergisi'nin miktarını artıran bu düzenleme, meclisin ilk yasama faaliyetidir. Savaşın finansmanını sağlamak ve boşalan devlet hazinesine acil nakit girdisi oluşturmak amacıyla öncelik ekonomik kaynakların denetimine verilmiştir. Bu durum meclisin gerçekçi ve çözüm odaklı başladığının kanıtıdır.",
+            "difficulty": "easy",
+            "questionType": "bilgi",
+            "topic": "Meclis Kanunları",
+            "subTopic": "Ekonomi"
+        },
+        {
+            "id": 5,
+            "question": "1921 yılında kabul edilen Teşkilat-ı Esasiye Kanunu'nda yer alan 'Egemenlik kayıtsız şartsız milletindir' maddesi, Milli Mücadele yönetimi açısından aşağıdaki hangi köklü değişimi resmileştirmiştir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Bütün dış borçların tek seferde ödenmesi planını"
+                },
+                {
+                    "key": "B",
+                    "text": "Eğitimin tamamen yabancı uzmanlarca idaresini"
+                },
+                {
+                    "key": "C",
+                    "text": "Yönetim meşruiyetinin hanedandan halka geçmesini"
+                },
+                {
+                    "key": "D",
+                    "text": "Sadece ordu yönetiminin bir kişiye devredilmesini"
+                },
+                {
+                    "key": "E",
+                    "text": "İstanbul Hükümeti ile her konuda tam uzlaşıyı"
+                }
+            ],
+            "correctAnswer": "C",
+            "explanation": "Geleneksel mutlakiyetçi sistemlerde egemenlik padişaha aitken, bu anayasal madde ile karar verme gücü bizzat halka devredilmiştir. Henüz cumhuriyet adı konulmasa da devletin temel yapısı halk iradesine dayalı hale getirilerek; saltanatın siyasi yetkileri anayasal olarak geçersiz kılınmıştır. Bu, Türk siyasi tarihindeki en büyük hukuk devrimidir.",
+            "difficulty": "medium",
+            "questionType": "yorum",
+            "topic": "1921 Anayasası",
+            "subTopic": "Egemenlik"
+        },
+        {
+            "id": 6,
+            "question": "I. TBMM'de vekillerin farklı meslek ve toplumsal tabakalardan gelmesi; aralarında çiftçi, din adamı, asker ve bürokratların bulunması meclisin hangi özelliğini doğrular?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Tamamen askeri bir yönetimle yönetildiğini"
+                },
+                {
+                    "key": "B",
+                    "text": "Sadece azınlık haklarını savunan bir yapı olduğunu"
+                },
+                {
+                    "key": "C",
+                    "text": "Dış yardımların paylaştırılması için kurulduğunu"
+                },
+                {
+                    "key": "D",
+                    "text": "Toplumun her kesimini temsil eden milli niteliğini"
+                },
+                {
+                    "key": "E",
+                    "text": "Hükümet üyelerinin sadece İstanbul'dan seçildiğini"
+                }
+            ],
+            "correctAnswer": "D",
+            "explanation": "I. TBMM, işgal altındaki bir milletin her rengini ve her sesini bünyesinde toplayan 'renkli' bir mozaik gibidir. Vekillerin homojen bir ideolojik gruptan değil, doğrudan halkın içinden gelmesi; meclisin toplumsal meşruiyetini artırmış ve bağımsızlık savaşının 'milletçe' verildiğinin en somut kanıtı olmuştur.",
+            "difficulty": "medium",
+            "questionType": "paragraf",
+            "topic": "TBMM'nin Yapısı",
+            "subTopic": "Sosyolojik Yapı"
+        },
+        {
+            "id": 7,
+            "question": "I. TBMM'nin yasama, yürütme ve yargı yetkilerini tek bir bünyede toplamasını ifade eden 'Güçler Birliği' ilkesinin temel gerekçesi nedir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Demokratik sistemleri tamamen reddetmek"
+                },
+                {
+                    "key": "B",
+                    "text": "Hızlı karar alarak savaşın seyrini yönetmek"
+                },
+                {
+                    "key": "C",
+                    "text": "Padişahın yetkilerini korumaya yardımcı olmak"
+                },
+                {
+                    "key": "D",
+                    "text": "Dış borçların ödenmesinde orduya güvenmek"
+                },
+                {
+                    "key": "E",
+                    "text": "Azınlıkların meclise girmesini bizzat engellemek"
+                }
+            ],
+            "correctAnswer": "B",
+            "explanation": "Normal demokratik şartlarda güçler ayrılığı esastır; ancak Milli Mücadele yılları olağanüstü koşullar içermekteydi. Karşı taarruzlara, iç isyanlara ve diplomatik manevralara saniyeler içinde cevap verebilmek için TBMM, tüm yetkiyi kendisinde toplamıştır. Bu 'zorunlu' antidemokratik uygulama, vatanın kurtarılması için hızı ve disiplini ön plana alan bir stratejidir.",
+            "difficulty": "medium",
+            "questionType": "analiz",
+            "topic": "TBMM Yetkileri",
+            "subTopic": "Güçler Birliği"
+        },
+        {
+            "id": 8,
+            "question": "Anadolu'da çıkan iç isyanlara karşı 29 Nisan 1920'de çıkarılan 'Hıyanet-i Vataniye Kanunu'nun halk üzerindeki en belirgin 'idari' etkisi aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Meclisin tek meşru güç olduğunu ve otoritesini hissettirmesi"
+                },
+                {
+                    "key": "B",
+                    "text": "Eğitimin sadece dini otoritelerce yapılmasına yol açması"
+                },
+                {
+                    "key": "C",
+                    "text": "Halkın tamamının silah bırakarak köylerine dönmesini sağlaması"
+                },
+                {
+                    "key": "D",
+                    "text": "Padişahın Halifelik yetkisinin dünyada tanınmasına katkısı"
+                },
+                {
+                    "key": "E",
+                    "text": "İstanbul Hükümeti'nin Anadolu'ya altın göndermesini tetiklemesi"
+                }
+            ],
+            "correctAnswer": "A",
+            "explanation": "Bu yasa, TBMM'ye karşı yapılan her türlü muhalefeti 'vatana ihanet' kapsamına alarak çok ağır yaptırımlar getirmiştir. Kanunun katı bir şekilde uygulanması, Anadolu'daki otorite boşluğunu doldurmuş ve Ankara'daki meclisin artık Anadolu'nun tek hakimi olduğunu, kurallara uymamanın bedelinin ağır olacağını halka göstermiştir.",
+            "difficulty": "medium",
+            "questionType": "yorum",
+            "topic": "Meclis Kanunları",
+            "subTopic": "Hıyanet-i Vataniye"
+        },
+        {
+            "id": 9,
+            "question": "Milli Mücadele'nin manevi liderliğini pekiştiren, İstanbul Şeyhülislamı'nın fetvasına karşı Anadolu alimlerinden 'Milli Mücadele vatan savunmasıdır' fetvasını alan Ankara Müftüsü kimdir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Said Nursi"
+                },
+                {
+                    "key": "B",
+                    "text": "Dürrizade Abdullah"
+                },
+                {
+                    "key": "C",
+                    "text": "Ahmet İzzet Paşa"
+                },
+                {
+                    "key": "D",
+                    "text": "Salih Paşa"
+                },
+                {
+                    "key": "E",
+                    "text": "Rıfat Börekçi"
+                }
+            ],
+            "correctAnswer": "E",
+            "explanation": "Rıfat Börekçi, Milli Mücadele aleyhindeki kara propagandalara karşı, 150'den fazla din adamının imzasıyla Ankara fetvasını yayımlamıştır. Bu karşı fetva, halkın dini duygularının suistimal edilmesini engellemiş ve bağımsızlık savaşının dinsel açıdan da meşru ve gerekli olduğunu kanıtlamıştır. Bu hamle halk desteğinin Ankara'da toplanmasında kilit rol oynamıştır.",
+            "difficulty": "easy",
+            "questionType": "bilgi",
+            "topic": "Meclis Otoritesi",
+            "subTopic": "Şahsiyetler"
+        },
+        {
+            "id": 10,
+            "question": "İstiklal Mahkemeleri üyelerinin 'meclis içindeki vekiller arasından' seçilmesi, I. TBMM'nin aşağıdaki hangi yetkiyi 'kendisinde topladığının' kesin kanıtıdır?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Ekonomik denetleme"
+                },
+                {
+                    "key": "B",
+                    "text": "Uluslararası diplomasi"
+                },
+                {
+                    "key": "C",
+                    "text": "Yargı gücü ve yetkisi"
+                },
+                {
+                    "key": "D",
+                    "text": "Sadece askeri eğitim"
+                },
+                {
+                    "key": "E",
+                    "text": "Enderun personel ataması"
+                }
+            ],
+            "correctAnswer": "C",
+            "explanation": "Normal bir demokraside yargıçlar bağımsızdır. Ancak I. TBMM, yasama organı (meclis) olmasına rağmen, kendi üyelerini hakim olarak mahkemelere göndererek yargı yetkisini de fiilen kullanmıştır. Bu durum 'Kuvvetler Birliği' ilkesinin yargı ayağındaki en somut uygulamasıdır ve adaletin meclis eliyle, hızlı bir şekilde tecelli etmesini sağlamıştır.",
+            "difficulty": "easy",
+            "questionType": "bilgi",
+            "topic": "TBMM Özellikleri",
+            "subTopic": "Yargı"
+        },
+        {
+            "id": 11,
+            "question": "İstanbul Hükümeti ile Temsil Heyeti (Ankara) arasındaki gerginliğin bir dönem azaldığı ve tarafların 'ilk kez' resmi bir görüşme yaparak birbirini tanıdığı olay hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Samsun Raporu'nun kabulü"
+                },
+                {
+                    "key": "B",
+                    "text": "Amasya Görüşmeleri (Protokolü)"
+                },
+                {
+                    "key": "C",
+                    "text": "Havza Genelgesi'nin onayı"
+                },
+                {
+                    "key": "D",
+                    "text": "Londra Konferansı Kararı"
+                },
+                {
+                    "key": "E",
+                    "text": "Misak-ı Milli'nin ilanı"
+                }
+            ],
+            "correctAnswer": "B",
+            "explanation": "Ekim 1919'da gerçekleşen Amasya Görüşmeleri, İstanbul Hükümeti'nin Anadolu hareketini meşru bir taraf olarak kabul ettiği tarihi bir andır. Her ne kadar bu süreç meclisin açılışından önce olsa da, I. TBMM'ye giden yolun hukuki zeminini ve meşruiyetini hazırlayan en temel diplomatik buluşma niteliği taşır. Bu olayla Anadolu hareketi 'isyancı' statüsünden 'meşru muhatap' statüsüne yükselmiştir.",
+            "difficulty": "medium",
+            "questionType": "bilgi",
+            "topic": "Hazırlık/Geçiş Süreci",
+            "subTopic": "Diplomasi"
+        },
+        {
+            "id": 12,
+            "question": "I. TBMM'nin iç tüzük niteliğinde çıkardığı ve meclisin toplantı-karar yeter sayılarını belirleyen kanun aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Hıyanet-i Vataniye"
+                },
+                {
+                    "key": "B",
+                    "text": "Men-i İsrafat Kanunu"
+                },
+                {
+                    "key": "C",
+                    "text": "Firariler Kanunu"
+                },
+                {
+                    "key": "D",
+                    "text": "Nisab-ı Müzakere Kanunu"
+                },
+                {
+                    "key": "E",
+                    "text": "Teşkilat-ı Esasiye Kanunu"
+                }
+            ],
+            "correctAnswer": "D",
+            "explanation": "Meclisin kaos ortamında dahi hukuki bir disiplinle çalışabilmesi için 1920 yılında bu kanun çıkarılmıştır. Kanunla; meclis görüşmelerinin nasıl yapılacağı, kararların kaç üye ile alınacağı ve meclisin meşruiyeti için gereken asgari vekil sayısı belirlenmiştir. Bu, parlamenter geleneğin savaş şartlarında bile korunduğunun hukuki bir belgesidir.",
+            "difficulty": "hard",
+            "questionType": "bilgi",
+            "topic": "Meclis Kanunları",
+            "subTopic": "İç Tüzük"
+        },
+        {
+            "id": 13,
+            "question": "Aşağıdakilerden hangisi I. TBMM'nin 'Kurucu Meclis' özelliğine sahip olduğunun en temel ve tartışmasız kanıtıdır?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Yeni bir devletin anayasasını (1921) yapması"
+                },
+                {
+                    "key": "B",
+                    "text": "Azınlıkların tamamını meclis dışı tutması"
+                },
+                {
+                    "key": "C",
+                    "text": "İstanbul'un işgalini protesto etme kararı"
+                },
+                {
+                    "key": "D",
+                    "text": "Dış borçların ödenmesinde tek yetkili olması"
+                },
+                {
+                    "key": "E",
+                    "text": "Bütün isyanları sadece askeri yolla bastırması"
+                }
+            ],
+            "correctAnswer": "A",
+            "explanation": "Siyaset biliminde bir meclisin 'kurucu' sayılması, yeni bir siyasi düzen inşa etmesi ve bu düzenin temel yasasını (anayasasını) hazırlamasıyla ölçülür. I. TBMM, savaşın en şiddetli anında dahi 1921 Teşkilat-ı Esasiye'yi kabul ederek, Türk Devleti'nin hukuki iskeletini oluşturmuş ve egemenliğin artık millete ait olduğunu anayasal bir hüküm haline getirmiştir.",
+            "difficulty": "medium",
+            "questionType": "kavramsal",
+            "topic": "TBMM Özellikleri",
+            "subTopic": "Kurucu Meclis"
+        },
+        {
+            "id": 14,
+            "question": "I. TBMM döneminde çıkarılan 'Men-i İsrafat Kanunu' (İsrafın önlenmesi), milli mücadelenin aşağıdaki hangi 'kaynağını' korumaya ve verimli kullanmaya yöneliktir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Sadece saraydan gelen altın yardımlarını"
+                },
+                {
+                    "key": "B",
+                    "text": "Enderun personeline ödenen maaşları"
+                },
+                {
+                    "key": "C",
+                    "text": "Dış ticarette kullanılan gümüş rezervini"
+                },
+                {
+                    "key": "D",
+                    "text": "Azınlık okullarının devlete kalan bütçesini"
+                },
+                {
+                    "key": "E",
+                    "text": "Halkın kısıtlı olan ekonomik ve sosyal imkanlarını"
+                }
+            ],
+            "correctAnswer": "E",
+            "explanation": "Savaş dönemi ekonomisi, her türlü kaynağın en verimli şekilde kullanılmasını zorunlu kılar. Meclis bu kanunla; düğünlerden lüks tüketime kadar birçok alanda israfı yasaklayarak, milletin elindeki sınırlı kaynağın şahsi harcamalar yerine vatanın kurtuluşu için (orduya destek vb.) seferber edilmesini amaçlamıştır. Bu, toplumsal bir dayanışma ve ekonomi yönetimi hamlesidir.",
+            "difficulty": "medium",
+            "questionType": "paragraf",
+            "topic": "Meclis Kanunları",
+            "subTopic": "İktisat"
+        },
+        {
+            "id": 15,
+            "question": "I. TBMM bünyesinde siyasi partilerin kurulmaması ancak; Tesanüd, Halk Zümresi, Yeşil Ordu ve Müdafaa-i Hukuk gibi 'grupların' oluşması neyin bir göstergesidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Hükümetin tamamen ordu içine hapsolduğunun"
+                },
+                {
+                    "key": "B",
+                    "text": "Meclis binasının yetersizliği nedeniyle bölünme olduğunun"
+                },
+                {
+                    "key": "C",
+                    "text": "Farklı fikirlerin ve demokratik çeşitliliğin varlığının"
+                },
+                {
+                    "key": "D",
+                    "text": "Bütün vekillerin saraya sadakatle bağlı kaldığının"
+                },
+                {
+                    "key": "E",
+                    "text": "Dış borçların ödenmesinde fikir ayrılığı yaşanmadığının"
+                }
+            ],
+            "correctAnswer": "C",
+            "explanation": "Kurtuluş Savaşı meclisi, tek tip bir düşünceden değil; farklı dünya görüşlerine sahip (islamcı, solcu, milliyetçi, muhafazakar) vekillerden oluşuyordu. Milli birliği bozmamak için 'parti' adı altında ayrışılmamış olsa da, bu 'gruplar' aracılığıyla demokratik tartışmalar yapılmış ve meclis çok sesli karakterini korumuştur. Bu durum, meclisin demokratik niteliğini savaş şartlarında dahi kaybetmediğini kanıtlar.",
+            "difficulty": "medium",
+            "questionType": "kavramsal",
+            "topic": "TBMM'nin Yapısı",
+            "subTopic": "Gruplar"
+        },
+        {
+            "id": 16,
+            "question": "I. TBMM döneminde çıkarılan ve ordudan kaçışları önleyerek disiplini sağlamayı hedefleyen kanun aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Ağnam Vergisi Kanunu"
+                },
+                {
+                    "key": "B",
+                    "text": "Nisab-ı Müzakere Kanunu"
+                },
+                {
+                    "key": "C",
+                    "text": "Hiyanet-i Vataniye Kanunu"
+                },
+                {
+                    "key": "D",
+                    "text": "Firariler Kanunu"
+                },
+                {
+                    "key": "E",
+                    "text": "Men-i Müskirat Kanunu"
+                }
+            ],
+            "correctAnswer": "D",
+            "explanation": "Düzenli ordunun kurulma aşamasında ve savaşın yoğunlaştığı dönemlerde asker kaçakları büyük bir sorun teşkil ediyordu. Meclis, ordunun insan gücünü korumak ve otoritesini cephede de tesis etmek için bu yasayı çıkarmıştır. İstiklal Mahkemeleri bu kanun uyarınca yargılamalar yaparak ordunun dağılmasını engellemiş ve milli direnişin askeri disiplinini kurtarmıştır.",
+            "difficulty": "easy",
+            "questionType": "bilgi",
+            "topic": "Meclis Kanunları",
+            "subTopic": "Askerlik"
+        },
+        {
+            "id": 17,
+            "question": "I. TBMM'nin meclis başkanını aynı zamanda 'Hükümet Başkanı' olarak yetkilendirmesi, modern yönetim şemaları açısından aşağıdakilerden hangisini 'ortadan kaldırmıştır'?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Halkın seçimlere katılma hakkını"
+                },
+                {
+                    "key": "B",
+                    "text": "Yasama ve yürütme organlarının kesin ayrılığını"
+                },
+                {
+                    "key": "C",
+                    "text": "Dış politikada orduya verilen denetim yetkisini"
+                },
+                {
+                    "key": "D",
+                    "text": "Eyaletlerdeki yerel idarelerin özerklik hürriyetini"
+                },
+                {
+                    "key": "E",
+                    "text": "Azınlıkların kendi dillerinde eğitim alma serbestisini"
+                }
+            ],
+            "correctAnswer": "B",
+            "explanation": "Olağan şartlarda meclis yasa yapar, hükümet ise bu yasaları uygular. Ancak I. TBMM'de meclis başkanı hükümete de başkanlık ederek bu iki gücü (yasama ve yürütme) kendi şahsında ve meclisin bünyesinde birleştirmiştir. Bu durum 'kuvvetler ayrılığı' ilkesinin bir kenara bırakıldığını ve meclisin devletin tek hakimi haline geldiğini gösteren tipik bir 'meclis hükümeti sistemi' özelliğidir.",
+            "difficulty": "medium",
+            "questionType": "analiz",
+            "topic": "Hükümet Sistemi",
+            "subTopic": "İdari Yapı"
+        },
+        {
+            "id": 18,
+            "question": "Meclis'in açılmasından sonra patlak veren 'Kuva-yi İnzibatiye' isyanının diğer isyanlardan temel farkı aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Yabancı devletlerden hiçbir destek almaması"
+                },
+                {
+                    "key": "B",
+                    "text": "Sadece ekonomik nedenlerle halkın başlatması"
+                },
+                {
+                    "key": "C",
+                    "text": "Ermeni çeteleriyle ortak bir ordu kurması"
+                },
+                {
+                    "key": "D",
+                    "text": "Meclis içindeki vekillerin bizzat yönetmesi"
+                },
+                {
+                    "key": "E",
+                    "text": "Doğrudan İstanbul Hükümeti tarafından kurulması"
+                }
+            ],
+            "correctAnswer": "E",
+            "explanation": "Hilafet Ordusu olarak da bilinen bu yapı, doğrudan Damat Ferit Paşa hükümeti tarafından TBMM'yi yok etmek ve milli mücadeleyi Boğazlar çevresinde boğmak için kurulmuş 'resmi' destekli bir isyandır. Diğer isyanlar genellikle yerel aşiretler veya azınlıklarca çıkarılırken; Kuva-yi İnzibatiye, İstanbul'un Ankara'ya karşı kurduğu rakip bir ordu niteliği taşıması bakımından farklılık gösterir.",
+            "difficulty": "medium",
+            "questionType": "bilgi",
+            "topic": "İç İsyanlar",
+            "subTopic": "İstanbul Desteği"
+        },
+        {
+            "id": 19,
+            "question": "Aşağıdakilerden hangisi I. TBMM'nin 'Milli Meclis' niteliği taşıdığının bir göstergesi olarak kabul edilebilir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "İçinde azınlık temsilcilerine (milletvekili) yer verilmemesi"
+                },
+                {
+                    "key": "B",
+                    "text": "Dış ticaretin sadece gümüş para ile yapılması şartı"
+                },
+                {
+                    "key": "C",
+                    "text": "Padişahın Halifelik unvanının korunmasına dair onayı"
+                },
+                {
+                    "key": "D",
+                    "text": "Meclis binasının sadece yabancı sermaye ile yapılması"
+                },
+                {
+                    "key": "E",
+                    "text": "Bütün dış borçların bir günde ödeneceği garantisi"
+                }
+            ],
+            "correctAnswer": "A",
+            "explanation": "Son Osmanlı Mebusan Meclisi'nde azınlık vekilleri bulunurken; Ankara'da açılan I. TBMM sadece vatanın bağımsızlığına inanmış Türk ve Müslüman unsurlardan oluşmuştur. Bu yapı, meclisin 'milli' bir kimlik taşıdığını ve bağımsızlık hedefinde yabancı etkilerden tamamen uzak, homojen bir vatanseverlik zemininde hareket ettiğini ispatlayan en somut veridir.",
+            "difficulty": "medium",
+            "questionType": "kavramsal",
+            "topic": "TBMM Özellikleri",
+            "subTopic": "Milli Nitelik"
+        },
+        {
+            "id": 20,
+            "question": "TBMM'nin açılış günlerinde Mustafa Kemal Paşa tarafından sunulan önergede yer alan; 'Meclis'te toplanan milli iradeyi vatanın kaderine hakim kılmak esastır' maddesi neyi simgeler?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Ekonomik kararların sadece tüccarların tekelinde kalacağını"
+                },
+                {
+                    "key": "B",
+                    "text": "Azınlık okullarının bütçesinin sadece müttefiklerce karşılanacağını"
+                },
+                {
+                    "key": "C",
+                    "text": "Padişahın üzerinde bir halk iradesinin varlığının resmen kabulünü"
+                },
+                {
+                    "key": "D",
+                    "text": "İstanbul'un güvenliğinin sadece Fransızlara emanet edileceği sözünü"
+                },
+                {
+                    "key": "E",
+                    "text": "Donanmanın okyanuslarda kontrolü bir günde sağlayacağı vaadini"
+                }
+            ],
+            "correctAnswer": "C",
+            "explanation": "Bu madde, siyasi meşruiyetin artık saraydan veya kişiden değil, bizzat halkın seçtiği meclisten (milli iradeden) geldiğini ilan eder. Saltanatın mutlak gücüne karşı bir meydan okumadır. Bu kararla birlikte, Milli Mücadele'nin en üst karar organının TBMM olduğu ve meclisin üzerinde hiçbir gücün (padişah dahil) kabul edilmeyeceği dünyaya resmen duyurulmuştur.",
+            "difficulty": "medium",
+            "questionType": "analiz",
+            "topic": "TBMM'nin Açılışı",
+            "subTopic": "Milli İrade"
+        },
+        {
+            "id": 21,
+            "question": "I. TBMM döneminde gerçekleşen iç isyanların, Kurtuluş Savaşı'nın 'genel gidişatı' üzerindeki en yıkıcı etkisi aşağıdakilerden hangisidir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Enderun mektebinin tüm personelinin isyana katılması"
+                },
+                {
+                    "key": "B",
+                    "text": "Yunan ilerleyişinin durdurulmasını geciktirerek zaman kaybettirmesi"
+                },
+                {
+                    "key": "C",
+                    "text": "Azınlıkların kendi dillerinde radyo kanalı kurmasına yol açması"
+                },
+                {
+                    "key": "D",
+                    "text": "Hazine gelirlerinin sadece isyancı aşiretlere bir günde dağıtılması"
+                },
+                {
+                    "key": "E",
+                    "text": "Padişahın Halifelik makamından meclis lehine feragat etmesi"
+                }
+            ],
+            "correctAnswer": "B",
+            "explanation": "İç isyanlar, TBMM'nin sınırlı olan askeri gücünü dış düşman (Yunanistan) yerine iç asayişe harcamasına neden olmuştur. Cepheye gönderilmesi gereken birliklerin Anadolu içlerine kaydırılması, askeri harekatların aksamasına, düşmanın Anadolu'da daha rahat yayılmasına ve Kurtuluş Savaşı'nın süresinin uzamasına yol açan en acı tecrübedir.",
+            "difficulty": "medium",
+            "questionType": "paragraf",
+            "topic": "İç İsyanlar",
+            "subTopic": "Sonuçlar"
+        },
+        {
+            "id": 22,
+            "question": "I. TBMM döneminde çıkarılan ve içki-tütün gibi maddelerin üretim/tüketimini yasaklayan 'Men-i Müskirat Kanunu', meclisin hangi 'toplumsal karakterini' yansıtmaktadır?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Sadece ordu disiplinini dış dünyadan gizleme çabasını"
+                },
+                {
+                    "key": "B",
+                    "text": "Azınlıkların kendi dillerinde yayın yapmasını önleme planını"
+                },
+                {
+                    "key": "C",
+                    "text": "Dış borçların ödenmesinde İngiliz elçilerine güvence vermesini"
+                },
+                {
+                    "key": "D",
+                    "text": "Enderun personelinin kılık kıyafetini bir günde değiştirme yasasını"
+                },
+                {
+                    "key": "E",
+                    "text": "Halkın manevi değerlerine ve muhafazakar yapısına uygun hareket etmeyi"
+                }
+            ],
+            "correctAnswer": "E",
+            "explanation": "Meclis, savaş yıllarında hem ekonomik kaynakları israftan korumak hem de dini/toplumsal hassasiyetleri gözeterek halkın desteğini arkasına almak istemiştir. Men-i Müskirat Kanunu, meclis içindeki muhafazakar grubun etkisini ve savaş şartlarında toplumu disiplin altında tutma çabasını yansıtır. Bu düzenleme aynı zamanda milli mücadeleyi 'dini ve ahlaki' bir temele oturtma stratejisinin parçasıdır.",
+            "difficulty": "hard",
+            "questionType": "analiz-yorum",
+            "topic": "Meclis Kanunları",
+            "subTopic": "Toplumsal Yapı"
+        },
+        {
+            "id": 23,
+            "question": "I. TBMM'nin 'Savaş Meclisi' olarak tanımlanmasında aşağıdaki hangi özelliği diğerlerinden 'daha belirleyicidir'?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Üyelerinin tamamının halk tarafından seçimle gelmiş olması"
+                },
+                {
+                    "key": "B",
+                    "text": "Eğitim müfredatını sadece askeri okul derslerine göre yapması"
+                },
+                {
+                    "key": "C",
+                    "text": "Dış ticaretin sadece gümüş para ile yapılması kuralı onayı"
+                },
+                {
+                    "key": "D",
+                    "text": "Yasama, yürütme ve yargı yetkilerini tek bir bünyede birleştirmesi"
+                },
+                {
+                    "key": "E",
+                    "text": "Azınlıkların kendi bölgelerinde okul açmasına izin vermeme kararı"
+                }
+            ],
+            "correctAnswer": "D",
+            "explanation": "Savaş zamanları, bürokratik engellerin aşıldığı ve kararların saniyeler içinde alındığı 'olağanüstü' dönemlerdir. TBMM, tüm devlet güçlerini kendisinde toplayarak (Güçler Birliği), cepheden gelen acil ihtiyaçlara veya iç isyanlara karşı meclis eliyle anlık müdahaleler yapabilmiştir. Bu durum, meclisin önceliğinin vatan savunması olduğunu gösteren en tipik askeri ve siyasi özelliktir.",
+            "difficulty": "medium",
+            "questionType": "analiz",
+            "topic": "TBMM Özellikleri",
+            "subTopic": "Savaş Meclisi"
+        },
+        {
+            "id": 24,
+            "question": "Sivas Kongresi'nde Temsil Heyeti'nin Ali Fuat Paşa'yı Batı Cephesi komutanlığına ataması, Anadolu hareketinin aşağıdaki hangi gücü 'bir hükümet gibi' kullandığını gösterir?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Yürütme"
+                },
+                {
+                    "key": "B",
+                    "text": "Yasama"
+                },
+                {
+                    "key": "C",
+                    "text": "Yargı"
+                },
+                {
+                    "key": "D",
+                    "text": "Denetleme"
+                },
+                {
+                    "key": "E",
+                    "text": "Diplomasi"
+                }
+            ],
+            "correctAnswer": "A",
+            "explanation": "Yürütme yetkisi, bir personeli göreve getirme veya idari bir tasarrufta bulunma gücüdür. Temsil Heyeti henüz meclis açılmadan bu yetkiyi kullanarak fiilen bir 'geçici hükümet' gibi davranmış ve Anadolu üzerindeki idari otoritesini tescillemiştir. Bu olay, meclis açıldığında uygulanacak olan 'yürütme disiplini' için de bir ön hazırlık niteliği taşımaktadır.",
+            "difficulty": "easy",
+            "questionType": "bilgi",
+            "topic": "Hazırlık Süreci",
+            "subTopic": "Atamalar"
+        },
+        {
+            "id": 25,
+            "question": "Aşağıdakilerden hangisi I. TBMM ile II. TBMM arasındaki 'en temel' kurumsal farktır?",
+            "options": [
+                {
+                    "key": "A",
+                    "text": "Birincisinin sadece dinsel kararlar alıp ikincisinin reddetmesi"
+                },
+                {
+                    "key": "B",
+                    "text": "İkincisinin Ankara'yı başkent ilan edip birincisinin karşı çıkması"
+                },
+                {
+                    "key": "C",
+                    "text": "Birincisinin 'Savaş', ikincisinin ise 'İnkılap' meclisi olması"
+                },
+                {
+                    "key": "D",
+                    "text": "Birincisinin azınlıkları meclise alıp ikincisinin bizzat kovması"
+                },
+                {
+                    "key": "E",
+                    "text": "İkincisinin dış borçları bir günde ödeyip birincisinin borçlanması"
+                }
+            ],
+            "correctAnswer": "C",
+            "explanation": "I. TBMM (1920-1923), vatanın bağımsızlığını kurtarmak ve düşmanı kovmak amacıyla birleşmiş bir 'savaş ve kurtuluş' meclisidir. II. TBMM (1923-1927) ise bağımsızlık kazanıldıktan sonra yeni Türk Devleti'nin modernleşme adımlarını (inkılapları) atan, Lozan'ı onaylayan ve rejimi kurumsallaştıran 'reform/inkılap' meclisidir. Bu görev dağılımı tarihsel süreçler açısından temel bir ayrım noktasıdır.",
+            "difficulty": "medium",
+            "questionType": "kavramsal",
+            "topic": "Meclis Karşılaştırması",
+            "subTopic": "Dönem Farkı"
+        }
+    ]
+}

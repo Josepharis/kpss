@@ -93,12 +93,11 @@ class _MyProgramPageState extends State<MyProgramPage> {
       case 'test':
         return const [AppColors.gradientBlueStart, AppColors.gradientBlueEnd];
       case 'video':
-        return const [AppColors.gradientRedStart, AppColors.gradientRedEnd];
+        return const [Color(0xFFF44336), Color(0xFFD32F2F)];
       case 'podcast':
-        return const [
-          AppColors.gradientPurpleStart,
-          AppColors.gradientPurpleEnd,
-        ];
+        return const [Color(0xFF8E24AA), Color(0xFF5E35B1)];
+      case 'kart':
+        return const [Color(0xFFFF9800), Color(0xFFF57C00)];
       case 'tekrar':
         return const [AppColors.gradientGreenStart, AppColors.gradientGreenEnd];
       case 'konu':
@@ -1578,142 +1577,149 @@ class _MyProgramPageState extends State<MyProgramPage> {
         onTap: _editMode
             ? () => _showTaskEditor(weekday: weekday, existing: task)
             : null,
-        onLongPress: () {
-          HapticFeedback.heavyImpact();
-          showModalBottomSheet(
-            context: context,
-            backgroundColor: Colors.transparent,
-            barrierColor: Colors.black26,
-            isScrollControlled: true,
-            builder: (context) => Container(
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF0F172A).withOpacity(0.9)
-                    : Colors.white.withOpacity(0.9),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(36),
-                ),
-                border: Border.all(
-                  color: (isDark ? Colors.white : Colors.black).withOpacity(
-                    0.1,
-                  ),
-                  width: 1,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(36),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 30,
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: (isDark ? Colors.white : Colors.black)
-                                .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(2),
+        onLongPress: _editMode
+            ? null
+            : () {
+                HapticFeedback.heavyImpact();
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  barrierColor: Colors.black26,
+                  isScrollControlled: true,
+                  builder: (context) => Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF0F172A).withOpacity(0.9)
+                          : Colors.white.withOpacity(0.9),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(36),
+                      ),
+                      border: Border.all(
+                        color: (isDark ? Colors.white : Colors.black)
+                            .withOpacity(0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(36),
+                      ),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 4,
+                                margin: const EdgeInsets.only(bottom: 20),
+                                decoration: BoxDecoration(
+                                  color: (isDark ? Colors.white : Colors.black)
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(colors: grad),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: grad[0].withOpacity(0.2),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      kindIcon(task.kind),
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          primary,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w900,
+                                            color: isDark
+                                                ? Colors.white
+                                                : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          "Görev İşlemleri",
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                (isDark
+                                                        ? Colors.white
+                                                        : AppColors
+                                                              .textSecondary)
+                                                    .withOpacity(0.5),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              _buildModernActionCard(
+                                icon: task.isCompleted
+                                    ? Icons.undo_rounded
+                                    : Icons.check_circle_rounded,
+                                title: task.isCompleted ? "Geri Al" : "Tamamla",
+                                desc: task.isCompleted
+                                    ? "Görevi yapılacaklara geri taşı"
+                                    : "Çalışmanı başarıyla bitirdiğini işaretle",
+                                color: task.isCompleted
+                                    ? Colors.amber
+                                    : Colors.green,
+                                isDark: isDark,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _toggleTaskCompletion(weekday, task);
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              _buildModernActionCard(
+                                icon: Icons.delete_forever_rounded,
+                                title: "Görevi Kaldır",
+                                desc: "Bu dersi programdan kalıcı olarak siler",
+                                color: Colors.red,
+                                isDark: isDark,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _deleteTask(weekday, task);
+                                },
+                              ),
+                              SizedBox(
+                                height: MediaQuery.of(context).padding.bottom,
+                              ),
+                            ],
                           ),
                         ),
-                        Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: grad),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: grad[0].withOpacity(0.2),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                kindIcon(task.kind),
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    primary,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      color: isDark
-                                          ? Colors.white
-                                          : AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Görev İşlemleri",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color:
-                                          (isDark
-                                                  ? Colors.white
-                                                  : AppColors.textSecondary)
-                                              .withOpacity(0.5),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _buildModernActionCard(
-                          icon: task.isCompleted
-                              ? Icons.undo_rounded
-                              : Icons.check_circle_rounded,
-                          title: task.isCompleted ? "Geri Al" : "Tamamla",
-                          desc: task.isCompleted
-                              ? "Görevi yapılacaklara geri taşı"
-                              : "Çalışmanı başarıyla bitirdiğini işaretle",
-                          color: task.isCompleted ? Colors.amber : Colors.green,
-                          isDark: isDark,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _toggleTaskCompletion(weekday, task);
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        _buildModernActionCard(
-                          icon: Icons.delete_forever_rounded,
-                          title: "Görevi Kaldır",
-                          desc: "Bu dersi programdan kalıcı olarak siler",
-                          color: Colors.red,
-                          isDark: isDark,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _deleteTask(weekday, task);
-                          },
-                        ),
-                        SizedBox(height: MediaQuery.of(context).padding.bottom),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          );
-        },
+                );
+              },
         splashColor: c.withValues(alpha: isDark ? 0.18 : 0.10),
         highlightColor: c.withValues(alpha: isDark ? 0.10 : 0.06),
         child: Opacity(
@@ -2007,9 +2013,11 @@ class _MyProgramPageState extends State<MyProgramPage> {
       case 'test':
         return AppColors.primaryBlue;
       case 'video':
-        return const Color(0xFFE74C3C);
+        return const Color(0xFFF44336);
       case 'podcast':
-        return AppColors.gradientPurpleStart;
+        return const Color(0xFF8E24AA);
+      case 'kart':
+        return const Color(0xFFFF9800);
       case 'tekrar':
         return AppColors.gradientGreenStart;
       case 'konu':
@@ -2040,6 +2048,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     'tekrar',
     'video',
     'podcast',
+    'kart',
     'diğer',
   ];
 
@@ -2078,6 +2087,8 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         return Icons.play_circle_filled_rounded;
       case 'podcast':
         return Icons.podcasts_rounded;
+      case 'kart':
+        return Icons.style_rounded;
       case 'tekrar':
         return Icons.restart_alt_rounded;
       case 'konu':
@@ -2097,6 +2108,8 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         return 'Video izle';
       case 'podcast':
         return 'Podcast dinle';
+      case 'kart':
+        return 'Bilgi kartı bak';
       case 'konu':
         return 'Konu çalış';
       default:
@@ -2125,345 +2138,541 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     );
   }
 
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    bool isDark = false,
+    int? minLines,
+    int? maxLines,
+    TextInputAction? textInputAction,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: (isDark ? Colors.white70 : AppColors.textSecondary)
+                  .withValues(alpha: 0.8),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.05),
+              width: 1,
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            minLines: minLines,
+            maxLines: maxLines ?? 1,
+            textInputAction: textInputAction,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                fontSize: 14,
+                color: (isDark ? Colors.white38 : AppColors.textLight),
+              ),
+              prefixIcon: Icon(
+                icon,
+                size: 20,
+                color: isDark ? Colors.white38 : AppColors.textSecondary,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF121212) : Colors.white;
+    final bg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final e = widget.existing;
     final headerGrad = widget.gradientForKind(_selectedKind);
+    final accentColor = widget.colorForKind(_selectedKind);
 
-    return SafeArea(
-      top: false,
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.72,
-        minChildSize: 0.5,
-        maxChildSize: 0.92,
-        builder: (context, controller) => Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(32),
+            topRight: Radius.circular(32),
           ),
-          child: ListView(
-            controller: controller,
-            padding: EdgeInsets.fromLTRB(
-              16,
-              10,
-              16,
-              16 + MediaQuery.of(context).viewInsets.bottom,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 14),
-
-              // Colorful header (changes with selected kind)
-              Container(
-                padding: const EdgeInsets.fromLTRB(14, 14, 10, 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      headerGrad[0].withValues(alpha: isDark ? 0.70 : 0.95),
-                      headerGrad[1].withValues(alpha: isDark ? 0.55 : 0.88),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  0,
+                  20,
+                  28 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                children: [
+                  // Modern Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: headerGrad,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.add_task_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e == null ? 'Yeni Görev Ekle' : 'Görevi Düzenle',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: isDark
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            Text(
+                              'Programına özel çalışma ekle',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? Colors.white38
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Material(
+                        color: isDark
+                            ? Colors.white10
+                            : Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        child: IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.textPrimary,
+                          ),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.edit_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        e == null ? 'Manuel görev ekle' : 'Görevi düzenle',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  const SizedBox(height: 24),
 
-              const SizedBox(height: 12),
-              // Live preview card
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF171A1F)
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.grey.withValues(alpha: isDark ? 0.14 : 0.16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: headerGrad),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        _kindIcon(_selectedKind),
-                        color: Colors.white,
+                  // Live Preview Card (Glassmorphism look)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? accentColor.withOpacity(0.1)
+                          : accentColor.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: accentColor.withOpacity(isDark ? 0.2 : 0.1),
+                        width: 1.5,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (_lessonController.text.trim().isEmpty &&
-                                    _topicController.text.trim().isEmpty)
-                                ? 'Ders – Konu'
-                                : [
-                                    _lessonController.text.trim(),
-                                    _topicController.text.trim(),
-                                  ].where((e) => e.isNotEmpty).join(' – '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: headerGrad),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accentColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _kindIcon(_selectedKind),
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (_lessonController.text.trim().isEmpty &&
+                                        _topicController.text.trim().isEmpty)
+                                    ? 'Ders – Konu'
+                                    : [
+                                        _lessonController.text.trim(),
+                                        _topicController.text.trim(),
+                                      ].where((e) => e.isNotEmpty).join(' – '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _taskController.text.trim().isEmpty
+                                    ? 'Görev detayları buraya gelecek'
+                                    : _taskController.text.trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(isDark ? 0.1 : 0.8),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              if (!isDark)
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                ),
+                            ],
+                          ),
+                          child: Text(
+                            _selectedKind.toUpperCase(),
                             style: TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 10,
                               fontWeight: FontWeight.w900,
-                              color: isDark
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
+                              color: accentColor,
+                              letterSpacing: 0.5,
                             ),
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            _taskController.text.trim().isEmpty
-                                ? 'Görev'
-                                : _taskController.text.trim(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? Colors.white60
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // Kind Selection Label
+                  Text(
+                    'Çalışma Türü',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white70 : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Modern Kind Selector (Dropdown)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white10
+                            : Colors.black.withOpacity(0.05),
+                        width: 1,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: headerGrad[0].withValues(
-                          alpha: isDark ? 0.20 : 0.12,
-                        ),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: headerGrad[0].withValues(
-                            alpha: isDark ? 0.25 : 0.20,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        _selectedKind,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedKind,
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
                           color: isDark
-                              ? Colors.white70
-                              : AppColors.textPrimary,
+                              ? Colors.white38
+                              : AppColors.textSecondary,
                         ),
+                        dropdownColor: isDark
+                            ? const Color(0xFF0F172A)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedKind = val);
+                        },
+                        items: _kindOptions.map((k) {
+                          final label = k == 'kart'
+                              ? 'Bilgi Kartı'
+                              : k[0].toUpperCase() + k.substring(1);
+                          final color = widget.colorForKind(k);
+                          return DropdownMenuItem<String>(
+                            value: k,
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    _kindIcon(k),
+                                    size: 16,
+                                    color: color,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 14),
-              Text(
-                'Tür',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white70 : AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _kindOptions.map((k) {
-                  final active = _selectedKind == k;
-                  final c = widget.colorForKind(k);
-                  return ChoiceChip(
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                    selected: active,
-                    showCheckmark: false,
-                    avatar: Icon(
-                      _kindIcon(k),
-                      size: 16,
-                      color: active ? Colors.white : c.withValues(alpha: 0.95),
-                    ),
-                    label: Text(
-                      k,
+                  const SizedBox(height: 28),
+
+                  // Form Fields
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _lessonController,
+                          label: 'Ders',
+                          hint: 'Örn: Tarih',
+                          icon: Icons.book_rounded,
+                          isDark: isDark,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _topicController,
+                          label: 'Konu',
+                          hint: 'Örn: Osmanlı',
+                          icon: Icons.topic_rounded,
+                          isDark: isDark,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: _taskController,
+                    label: 'Görev',
+                    hint: 'Örn: Konu çalışması ve test',
+                    icon: Icons.checklist_rounded,
+                    isDark: isDark,
+                    textInputAction: TextInputAction.done,
+                    minLines: 1,
+                    maxLines: 2,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      if (e != null) ...[
+                        Material(
+                          color: Colors.red.withValues(
+                            alpha: isDark ? 0.15 : 0.08,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => Navigator.pop(
+                              context,
+                              const _TaskEditorResult.delete(),
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              child: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: Container(
+                          height: 54,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: headerGrad,
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accentColor.withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => Navigator.pop(
+                                context,
+                                _TaskEditorResult.save(_buildTask()),
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      e == null
+                                          ? Icons.add_rounded
+                                          : Icons.check_rounded,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      e == null
+                                          ? 'Programa Ekle'
+                                          : 'Değişiklikleri Kaydet',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'Programın her an güncellenebilir 🚀',
                       style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: active
-                            ? Colors.white
-                            : (isDark ? Colors.white70 : AppColors.textPrimary),
-                      ),
-                    ),
-                    selectedColor: c.withValues(alpha: 0.95),
-                    backgroundColor: isDark
-                        ? const Color(0xFF1A1A1A)
-                        : const Color(0xFFF8FAFC),
-                    side: BorderSide(
-                      color: c.withValues(alpha: active ? 0.0 : 0.28),
-                    ),
-                    onSelected: (_) => setState(() => _selectedKind = k),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _lessonController,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: 'Ders',
-                        hintText: 'Örn: Vatandaşlık',
-                        prefixIcon: const Icon(Icons.book_rounded),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white24 : Colors.black26,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _topicController,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: 'Konu',
-                        hintText: 'Örn: Temel Haklar',
-                        prefixIcon: const Icon(Icons.topic_rounded),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
-
-              const SizedBox(height: 12),
-              TextField(
-                controller: _taskController,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Görev',
-                  hintText: 'Örn: Konu çalış / Test çöz / Tekrar',
-                  prefixIcon: const Icon(Icons.checklist_rounded),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              TextField(
-                controller: _notesController,
-                textInputAction: TextInputAction.done,
-                minLines: 2,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: 'Not (opsiyonel)',
-                  hintText: 'Örn: Yanlışları not al, 2 test daha çöz',
-                  prefixIcon: const Icon(Icons.notes_rounded),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(
-                        context,
-                        _TaskEditorResult.save(_buildTask()),
-                      ),
-                      icon: const Icon(Icons.save_rounded),
-                      label: Text(e == null ? 'Ekle' : 'Kaydet'),
-                    ),
-                  ),
-                  if (e != null) ...[
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(
-                        context,
-                        const _TaskEditorResult.delete(),
-                      ),
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      label: const Text('Sil'),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Not: Saat/dakika bilgisi programda gösterilmez.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Colors.white60 : AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

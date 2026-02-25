@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
@@ -28,10 +29,12 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
   bool _isPremium = false;
   List<Topic> _topics = [];
   bool _isLoadingTopics = true;
+  int _totalQuestions = 0;
 
   @override
   void initState() {
     super.initState();
+    _totalQuestions = widget.lesson.questionCount;
     // Cache'den hemen kontrol et (non-blocking)
     _checkSubscriptionFromCache();
     // Arka planda Firestore'dan güncelle
@@ -45,9 +48,62 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
       final topics = await _lessonsService.getTopicsByLessonId(
         widget.lesson.id,
       );
+
+      final prefs = await SharedPreferences.getInstance();
+      int totalQ = 0;
+
+      for (int i = 0; i < topics.length; i++) {
+        final t = topics[i];
+        int qCount = t.averageQuestionCount;
+        int pCount = t.podcastCount;
+        int vCount = t.videoCount;
+        int fCount = t.flashCardCount;
+        int pdfCount = t.pdfCount;
+
+        // Try load from combined cache first
+        final contentCountsJson = prefs.getString('content_counts_${t.id}');
+        if (contentCountsJson != null && contentCountsJson.isNotEmpty) {
+          try {
+            final Map<String, dynamic> counts = jsonDecode(contentCountsJson);
+            vCount = counts['videoCount'] as int? ?? vCount;
+            pCount = counts['podcastCount'] as int? ?? pCount;
+            fCount = counts['flashCardCount'] as int? ?? fCount;
+            pdfCount = counts['pdfCount'] as int? ?? pdfCount;
+            qCount = counts['testQuestionCount'] as int? ?? qCount;
+          } catch (_) {}
+        }
+
+        // Fallback to specific questions cache
+        if (qCount == 0 || qCount == t.averageQuestionCount) {
+          int fallbackQCount = prefs.getInt('questions_count_${t.id}') ?? 0;
+          if (fallbackQCount > 0) qCount = fallbackQCount;
+        }
+
+        totalQ += qCount;
+
+        topics[i] = Topic(
+          id: t.id,
+          lessonId: t.lessonId,
+          name: t.name,
+          subtitle: t.subtitle,
+          duration: t.duration,
+          averageQuestionCount: qCount,
+          testCount: qCount > 0 ? 1 : 0,
+          podcastCount: pCount,
+          videoCount: vCount,
+          noteCount: t.noteCount,
+          flashCardCount: fCount,
+          pdfCount: pdfCount,
+          progress: t.progress,
+          order: t.order,
+          pdfUrl: t.pdfUrl,
+        );
+      }
+
       if (mounted) {
         setState(() {
           _topics = topics;
+          _totalQuestions = totalQ > 0 ? totalQ : widget.lesson.questionCount;
           _isLoadingTopics = false;
         });
       }
@@ -83,8 +139,10 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
     }
   }
 
-  Future<void> _checkSubscription() async {
-    final isPremium = await _subscriptionService.isPremium();
+  Future<void> _checkSubscription({bool forceRefresh = false}) async {
+    final isPremium = await _subscriptionService.isPremium(
+      forceRefresh: forceRefresh,
+    );
     if (mounted) {
       setState(() {
         _isPremium = isPremium;
@@ -300,7 +358,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                               );
                               // Premium aktif edildiyse subscription durumunu yeniden kontrol et
                               if (result == true) {
-                                await _checkSubscription();
+                                await _checkSubscription(forceRefresh: true);
                                 await _checkSubscriptionFromCache();
                               }
                             },
@@ -553,11 +611,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
       children: [
         _buildGlassStat(Icons.menu_book_rounded, '${_topics.length}', 'Ünite'),
         const SizedBox(width: 14),
-        _buildGlassStat(
-          Icons.help_outline_rounded,
-          '${widget.lesson.questionCount}',
-          'Soru',
-        ),
+        _buildGlassStat(Icons.help_outline_rounded, '$_totalQuestions', 'Soru'),
       ],
     );
   }
@@ -847,8 +901,6 @@ class _TopicListItemState extends State<_TopicListItem> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 8),
-                        _buildStatusRow(),
                       ],
                     ),
                   ),
@@ -896,62 +948,6 @@ class _TopicListItemState extends State<_TopicListItem> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          if (widget.topic.videoCount > 0)
-            _buildTopicBadge(
-              Icons.play_circle_fill_rounded,
-              '${widget.topic.videoCount} Video',
-            ),
-          if (widget.topic.podcastCount > 0) ...[
-            const SizedBox(width: 12),
-            _buildTopicBadge(
-              Icons.podcasts_rounded,
-              '${widget.topic.podcastCount} Pod',
-            ),
-          ],
-          if (widget.topic.flashCardCount > 0) ...[
-            const SizedBox(width: 12),
-            _buildTopicBadge(
-              Icons.style_rounded,
-              '${widget.topic.flashCardCount} Kart',
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopicBadge(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: widget.isDark
-            ? Colors.white.withOpacity(0.08)
-            : Colors.grey.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: widget.lessonColor.withOpacity(0.9)),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: widget.isDark ? Colors.white70 : Colors.grey.shade700,
-            ),
-          ),
-        ],
       ),
     );
   }

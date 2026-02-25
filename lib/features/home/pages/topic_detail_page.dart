@@ -11,6 +11,7 @@ import '../../../core/models/topic.dart';
 import '../../../core/services/ai_content_service.dart';
 import '../../../core/services/lessons_service.dart';
 import '../../../core/services/subscription_service.dart';
+import '../../../core/services/questions_service.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/quick_access_service.dart';
 import '../../../core/widgets/floating_home_button.dart';
@@ -25,6 +26,7 @@ import 'videos_page.dart';
 import 'tests_list_page.dart';
 import 'pdfs_page.dart';
 import 'subscription_page.dart';
+import '../../../core/services/topic_notes_service.dart';
 
 class TopicDetailPage extends StatefulWidget {
   final Topic topic;
@@ -48,10 +50,12 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   bool _isLoadingContent = true;
   bool _canAccess = true;
   bool _isTestCompleted = false;
+  int _attemptCount = 0;
   bool _isFavorite = false;
   bool _isLoadingAiContent = true;
   List<AiQuestion> _aiQuestions = [];
   AiMaterial? _aiMaterial;
+  int _userNoteCount = 0;
 
   @override
   void initState() {
@@ -65,6 +69,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
     // AI içerikleri (soru/metin) - local cache'den yükle
     Future.microtask(_loadAiContent);
+    Future.microtask(_loadUserNoteCount);
 
     // Favori durumunu kontrol et (arka planda, non-blocking)
     Future.microtask(() async {
@@ -116,6 +121,19 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       if (!mounted) return;
       setState(() => _isLoadingAiContent = false);
     }
+  }
+
+  Future<void> _loadUserNoteCount() async {
+    try {
+      final notes = await TopicNotesService.instance.getNotesForTopic(
+        _topic.id,
+      );
+      if (mounted) {
+        setState(() {
+          _userNoteCount = notes.length;
+        });
+      }
+    } catch (_) {}
   }
 
   /// Cache'den sayıları hemen yükle (synchronous - çok hızlı)
@@ -244,14 +262,26 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           cacheTime != null &&
           (now - cacheTime) < cacheValidDuration.inMilliseconds;
 
-      // Cache geçerliyse Storage'dan ÇEKME - hiç istek atma
+      // Cache geçerliyse ve içerik varsa Storage'dan çekme
       if (contentCountsJson != null &&
           contentCountsJson.isNotEmpty &&
           isCacheValid) {
-        print(
-          '✅ Content counts loaded from cache (NO Storage request - saving MB!)',
-        );
-        return;
+        try {
+          final Map<String, dynamic> counts = jsonDecode(contentCountsJson);
+          final hasContent =
+              (counts['videoCount'] as int? ?? 0) > 0 ||
+              (counts['podcastCount'] as int? ?? 0) > 0 ||
+              (counts['testQuestionCount'] as int? ?? 0) > 0 ||
+              (counts['pdfCount'] as int? ?? 0) > 0;
+
+          if (hasContent) {
+            print('✅ Content counts loaded from cache (NO Storage request)');
+            return;
+          }
+          print(
+            '⚠️ Cache exists but counts are 0, forced refresh from Storage',
+          );
+        } catch (_) {}
       }
 
       // Cache yok veya geçersizse Storage'dan çek
@@ -323,9 +353,19 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
     try {
       final testResult = await _progressService.getTestResult(_topic.id);
+      final testProgress = await _progressService.getTestProgress(_topic.id);
+
       if (mounted) {
         setState(() {
           _isTestCompleted = testResult != null;
+
+          int resultCount = testResult?['attemptCount'] ?? 0;
+          int progressCount = testProgress?['attemptCount'] ?? 0;
+
+          // Eğer devam eden bir test varsa ve attemptCount'u daha yüksekse onu göster
+          _attemptCount = (progressCount > resultCount)
+              ? progressCount
+              : resultCount;
         });
       }
     } catch (e) {
@@ -793,12 +833,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         isSmallScreen: isSmallScreen,
         isDark: isDark,
         isTestCompleted: _isTestCompleted,
+        attemptCount: _attemptCount,
         onTap: () async {
-          if (_topic.testCount > 1) {
-            final tests = <Map<String, dynamic>>[];
-            for (int i = 1; i <= _topic.testCount; i++) {
-              tests.add({'name': 'Test $i', 'questionCount': 10});
-            }
+          final qService = QuestionsService();
+          final availableTests = await qService.getAvailableTestsByTopic(
+            _topic.id,
+            _topic.lessonId,
+          );
+
+          if (availableTests.length > 1) {
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
@@ -806,8 +849,8 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   topicName: _topic.name,
                   lessonId: _topic.lessonId,
                   topicId: _topic.id,
-                  testCount: _topic.testCount,
-                  tests: tests,
+                  testCount: availableTests.length,
+                  tests: availableTests,
                 ),
               ),
             );
@@ -821,9 +864,14 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               MaterialPageRoute(
                 builder: (context) => TestsPage(
                   topicName: _topic.name,
-                  testCount: _topic.testCount,
+                  testCount: _isLoadingContent
+                      ? 0
+                      : _topic.averageQuestionCount,
                   lessonId: _topic.lessonId,
                   topicId: _topic.id,
+                  testFileName: availableTests.isNotEmpty
+                      ? availableTests[0]['fileName']
+                      : null,
                 ),
               ),
             );
@@ -942,22 +990,26 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         context: context,
         type: 'notes',
         title: 'Özel Notlar',
-        count: _isLoadingContent ? 0 : _topic.noteCount,
+        count: _userNoteCount,
         countLabel: 'içerik',
         icon: Icons.push_pin_rounded,
         color: getCardColor('notes'),
         isSmallScreen: isSmallScreen,
         isDark: isDark,
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => NotesPage(
                 topicName: _topic.name,
-                noteCount: _topic.noteCount,
+                noteCount: _userNoteCount,
+                topicId: _topic.id,
               ),
             ),
           );
+          if (result == true) {
+            _loadUserNoteCount();
+          }
         },
       ),
     );
@@ -990,6 +1042,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     required bool isDark,
     required VoidCallback onTap,
     bool isTestCompleted = false,
+    int attemptCount = 0,
   }) {
     final label = countLabel == 'soru' ? '$count soru' : '$count içerik';
 
@@ -1069,16 +1122,45 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: isDark
-                              ? const Color(0xFFF1F5F9)
-                              : const Color(0xFF334155),
-                          height: 1.2,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: isDark
+                                  ? const Color(0xFFF1F5F9)
+                                  : const Color(0xFF334155),
+                              height: 1.2,
+                            ),
+                          ),
+                          if (attemptCount > 1) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade700.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.amber.shade700.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                '$attemptCount. Kez',
+                                style: TextStyle(
+                                  color: Colors.amber.shade700,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -1500,6 +1582,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                 if (result == true && mounted) {
                   final canAccess = await _subscriptionService.canAccessTopic(
                     _topic,
+                    forceRefresh: true,
                   );
                   setState(() {
                     _canAccess = canAccess;

@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/pomodoro_session.dart';
 import '../../../core/services/pomodoro_storage_service.dart';
+import '../../../../main.dart';
 
 class PomodoroSaveSessionPage extends StatefulWidget {
   final int sessionCount;
@@ -98,6 +99,13 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
       if (mounted) {
         widget.onSaved();
         Navigator.pop(context);
+
+        // Refresh statistics on profile page
+        final mainScreen = MainScreen.of(context);
+        if (mainScreen != null) {
+          mainScreen.refreshProfilePage();
+        }
+
         PremiumSnackBar.show(
           context,
           message: 'Kayıt başarıyla kaydedildi',

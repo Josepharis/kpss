@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../models/lesson.dart';
 import '../models/topic.dart';
 import 'storage_service.dart';
+import 'questions_service.dart';
 
 /// Service for managing lessons and topics from Firestore
 class LessonsService {
@@ -16,7 +17,7 @@ class LessonsService {
       _firestore.collection('lessons');
   CollectionReference get _topicsCollection => _firestore.collection('topics');
 
-  String _normalizeForStoragePath(String input) {
+  String normalizeForStoragePath(String input) {
     return input
         .toLowerCase()
         .replaceAll(' ', '_')
@@ -69,9 +70,24 @@ class LessonsService {
   /// Get a single lesson by ID
   Future<Lesson?> getLessonById(String lessonId) async {
     try {
+      // 1. Try Cache first
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'lesson_cache_$lessonId';
+      final cachedJson = prefs.getString(cacheKey);
+      if (cachedJson != null) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(cachedJson);
+          return Lesson.fromMap(data, lessonId);
+        } catch (_) {}
+      }
+
+      // 2. Fetch from Firestore
       final doc = await _lessonsCollection.doc(lessonId).get();
       if (doc.exists) {
-        return Lesson.fromMap(doc.data()! as Map<String, dynamic>, doc.id);
+        final data = doc.data()! as Map<String, dynamic>;
+        // Save to cache
+        await prefs.setString(cacheKey, jsonEncode(data));
+        return Lesson.fromMap(data, doc.id);
       }
       return null;
     } catch (e) {
@@ -102,7 +118,31 @@ class LessonsService {
   /// Storage yapısı: dersler/{lessonName}/{topicName}/video/, dersler/{lessonName}/{topicName}/podcast/, dersler/{lessonName}/{topicName}/bilgikarti/
   Future<List<Topic>> getTopicsByLessonId(String lessonId) async {
     try {
-      // Önce lesson'ı al ki name'ini bulalım
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'topics_cache_$lessonId';
+      final cacheTimeKey = 'topics_cache_time_$lessonId';
+
+      // 1. Check Cache
+      final cachedJson = prefs.getString(cacheKey);
+      final cacheTime = prefs.getInt(cacheTimeKey);
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Cache valid for 3 days for topic LIST (Storage structure rarely changes)
+      if (cachedJson != null &&
+          cacheTime != null &&
+          (now - cacheTime) < 1000 * 60 * 60 * 24 * 3) {
+        try {
+          final List<dynamic> list = jsonDecode(cachedJson);
+          return list
+              .map(
+                (item) =>
+                    Topic.fromMap(item as Map<String, dynamic>, item['id']),
+              )
+              .toList();
+        } catch (_) {}
+      }
+
+      // 2. Fetch from Storage/Firestore
       final lesson = await getLessonById(lessonId);
       if (lesson == null) {
         return _getTopicsFromFirestore(lessonId);
@@ -112,8 +152,8 @@ class LessonsService {
       // - lesson.name -> guncel_bilgiler
       // - lessonId     -> guncel_bilgiler_lesson (bazı projelerde storage bu şekilde tutuluyor)
       // - lessonId (_lesson suffix stripped) -> guncel_bilgiler
-      final lessonNameForPath = _normalizeForStoragePath(lesson.name);
-      final lessonIdForPath = _normalizeForStoragePath(lessonId);
+      final lessonNameForPath = normalizeForStoragePath(lesson.name);
+      final lessonIdForPath = normalizeForStoragePath(lessonId);
       final strippedLessonIdForPath = lessonIdForPath.endsWith('_lesson')
           ? lessonIdForPath.replaceFirst(RegExp(r'_lesson$'), '')
           : lessonIdForPath;
@@ -261,34 +301,39 @@ class LessonsService {
         }
 
         // Topic oluştur (içerik sayıları 0, konu detay sayfasında çekilecek)
-        final topic = Topic(
-          id: topicId,
-          lessonId: lessonId,
-          name: topicName,
-          subtitle: '$topicName konusu',
-          duration: '0h 0min', // Varsayılan
-          averageQuestionCount: 0, // Varsayılan
-          testCount: 0, // Varsayılan
-          podcastCount: 0, // Konu detay sayfasında çekilecek
-          videoCount: 0, // Konu detay sayfasında çekilecek
-          noteCount: 0, // Konu detay sayfasında çekilecek
-          flashCardCount: 0, // Konu detay sayfasında çekilecek
-          pdfCount: 0, // Konu detay sayfasında çekilecek
-          progress: 0.0,
-          order: topicOrder,
-          pdfUrl: null, // Konu detay sayfasında çekilecek
+        topics.add(
+          Topic(
+            id: topicId,
+            lessonId: lessonId,
+            name: topicName,
+            subtitle: '$topicName konusu',
+            duration: '0h 0min',
+            averageQuestionCount: 0,
+            testCount: 0,
+            podcastCount: 0,
+            videoCount: 0,
+            noteCount: 0,
+            order: topicOrder,
+          ),
         );
-
-        topics.add(topic);
       }
-
       // Sıralama (order'a göre)
       topics.sort((a, b) => a.order.compareTo(b.order));
 
+      // 3. Save to Cache
+      try {
+        await prefs.setString(
+          cacheKey,
+          jsonEncode(topics.map((t) => t.toMap()..['id'] = t.id).toList()),
+        );
+        await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+      } catch (e) {
+        debugPrint('⚠️ Error saving topics to cache: $e');
+      }
+
       return topics;
     } catch (e) {
-      // Silent error handling
-
+      debugPrint('Error getting topics: $e');
       // Fallback to Firestore
       return _getTopicsFromFirestore(lessonId);
     }
@@ -598,6 +643,10 @@ class LessonsService {
         _storageService.countFilesInFolder(notPath).catchError((_) => 0),
         _storageService.countFilesInFolder(notlarPath).catchError((_) => 0),
         _countPdfsFast(topicBasePath), // PDF sayısını paralel hesapla
+        _storageService
+            .listJsonFiles('$topicBasePath/soru')
+            .then((list) => list.length)
+            .catchError((_) => 0),
       ]);
 
       // Test soru sayısını hesapla
@@ -624,6 +673,22 @@ class LessonsService {
             testQuestionCount = (data['averageQuestionCount'] ?? 0) as int;
           }
         }
+
+        // 3) Hala 0 ise, Storage'dan gerçek testleri saymayı dene (En son çare - yavaş olabilir)
+        if (testQuestionCount == 0 && counts[6] > 0) {
+          try {
+            final qService = QuestionsService();
+            final availableTests = await qService.getAvailableTestsByTopic(
+              topic.id,
+              topic.lessonId,
+            );
+            int totalQ = 0;
+            for (final test in availableTests) {
+              totalQ += (test['questionCount'] as int? ?? 0);
+            }
+            testQuestionCount = totalQ;
+          } catch (_) {}
+        }
       } catch (e) {
         debugPrint('⚠️ Error fetching test question count: $e');
       }
@@ -641,9 +706,8 @@ class LessonsService {
       String? pdfUrl;
       // PDF URL'i lazy load edilecek (kullanıcı PDF sayfasına girdiğinde)
 
-      // Test sayısı: Eğer soru varsa 1 test olarak say (soru sayısını göster)
-      // testCount aslında test sayısı değil, soru sayısı olarak kullanılacak
-      final testCount = testQuestionCount > 0 ? 1 : 0;
+      // Test sayısı: Soru klasöründeki JSON dosyası sayısı
+      final testCount = counts[6];
 
       // Topic'i güncelle
       final updatedTopic = Topic(
@@ -678,16 +742,35 @@ class LessonsService {
             'noteCount': notCount,
             'pdfCount': pdfCount,
             'testQuestionCount': testQuestionCount,
+            'testCount': testCount,
           }),
         );
         await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+
+        // Firestore'a da kaydet (Diğer kullanıcılar için hazır olsun)
+        // Bu sayede her kullanıcı storage saymak zorunda kalmaz
+        await _topicsCollection
+            .doc(topic.id)
+            .set({
+              'videoCount': videoCount,
+              'podcastCount': podcastCount,
+              'flashCardCount': bilgikartiCount,
+              'noteCount': notCount,
+              'pdfCount': pdfCount,
+              'averageQuestionCount': testQuestionCount,
+              'testCount': testCount,
+              'lastUpdated': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .catchError((e) {
+              debugPrint('⚠️ Error updating topic counts in Firestore: $e');
+            });
 
         // Soru sayısını ayrı bir key ile de kaydet (lesson_card için hızlı erişim)
         if (testQuestionCount > 0) {
           await prefs.setInt('questions_count_${topic.id}', testQuestionCount);
         }
       } catch (e) {
-        // Silent error handling
+        debugPrint('⚠️ Error caching content counts: $e');
       }
 
       return updatedTopic;
