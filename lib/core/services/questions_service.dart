@@ -370,7 +370,10 @@ class QuestionsService {
       if (cachedListJson != null && cachedListJson.isNotEmpty) {
         try {
           final List<dynamic> decoded = jsonDecode(cachedListJson);
-          final cachedList = decoded.cast<Map<String, dynamic>>();
+          final List<Map<String, dynamic>> cachedList = decoded
+              .where((e) => e is Map)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
 
           // Return cached list immediately
           debugPrint('📦 Returning cached tests list for topic: $topicId');
@@ -419,9 +422,6 @@ class QuestionsService {
       final List<Map<String, dynamic>> tests = [];
       final prefs = await SharedPreferences.getInstance();
 
-      // Parallel fetch counts to save time
-      final List<Future<Map<String, dynamic>?>> testFutures = [];
-
       for (final file in files) {
         final fileName = file['name'];
         final url = file['url'];
@@ -429,59 +429,45 @@ class QuestionsService {
         if (fileName != null &&
             url != null &&
             fileName.toLowerCase().endsWith('.json')) {
-          testFutures.add(() async {
-            try {
-              String displayName = fileName.replaceAll('.json', '');
-              int testNumber = 1;
+          String displayName = fileName.replaceAll('.json', '');
+          int testNumber = 1;
 
-              final dashMatch = RegExp(r'-(\d+)$').firstMatch(displayName);
-              if (dashMatch != null) {
-                testNumber = int.parse(dashMatch.group(1)!);
+          final dashMatch = RegExp(r'-(\d+)$').firstMatch(displayName);
+          if (dashMatch != null) {
+            testNumber = int.parse(dashMatch.group(1)!);
+          } else {
+            final numMatch = RegExp(r'(\d+)$').firstMatch(displayName);
+            if (numMatch != null) {
+              final n = int.parse(numMatch.group(1)!);
+              if (n > 50) {
+                testNumber = 1;
               } else {
-                final numMatch = RegExp(r'(\d+)$').firstMatch(displayName);
-                if (numMatch != null) {
-                  final n = int.parse(numMatch.group(1)!);
-                  if (n > 50) {
-                    testNumber = 1;
-                  } else {
-                    testNumber = n;
-                  }
-                }
+                testNumber = n;
               }
-
-              final cacheKey = 'qcount_${topicId}_$fileName';
-              int? qCount = prefs.getInt(cacheKey);
-
-              if (qCount == null || qCount == 0) {
-                final jsonData = await _storageService
-                    .downloadAndParseJsonFromUrl(url);
-                qCount = 0;
-                if (jsonData != null && jsonData['questions'] is List) {
-                  qCount = (jsonData['questions'] as List).length;
-                }
-                if (qCount > 0) {
-                  await prefs.setInt(cacheKey, qCount);
-                }
-              }
-
-              return {
-                'name': 'Test $testNumber',
-                'testNumber': testNumber,
-                'fileName': fileName,
-                'url': url,
-                'questionCount': qCount,
-              };
-            } catch (e) {
-              debugPrint('⚠️ Error processing test file $fileName: $e');
-              return null;
             }
-          }());
+          }
+
+          final cacheKey = 'qcount_${topicId}_$fileName';
+          int? qCount = prefs.getInt(cacheKey);
+
+          // Soru sayısını sadece cache'de yoksa çekelim, hız için toplu yüklemede çekmeyebiliriz
+          // Ama burada listenin doğru görünmesi önemli. Yine de her birini indirmek çok yavaşlatır.
+          // Eğer cache'de yoksa ve dosya sayısı çoksa (örn > 5), paralel indirmeyi sınırlayalım veya erteleyelim.
+          
+          tests.add({
+            'name': 'Test $testNumber',
+            'testNumber': testNumber,
+            'fileName': fileName,
+            'url': url,
+            'questionCount': qCount ?? 0, // Cache'de yoksa şimdilik 0, sonra yüklenir
+          });
         }
       }
 
-      final results = await Future.wait(testFutures);
-      for (final res in results) {
-        if (res != null) tests.add(res);
+      // Eğer soru sayıları eksikse ve dosya sayısı azsa (örn <= 5), arka planda tamamla
+      if (tests.any((t) => t['questionCount'] == 0) && tests.length <= 10) {
+        // İndirme işlemini asenkron başlat ama bekleme
+        _updateQuestionCountsInBackground(topicId, tests);
       }
 
       // Sort tests numerically
@@ -513,6 +499,34 @@ class QuestionsService {
     return _loadQuestionsFromStorage(topicId, lessonId, testFileName: fileName);
   }
 
+  Future<void> _updateQuestionCountsInBackground(
+    String topicId,
+    List<Map<String, dynamic>> tests,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final test in tests) {
+        if (test['questionCount'] == 0) {
+          final fileName = test['fileName'];
+          final url = test['url'];
+          final cacheKey = 'qcount_${topicId}_$fileName';
+
+          final jsonData =
+              await _storageService.downloadAndParseJsonFromUrl(url);
+          if (jsonData != null && jsonData['questions'] is List) {
+            final count = (jsonData['questions'] as List).length;
+            if (count > 0) {
+              await prefs.setInt(cacheKey, count);
+              debugPrint('✅ Lazy updated qCount for $fileName: $count');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error in background qCount update: $e');
+    }
+  }
+
   /// Parse JSON questions into TestQuestion objects
   List<TestQuestion> _parseJsonQuestions(
     Map<String, dynamic> jsonData,
@@ -531,7 +545,11 @@ class QuestionsService {
 
       for (final questionData in questionsList) {
         try {
-          final questionMap = questionData as Map<String, dynamic>;
+          if (questionData is! Map) {
+            debugPrint('⚠️ Skipping invalid question data: $questionData');
+            continue;
+          }
+          final questionMap = Map<String, dynamic>.from(questionData);
 
           // Extract question fields
           final id = questionMap['id']?.toString() ?? '';
@@ -708,6 +726,29 @@ class QuestionsService {
     } catch (e) {
       debugPrint('❌ Error adding questions: $e');
       debugPrint('Error details: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Add a single question
+  Future<bool> addSingleQuestion(TestQuestion question) async {
+    try {
+      await _questionsCollection.add(question.toMap());
+      return true;
+    } catch (e) {
+      debugPrint('Error adding single question: $e');
+      return false;
+    }
+  }
+
+  /// Update an existing question
+  Future<bool> updateQuestion(TestQuestion question) async {
+    try {
+      if (question.id.isEmpty) return false;
+      await _questionsCollection.doc(question.id).update(question.toMap());
+      return true;
+    } catch (e) {
+      debugPrint('Error updating question: $e');
       return false;
     }
   }

@@ -77,8 +77,9 @@ class _TestsPageState extends State<TestsPage> {
       }
 
       // 2. Load saved progress FIRST, before loading questions
-      final savedProgress = await _progressService.getTestProgress(
+      var savedProgress = await _progressService.getTestProgress(
         widget.topicId,
+        testFileName: widget.testFileName,
       );
 
       // Eger test bitmisse ve kayıtlı ilerleme yoksa (sonradan tekrar giriliyorsa)
@@ -95,11 +96,38 @@ class _TestsPageState extends State<TestsPage> {
         }
       }
 
+      String? actualTestFileName = widget.testFileName ?? savedProgress?['testFileName'];
+
+      // Auto-infer file name if missing (for older saves or direct navigation)
+      if (actualTestFileName == null && widget.topicName.contains(' - Test ')) {
+        final available = await _questionsService.getAvailableTestsByTopic(
+          widget.topicId,
+          widget.lessonId,
+        );
+        final testNamePart = widget.topicName.split(' - ').last;
+        final match = available.firstWhere(
+          (t) => t['name'] == testNamePart,
+          orElse: () => <String, dynamic>{},
+        );
+        if (match.isNotEmpty) {
+          actualTestFileName = match['fileName'] as String?;
+          debugPrint('🔍 Auto-inferred test file: $actualTestFileName');
+          
+          // Re-fetch progress with inferred file name if we haven't found any yet
+          if (savedProgress == null && actualTestFileName != null) {
+            savedProgress = await _progressService.getTestProgress(
+              widget.topicId,
+              testFileName: actualTestFileName,
+            );
+          }
+        }
+      }
+
       // Load questions (will try Storage first, then Firestore)
       final questions = await _questionsService.getQuestionsByTopicId(
         widget.topicId,
         lessonId: widget.lessonId,
-        testFileName: widget.testFileName,
+        testFileName: actualTestFileName,
       );
 
       if (mounted) {
@@ -108,8 +136,10 @@ class _TestsPageState extends State<TestsPage> {
         int initialScore = 0;
         List<int?> initialAnswers = List<int?>.filled(questions.length, null);
 
-        // Sadece bitmis olmayan bir testten devam ediliyorsa veya retake esnasında cıkılmıssa yukle
-        if (savedProgress != null && questions.isNotEmpty) {
+        // Sadece bitmis olmayan bir testten devam ediliyorsa ve aynı test dosyasıysa yukle
+        if (savedProgress != null &&
+            questions.isNotEmpty &&
+            savedProgress['testFileName'] == actualTestFileName) {
           final savedIndex = savedProgress['index'] as int? ?? 0;
           if (savedIndex < questions.length) {
             initialQuestionIndex = savedIndex;
@@ -157,7 +187,8 @@ class _TestsPageState extends State<TestsPage> {
           _restoreQuestionState(); // Restore UI state for the initial question
           _checkSavedQuestions();
           _startTimer();
-          _saveProgress(); // Save initial progress
+          // Don't save progress immediately on load to avoid overwriting with lower index
+          // It will be saved when user interacts
         } else {
           // Soru yoksa kullanıcıya bilgi ver
           if (mounted) {
@@ -809,6 +840,7 @@ class _TestsPageState extends State<TestsPage> {
       wrongAnswers: wrongCount,
       attemptCount: _isRetake ? _attemptCount + 1 : 1,
       answers: _selectedAnswers,
+      testFileName: widget.testFileName,
     );
   }
 

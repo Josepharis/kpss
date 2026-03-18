@@ -101,28 +101,15 @@ class CustomBottomNavBar extends StatelessWidget {
           ),
           CurvedNavigationBarItem(
             child: Icon(
-              Icons.auto_awesome_rounded,
-              size: isSmallPhone ? 22 : 24,
-              color: currentIndex == 4 ? AppColors.navActive : inactiveColor,
-            ),
-            label: 'AI',
-            labelStyle: TextStyle(
-              fontSize: isSmallPhone ? 9 : 10,
-              fontWeight: currentIndex == 4 ? FontWeight.w700 : FontWeight.w500,
-              color: currentIndex == 4 ? AppColors.navActive : labelColor,
-            ),
-          ),
-          CurvedNavigationBarItem(
-            child: Icon(
               Icons.person_rounded,
               size: isSmallPhone ? 22 : 24,
-              color: currentIndex == 5 ? AppColors.navActive : inactiveColor,
+              color: currentIndex == 4 ? AppColors.navActive : inactiveColor,
             ),
             label: 'Profil',
             labelStyle: TextStyle(
               fontSize: isSmallPhone ? 9 : 10,
-              fontWeight: currentIndex == 5 ? FontWeight.w700 : FontWeight.w500,
-              color: currentIndex == 5 ? AppColors.navActive : labelColor,
+              fontWeight: currentIndex == 4 ? FontWeight.w700 : FontWeight.w500,
+              color: currentIndex == 4 ? AppColors.navActive : labelColor,
             ),
           ),
         ],

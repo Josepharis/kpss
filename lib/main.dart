@@ -9,13 +9,14 @@ import 'features/home/pages/lessons_page.dart';
 import 'features/home/pages/weaknesses_page.dart';
 import 'features/home/pages/study_page.dart';
 import 'features/home/pages/profile_page.dart';
-import 'features/home/pages/ai_assistant_page.dart';
 import 'core/widgets/custom_bottom_nav_bar.dart';
 import 'features/auth/pages/splash_screen.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/register_page.dart';
 import 'core/services/storage_cleanup_service.dart';
 import 'core/services/iap_service.dart';
+import 'core/services/notification_service.dart';
+import 'features/admin/pages/admin_home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +30,13 @@ void main() async {
   } catch (e) {
     // Continue even if Firebase fails to initialize
     print('❌ Firebase initialization error: $e');
-    print('Error type: ${e.runtimeType}');
+  }
+
+  // Initialize Push Notifications
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('❌ Notification initialization error: $e');
   }
 
   // Initialize IAP (Must be after Firebase)
@@ -122,6 +129,7 @@ class _MyAppState extends State<MyApp> {
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/home': (context) => const MainScreen(),
+        '/admin': (context) => const AdminHomePage(),
       },
     );
   }
@@ -190,9 +198,6 @@ class MainScreenState extends State<MainScreen> {
         page = StudyPage(key: ValueKey('study_$_themeKey'));
         break;
       case 4:
-        page = const AiAssistantPage();
-        break;
-      case 5:
         page = ProfilePage(
           key: _profilePageStateKey, // Use stable GlobalKey
         );
@@ -212,7 +217,7 @@ class MainScreenState extends State<MainScreen> {
       // If tapping same tab, optional: refresh or scroll to top
       if (index == 0) {
         refreshHomePage();
-      } else if (index == 5) {
+      } else if (index == 4) {
         refreshProfilePage();
       }
       return;
@@ -225,7 +230,7 @@ class MainScreenState extends State<MainScreen> {
     // Refresh pages when switching to them
     if (index == 0) {
       refreshHomePage();
-    } else if (index == 5) {
+    } else if (index == 4) {
       refreshProfilePage();
     }
   }
@@ -267,7 +272,7 @@ class MainScreenState extends State<MainScreen> {
       body: IndexedStack(
         key: ValueKey(_themeKey),
         index: _currentIndex,
-        children: List.generate(6, (index) => _getPage(index)),
+        children: List.generate(5, (index) => _getPage(index)),
       ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _currentIndex,

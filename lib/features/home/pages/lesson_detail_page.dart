@@ -28,6 +28,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
   final SubscriptionService _subscriptionService = SubscriptionService();
   bool _isPremium = false;
   List<Topic> _topics = [];
+  List<String> _hiddenTopicIds = [];
   bool _isLoadingTopics = true;
   int _totalQuestions = 0;
 
@@ -45,9 +46,13 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
 
   Future<void> _loadTopics() async {
     try {
-      final topics = await _lessonsService.getTopicsByLessonId(
-        widget.lesson.id,
-      );
+      final results = await Future.wait([
+        _lessonsService.getTopicsByLessonId(widget.lesson.id),
+        _lessonsService.getHiddenTopics(),
+      ]);
+
+      final topics = results[0] as List<Topic>;
+      final hiddenIds = results[1] as List<String>;
 
       final prefs = await SharedPreferences.getInstance();
       int totalQ = 0;
@@ -103,6 +108,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
       if (mounted) {
         setState(() {
           _topics = topics;
+          _hiddenTopicIds = hiddenIds;
           _totalQuestions = totalQ > 0 ? totalQ : widget.lesson.questionCount;
           _isLoadingTopics = false;
         });
@@ -547,6 +553,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                                 isSmallScreen:
                                     MediaQuery.of(context).size.height < 700,
                                 isDark: isDark,
+                                isPublished: !_hiddenTopicIds.contains(topic.id), // Change log: true if NOT in hidden list
                                 onTap: () => _handleTopicTap(topic),
                                 lessonColor: lessonColor,
                               ),
@@ -760,6 +767,7 @@ class _TopicListItem extends StatefulWidget {
   final String lessonName;
   final bool isSmallScreen;
   final bool isDark;
+  final bool isPublished;
   final VoidCallback onTap;
   final Color lessonColor;
 
@@ -769,6 +777,7 @@ class _TopicListItem extends StatefulWidget {
     required this.lessonName,
     required this.isSmallScreen,
     required this.isDark,
+    required this.isPublished,
     required this.onTap,
     required this.lessonColor,
   });
@@ -820,6 +829,10 @@ class _TopicListItemState extends State<_TopicListItem> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isPublished) {
+      return _buildComingSoonState();
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: widget.isDark
@@ -947,6 +960,90 @@ class _TopicListItemState extends State<_TopicListItem> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComingSoonState() {
+    return Opacity(
+      opacity: 0.6,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDark ? const Color(0xFF1E1E2E) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: widget.isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.grey.withOpacity(0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Disabled Number Box
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: widget.isDark
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  widget.topicNumber,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.grey.withOpacity(0.6),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.topic.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.lessonColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_clock_rounded, size: 12, color: widget.lessonColor.withOpacity(0.8)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Hazırlanıyor / Yakında',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: widget.lessonColor.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

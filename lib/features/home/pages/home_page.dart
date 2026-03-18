@@ -24,6 +24,7 @@ import '../../../core/services/auth_service.dart';
 import '../widgets/quick_access_section.dart';
 import '../../../core/models/study_program.dart';
 import '../../../core/services/study_program_service.dart';
+import '../widgets/modern_sidebar.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -215,10 +216,16 @@ class _HomePageState extends State<HomePage> {
       final flashCards = results[3] as List<OngoingFlashCard>;
       final allTopics = results[4] as List<Topic>;
 
+      // Bilgi kartı olan konuları filtrele (videoCount yerine flashCardCount kullan)
       final topicsWithFlashCards = allTopics
-          .where((topic) => topic.videoCount > 0)
+          .where((topic) => topic.flashCardCount > 0)
           .toList();
-      final infoCards = topicsWithFlashCards.map((topic) {
+      
+      // Sadece 6 adet göster ve içeriği olanları önceliklendir
+      topicsWithFlashCards.sort((a, b) => b.flashCardCount.compareTo(a.flashCardCount));
+      final displayedTopics = topicsWithFlashCards.take(6).toList();
+
+      final infoCards = displayedTopics.map((topic) {
         final colors = [
           'green',
           'orange',
@@ -232,12 +239,12 @@ class _HomePageState extends State<HomePage> {
         return InfoCard(
           id: topic.id,
           title: topic.name,
-          description: '${topic.videoCount} kart',
+          description: '${topic.flashCardCount} kart',
           icon: 'book',
           color: colors[colorIndex],
           topicId: topic.id,
           lessonId: topic.lessonId,
-          cardCount: topic.videoCount,
+          cardCount: topic.flashCardCount,
         );
       }).toList();
 
@@ -374,6 +381,8 @@ class _HomePageState extends State<HomePage> {
     return 'İyi geceler';
   }
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -388,6 +397,7 @@ class _HomePageState extends State<HomePage> {
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       ),
       child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: isDark
             ? const Color(0xFF0F0F1A)
             : const Color(0xFFF8FAFF),
@@ -415,8 +425,7 @@ class _HomePageState extends State<HomePage> {
                           _ongoingTests.isNotEmpty ||
                           _ongoingPodcasts.isNotEmpty ||
                           _ongoingVideos.isNotEmpty ||
-                          _ongoingFlashCards.isNotEmpty ||
-                          _infoCards.isNotEmpty;
+                          _ongoingFlashCards.isNotEmpty;
 
                       return CustomScrollView(
                         physics: const BouncingScrollPhysics(),
@@ -520,7 +529,7 @@ class _HomePageState extends State<HomePage> {
                               child: SizedBox(height: 6.0),
                             ),
 
-                          if (_infoCards.isNotEmpty)
+                          if (_infoCards.isNotEmpty && _ongoingFlashCards.isNotEmpty)
                             SliverToBoxAdapter(
                               child: InfoCardsSection(
                                 infoCards: _infoCards,
@@ -659,9 +668,57 @@ class _HomePageState extends State<HomePage> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Row(
-            children: [
-              Expanded(
-                child: Column(
+        children: [
+          // Sidebar Toggle Button
+          GestureDetector(
+            onTap: () {
+              showGeneralDialog(
+                context: context,
+                barrierDismissible: true,
+                barrierLabel: 'Sidebar',
+                barrierColor: Colors.black.withOpacity(0.5),
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (context, anim1, anim2) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: ModernSidebar(
+                      onClose: () => Navigator.pop(context),
+                    ),
+                  );
+                },
+                transitionBuilder: (context, anim1, anim2, child) {
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(-1, 0),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: anim1,
+                      curve: Curves.easeOutCubic,
+                    )),
+                    child: child,
+                  );
+                },
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.white10 : Colors.black.withOpacity(0.08),
+                ),
+              ),
+              child: Icon(
+                Icons.menu_rounded,
+                color: isDark ? Colors.white : Colors.black87,
+                size: 22,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [

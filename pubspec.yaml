@@ -65,6 +65,9 @@ dependencies:
   # Modern bottom navigation (curved + labels)
   curved_labeled_navigation_bar: ^2.0.6
   in_app_purchase: ^3.2.3
+  url_launcher: ^6.3.2
+  firebase_messaging: ^15.2.10
+  firebase_analytics: ^11.6.0
 
 dev_dependencies:
   flutter_test:

@@ -5,6 +5,7 @@ class AppUser {
   final String name;
   final String email;
   final String? kpssType;
+  final String? platform; // android, ios, web
   final DateTime createdAt;
   final DateTime? lastLogin;
 
@@ -13,6 +14,7 @@ class AppUser {
     required this.name,
     required this.email,
     this.kpssType,
+    this.platform,
     required this.createdAt,
     this.lastLogin,
   });
@@ -23,6 +25,7 @@ class AppUser {
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       kpssType: map['kpssType'],
+      platform: map['platform'],
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -37,6 +40,7 @@ class AppUser {
       'name': name,
       'email': email,
       'kpssType': kpssType,
+      'platform': platform,
       'createdAt': FieldValue.serverTimestamp(),
       'lastLogin': FieldValue.serverTimestamp(),
     };

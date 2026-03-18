@@ -108,6 +108,7 @@ class OngoingTestCard extends StatelessWidget {
                         testCount: test.totalQuestions,
                         lessonId: test.lessonId,
                         topicId: test.topicId,
+                        testFileName: test.testFileName,
                       ),
                     ),
                   );
@@ -124,26 +125,24 @@ class OngoingTestCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Topic Name
-                      SizedBox(
-                        height: isSmallScreen ? 22 : 26,
-                        child: Text(
-                          test.topic,
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 8 : 9,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: -0.2,
-                            height: 1.05,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      // Topic Name / Title
+                      // Topic Name / Title (Full title including Test X)
+                      Text(
+                        test.title,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 7.5 : 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white.withValues(alpha: 0.95),
+                          letterSpacing: -0.2,
+                          height: 1.1,
                         ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
 
                       const Spacer(),
 
-                      // Glassy Icon Container
+                      // Reverted to Glassy Icon Container
                       Center(
                         child: Container(
                           padding: EdgeInsets.all(isSmallScreen ? 4 : 5),

@@ -432,7 +432,11 @@ class StorageService {
       // Try to fix common JSON issues before parsing (always use aggressive mode for Storage files)
       jsonString = _fixJsonString(jsonString, aggressive: true);
       
-      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+      final decoded = jsonDecode(jsonString);
+      if (decoded is List) {
+        return {'questions': decoded, 'isList': true};
+      }
+      final jsonData = decoded as Map<String, dynamic>;
       return jsonData;
     } catch (e) {
       
@@ -481,7 +485,11 @@ class StorageService {
           jsonString = fixedLines.join('\n');
           jsonString = _fixJsonString(jsonString, aggressive: true);
           
-          final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+          final decoded = jsonDecode(jsonString);
+          if (decoded is List) {
+            return {'questions': decoded, 'isList': true};
+          }
+          final jsonData = decoded as Map<String, dynamic>;
           return jsonData;
         }
       } catch (e2) {
@@ -554,7 +562,11 @@ class StorageService {
             return null;
           }
           final jsonString = utf8.decode(bytes);
-          final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+          final decoded = jsonDecode(jsonString);
+          if (decoded is List) {
+            return {'questions': decoded, 'isList': true};
+          }
+          final jsonData = decoded as Map<String, dynamic>;
           return jsonData;
         } catch (e) {
           // Silent error handling

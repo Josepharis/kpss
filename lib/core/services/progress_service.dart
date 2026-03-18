@@ -48,6 +48,11 @@ class ProgressService {
   DocumentReference get _userProgressDoc =>
       _progressCollection.doc(_userId ?? '');
 
+  String _getTestDocId(String topicId, String? testFileName) {
+    if (testFileName == null) return topicId;
+    return '${topicId}_${testFileName.replaceAll('.', '_')}';
+  }
+
   /// Save video progress
   Future<bool> saveVideoProgress({
     required String videoId,
@@ -162,6 +167,7 @@ class ProgressService {
     int? wrongAnswers,
     int attemptCount = 1,
     List<int?>? answers,
+    String? testFileName,
   }) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot save progress');
@@ -174,8 +180,8 @@ class ProgressService {
 
       // Eğer test bittiyse (tüm sorular cevaplandıysa), devam edenlerden sil
       if (progress >= 1.0) {
-        debugPrint('🏁 Test completed, removing from ongoing: $topicId');
-        await deleteTestProgress(topicId, lessonId);
+        debugPrint('🏁 Test completed, removing from ongoing: $topicId, file: $testFileName');
+        await deleteTestProgress(topicId, lessonId, testFileName: testFileName);
 
         // Save test result to testResults collection for permanent history
         await _userProgressDoc.collection('testResults').doc(topicId).set({
@@ -210,6 +216,7 @@ class ProgressService {
         'attemptCount': attemptCount,
         'lastUpdated': FieldValue.serverTimestamp(),
         if (answers != null) 'answers': answers,
+        if (testFileName != null) 'testFileName': testFileName,
       };
 
       // Puan, doğru ve yanlış sayılarını ekle
@@ -217,7 +224,8 @@ class ProgressService {
       if (correctAnswers != null) data['correctAnswers'] = correctAnswers;
       if (wrongAnswers != null) data['wrongAnswers'] = wrongAnswers;
 
-      final docRef = _userProgressDoc.collection('tests').doc(topicId);
+      final docId = _getTestDocId(topicId, testFileName);
+      final docRef = _userProgressDoc.collection('tests').doc(docId);
       await docRef.set(data, SetOptions(merge: true));
 
       // Mark stats as dirty because we updated ongoing test progress
@@ -333,25 +341,16 @@ class ProgressService {
   }
 
   /// Get test progress
-  Future<Map<String, dynamic>?> getTestProgress(String topicId) async {
+  Future<Map<String, dynamic>?> getTestProgress(String topicId, {String? testFileName}) async {
     if (_userId == null) {
       debugPrint('⚠️ User not logged in, cannot get test progress');
       return null;
     }
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheKey = 'test_progress_cache_${_userId}_$topicId';
-
-      // 1. Try Cache First
-      final cachedJson = prefs.getString(cacheKey);
-      if (cachedJson != null) {
-        final data = jsonDecode(cachedJson) as Map<String, dynamic>;
-        return data;
-      }
-
-      // 2. Fallback to Firestore
-      final doc = await _userProgressDoc.collection('tests').doc(topicId).get();
+      final docId = _getTestDocId(topicId, testFileName);
+      // Force fetch from Firestore for critical progress data
+      final doc = await _userProgressDoc.collection('tests').doc(docId).get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
@@ -361,8 +360,6 @@ class ProgressService {
             'score': data['score'] ?? 0,
             'answers': data['answers'] as List<dynamic>?,
           };
-          // Save to cache
-          await prefs.setString(cacheKey, jsonEncode(result));
           return result;
         }
       }
@@ -618,10 +615,48 @@ class ProgressService {
           })
           .map((doc) {
             final data = doc.data();
+            final topicName = data['topicName'] ?? 'Test';
+            final testFileName = data['testFileName'] as String?;
+            
+            String displayTitle = topicName;
+            
+            // Eğer topicName zaten "Test X" içeriyorsa, tekrar ekleme yapma
+            bool alreadyHasTestInfo = topicName.contains(' - Test ') || 
+                                     topicName.contains(' - test_') ||
+                                     RegExp(r'Test\s*\d+', caseSensitive: false).hasMatch(topicName);
+
+            if (!alreadyHasTestInfo && testFileName != null) {
+              final cleanFileName = testFileName.replaceAll('.json', '');
+              // Try to find if it contains a test number
+              final match = RegExp(r'Test\s*(\d+)', caseSensitive: false).firstMatch(cleanFileName);
+              if (match != null) {
+                displayTitle += ' - Test ${match.group(1)}';
+              } else {
+                // Sadece dosya adını temizleyip ekle
+                final displayFileName = cleanFileName.replaceAll('_', ' ');
+                displayTitle += ' - $displayFileName';
+              }
+            } else if (!alreadyHasTestInfo && !topicName.toLowerCase().contains('test')) {
+              displayTitle += ' Testi';
+            }
+
+            // Eğer başlık hala dosya adını içeriyorsa (örn: "... - test_1") temizle
+            if (displayTitle.contains(' - test_')) {
+               displayTitle = displayTitle.replaceFirst(RegExp(r' - test_\d+'), '');
+               // Ve Test X olarak düzelt
+               if (testFileName != null) {
+                  final match = RegExp(r'(\d+)', caseSensitive: false).firstMatch(testFileName);
+                  if (match != null) displayTitle += ' - Test ${match.group(1)}';
+               }
+            }
+
+            // Son temizlik: topicName içindeki " - Test X" kısmını topic alanına alırken temizle
+            String cleanTopic = topicName.split(' - ').first;
+
             return OngoingTest(
-              id: data['topicId'] ?? doc.id,
-              title: '${data['topicName'] ?? 'Test'} Testi',
-              topic: data['topicName'] ?? '',
+              id: doc.id,
+              title: displayTitle,
+              topic: cleanTopic,
               currentQuestion: (data['currentQuestionIndex'] ?? 0) + 1,
               totalQuestions: data['totalQuestions'] ?? 1,
               progressColor: 'blue',
@@ -630,6 +665,7 @@ class ProgressService {
               lessonId: data['lessonId'] ?? '',
               score: data['score'] ?? 0,
               attemptCount: data['attemptCount'] ?? 1,
+              testFileName: data['testFileName'],
             );
           })
           .toList();
@@ -671,10 +707,11 @@ class ProgressService {
   }
 
   /// Delete test progress (when test is completed)
-  Future<void> deleteTestProgress(String topicId, [String? lessonId]) async {
+  Future<void> deleteTestProgress(String topicId, String? lessonId, {String? testFileName}) async {
     if (_userId == null) return;
     try {
-      await _userProgressDoc.collection('tests').doc(topicId).delete();
+      final docId = _getTestDocId(topicId, testFileName);
+      await _userProgressDoc.collection('tests').doc(docId).delete();
       if (lessonId != null) {
         _updateLessonProgress(lessonId);
       }

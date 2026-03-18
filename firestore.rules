@@ -3,25 +3,33 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow read/write access to all documents (for development)
     // TODO: Update these rules for production
+    // Check if user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Default: Allow read/write for now, but restrict critical modules
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if true; 
     }
     
-    // Production rules (commented out for now)
-    // match /lessons/{lessonId} {
-    //   allow read: if request.auth != null;
-    //   allow write: if false; // Only admins can write
-    // }
-    // 
-    // match /topics/{topicId} {
-    //   allow read: if request.auth != null;
-    //   allow write: if false; // Only admins can write
-    // }
-    // 
-    // match /questions/{questionId} {
-    //   allow read: if request.auth != null;
-    //   allow write: if false; // Only admins can write
-    // }
+    // Admin only collections
+    match /notifications/{docId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // User profile: only self or admin
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      
+      // Subscription subcollection
+      match /subscription/{subId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow write: if isAdmin(); // Only system/admin can change subscription
+      }
+    }
   }
 }
 

@@ -10,7 +10,13 @@ import 'pomodoro_save_session_page.dart';
 import 'my_program_page.dart';
 
 class ModernPomodoroPage extends StatefulWidget {
-  const ModernPomodoroPage({super.key});
+  final int initialIndex;
+  final bool standalonePomodoro;
+  const ModernPomodoroPage({
+    super.key,
+    this.initialIndex = 0,
+    this.standalonePomodoro = false,
+  });
 
   @override
   State<ModernPomodoroPage> createState() => ModernPomodoroPageState();
@@ -57,7 +63,11 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.standalonePomodoro ? 1 : widget.initialIndex,
+    );
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
     });
@@ -612,19 +622,23 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          automaticallyImplyLeading: false,
+          automaticallyImplyLeading: widget.standalonePomodoro,
+          leading: widget.standalonePomodoro ? IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ) : null,
           centerTitle: true,
-          toolbarHeight: 56,
+          toolbarHeight: widget.standalonePomodoro ? 70 : 56,
           title: Text(
-            'ÇALIŞMALARIM',
+            widget.standalonePomodoro ? 'ODAKLAN' : 'ÇALIŞMALARIM',
             style: TextStyle(
-              color: _tabController.index == 0
+              color: (widget.standalonePomodoro || _tabController.index == 0)
                   ? Colors.white
                   : (isDark ? Colors.white : Colors.black87),
               fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.2,
-              shadows: _tabController.index == 0
+              shadows: (widget.standalonePomodoro || _tabController.index == 0)
                   ? [
                       const Shadow(
                         color: Colors.black26,
@@ -637,7 +651,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
           ),
           flexibleSpace: AnimatedOpacity(
             duration: const Duration(milliseconds: 300),
-            opacity: _tabController.index == 0 ? 1 : 0,
+            opacity: (widget.standalonePomodoro || _tabController.index == 0) ? 1 : 0,
             child: Stack(
               children: [
                 // Vibrant Solar Gradient
@@ -676,7 +690,7 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
               ],
             ),
           ),
-          bottom: PreferredSize(
+          bottom: widget.standalonePomodoro ? null : PreferredSize(
             preferredSize: const Size.fromHeight(50),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -737,7 +751,9 @@ class ModernPomodoroPageState extends State<ModernPomodoroPage>
             ),
           ),
         ),
-        body: TabBarView(
+        body: widget.standalonePomodoro 
+            ? _buildTimerTab(size, isLandscape, isDark)
+            : TabBarView(
           controller: _tabController,
           children: [
             _buildProgramTab(isDark),

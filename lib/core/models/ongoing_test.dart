@@ -10,6 +10,7 @@ class OngoingTest {
   final String lessonId;
   final int score;
   final int attemptCount;
+  final String? testFileName;
 
   OngoingTest({
     required this.id,
@@ -23,6 +24,7 @@ class OngoingTest {
     required this.lessonId,
     this.score = 0,
     this.attemptCount = 1,
+    this.testFileName,
   });
 
   double get progress => currentQuestion / totalQuestions;
@@ -40,6 +42,7 @@ class OngoingTest {
       'lessonId': lessonId,
       'score': score,
       'attemptCount': attemptCount,
+      if (testFileName != null) 'testFileName': testFileName,
     };
   }
 
@@ -56,6 +59,7 @@ class OngoingTest {
       lessonId: map['lessonId'] ?? '',
       score: map['score'] ?? 0,
       attemptCount: map['attemptCount'] ?? 1,
+      testFileName: map['testFileName'],
     );
   }
 }

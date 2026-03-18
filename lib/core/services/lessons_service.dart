@@ -76,8 +76,10 @@ class LessonsService {
       final cachedJson = prefs.getString(cacheKey);
       if (cachedJson != null) {
         try {
-          final Map<String, dynamic> data = jsonDecode(cachedJson);
-          return Lesson.fromMap(data, lessonId);
+          final decoded = jsonDecode(cachedJson);
+          if (decoded is Map) {
+            return Lesson.fromMap(Map<String, dynamic>.from(decoded), lessonId);
+          }
         } catch (_) {}
       }
 
@@ -114,6 +116,71 @@ class LessonsService {
     }
   }
 
+  /// Get all hidden topic IDs
+  Future<List<String>> getHiddenTopics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Cache
+      final cachedJson = prefs.getString('hidden_topics_cache');
+      if (cachedJson != null) {
+        return List<String>.from(jsonDecode(cachedJson));
+      }
+      
+      // Firestore
+      final doc = await _firestore.collection('settings').doc('topics_visibility').get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final hidden = List<String>.from(data['hidden'] ?? []);
+        await prefs.setString('hidden_topics_cache', jsonEncode(hidden));
+        return hidden;
+      }
+      return []; // Return empty if not created yet (all topics visible by default)
+    } catch (e) {
+      debugPrint('Error getting hidden topics: $e');
+      return [];
+    }
+  }
+
+  /// Toggle topic hidden status
+  Future<void> toggleTopicHiddenStatus(String topicId, bool isHidden) async {
+    try {
+      final docRef = _firestore.collection('settings').doc('topics_visibility');
+      if (isHidden) {
+        await docRef.set({
+          'hidden': FieldValue.arrayUnion([topicId])
+        }, SetOptions(merge: true));
+      } else {
+        await docRef.set({
+          'hidden': FieldValue.arrayRemove([topicId])
+        }, SetOptions(merge: true));
+      }
+      
+      // Update cache
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJson = prefs.getString('hidden_topics_cache');
+      List<String> currentHidden = [];
+      if (cachedJson != null) {
+        currentHidden = List<String>.from(jsonDecode(cachedJson));
+      } else {
+        final doc = await docRef.get();
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>;
+          currentHidden = List<String>.from(data['hidden'] ?? []);
+        }
+      }
+
+      if (isHidden && !currentHidden.contains(topicId)) {
+        currentHidden.add(topicId);
+      } else if (!isHidden && currentHidden.contains(topicId)) {
+        currentHidden.remove(topicId);
+      }
+      await prefs.setString('hidden_topics_cache', jsonEncode(currentHidden));
+    } catch (e) {
+      debugPrint('Error toggling topic hidden status: $e');
+    }
+  }
+
   /// Get all topics for a lesson from Storage (sadece konu isimlerini çeker, içerik sayılarını çekmez)
   /// Storage yapısı: dersler/{lessonName}/{topicName}/video/, dersler/{lessonName}/{topicName}/podcast/, dersler/{lessonName}/{topicName}/bilgikarti/
   Future<List<Topic>> getTopicsByLessonId(String lessonId) async {
@@ -134,9 +201,10 @@ class LessonsService {
         try {
           final List<dynamic> list = jsonDecode(cachedJson);
           return list
+              .where((item) => item is Map)
               .map(
                 (item) =>
-                    Topic.fromMap(item as Map<String, dynamic>, item['id']),
+                    Topic.fromMap(Map<String, dynamic>.from(item as Map), item['id'] ?? ''),
               )
               .toList();
         } catch (_) {}
@@ -668,9 +736,10 @@ class LessonsService {
         // 2) Cache'de yoksa veya 0 ise Firestore'dan çekmeyi dene
         if (testQuestionCount == 0) {
           final topicDoc = await _topicsCollection.doc(topic.id).get();
-          if (topicDoc.exists) {
-            final data = topicDoc.data() as Map<String, dynamic>;
-            testQuestionCount = (data['averageQuestionCount'] ?? 0) as int;
+          final data = topicDoc.data();
+          if (topicDoc.exists && data != null && data is Map) {
+            final topicMap = Map<String, dynamic>.from(data);
+            testQuestionCount = (topicMap['averageQuestionCount'] ?? 0) as int;
           }
         }
 

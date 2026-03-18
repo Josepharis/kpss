@@ -1,14 +1,19 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'progress_service.dart';
-import '../models/app_user.dart';
+// import '../models/app_user.dart'; // Removed as it was unused after recent changes
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 /// Authentication service for handling user login, registration, and session management
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserName = 'user_name';
   static const String _keyKpssType = 'kpss_type';
@@ -65,7 +70,7 @@ class AuthService {
           await prefs.setString(_keyUserName, displayName);
         }
 
-        // Update last login and ensure user data exists in Firestore
+        // Update last login, FCM token and ensure user data exists in Firestore
         await _updateUserLastLogin(userCredential.user!);
       }
 
@@ -134,12 +139,21 @@ class AuthService {
           await prefs.setString(_keyKpssType, kpssType);
         }
 
+        // Get FCM Token
+        String? fcmToken;
+        try {
+          fcmToken = await _fcm.getToken();
+        } catch (e) {
+          debugPrint('Error getting FCM token: $e');
+        }
+
         // Save user data to Firestore
         await _saveUserToFirestore(
           uid: userCredential.user!.uid,
           name: name,
           email: email.trim(),
           kpssType: kpssType,
+          fcmToken: fcmToken,
         );
       }
 
@@ -175,6 +189,18 @@ class AuthService {
 
   /// Logout user
   Future<void> logout() async {
+    // Optional: Remove FCM token from Firestore on logout to stop notifications to this device
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _firestore.collection('users').doc(user.uid).update({
+          'fcmToken': FieldValue.delete(),
+        });
+      } catch (e) {
+        debugPrint('Error removing FCM token on logout: $e');
+      }
+    }
+    
     await _auth.signOut();
     ProgressService.clearStatsCache();
     final prefs = await SharedPreferences.getInstance();
@@ -354,20 +380,34 @@ class AuthService {
     required String name,
     required String email,
     String? kpssType,
+    String? fcmToken,
   }) async {
     try {
       final userDoc = _firestore.collection('users').doc(uid);
 
-      final appUser = AppUser(
-        uid: uid,
-        name: name,
-        email: email,
-        kpssType: kpssType,
-        createdAt: DateTime.now(), // Will be overwritten by serverTimestamp
-      );
+      String platform = 'unknown';
+      if (Platform.isAndroid) {
+        platform = 'android';
+      } else if (Platform.isIOS) {
+        platform = 'ios';
+      }
 
-      await userDoc.set(appUser.toMap(), SetOptions(merge: true));
-      debugPrint('✅ User data saved to Firestore for $uid');
+      final data = {
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'kpssType': kpssType,
+        'platform': platform,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      };
+
+      if (fcmToken != null) {
+        data['fcmToken'] = fcmToken;
+      }
+
+      await userDoc.set(data, SetOptions(merge: true));
+      debugPrint('✅ User data saved to Firestore for $uid (Platform: $platform)');
     } catch (e) {
       debugPrint('❌ Error saving user data to Firestore: $e');
     }
@@ -378,6 +418,14 @@ class AuthService {
     try {
       final userDoc = _firestore.collection('users').doc(user.uid);
 
+      // Get FCM Token
+      String? fcmToken;
+      try {
+        fcmToken = await _fcm.getToken();
+      } catch (e) {
+        debugPrint('Error getting FCM token: $e');
+      }
+
       // First check if doc exists to avoid overwriting missing fields if we weren't merge-setting
       final doc = await userDoc.get();
       if (!doc.exists) {
@@ -386,17 +434,24 @@ class AuthService {
           uid: user.uid,
           name: user.displayName ?? '',
           email: user.email ?? '',
-          // kpssType is unknown here, but will be updated next time they set it
+          kpssType: null,
+          fcmToken: fcmToken,
         );
       } else {
-        await userDoc.update({
+        final updateData = {
           'lastLogin': FieldValue.serverTimestamp(),
-          // Ensure email and name are also there if they were missing
           'email': user.email,
           'name': user.displayName,
-        });
+          'platform': Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'unknown'),
+        };
+
+        if (fcmToken != null) {
+          updateData['fcmToken'] = fcmToken;
+        }
+
+        await userDoc.update(updateData);
       }
-      debugPrint('✅ User last login updated for ${user.uid}');
+      debugPrint('✅ User last login and FCM token updated for ${user.uid}');
     } catch (e) {
       debugPrint('❌ Error updating last login: $e');
     }

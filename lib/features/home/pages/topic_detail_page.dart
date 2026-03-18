@@ -864,9 +864,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               MaterialPageRoute(
                 builder: (context) => TestsPage(
                   topicName: _topic.name,
-                  testCount: _isLoadingContent
-                      ? 0
-                      : _topic.averageQuestionCount,
+                  testCount: availableTests.isNotEmpty
+                      ? availableTests[0]['questionCount']
+                      : (_isLoadingContent ? 0 : _topic.averageQuestionCount),
                   lessonId: _topic.lessonId,
                   topicId: _topic.id,
                   testFileName: availableTests.isNotEmpty

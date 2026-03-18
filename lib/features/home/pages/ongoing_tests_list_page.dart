@@ -86,11 +86,15 @@ class _OngoingTestsListPageState extends State<OngoingTestsListPage> {
     final confirmed = await _confirmReset(test);
     if (!confirmed) return;
 
-    await _progressService.deleteTestProgress(test.topicId, test.lessonId);
+    await _progressService.deleteTestProgress(
+      test.topicId,
+      test.lessonId,
+      testFileName: test.testFileName,
+    );
     if (!mounted) return;
 
     setState(() {
-      _tests.removeWhere((t) => t.topicId == test.topicId);
+      _tests.removeWhere((t) => t.id == test.id);
       _didChange = true;
     });
     await _saveToCache();
@@ -200,6 +204,7 @@ class _OngoingTestsListPageState extends State<OngoingTestsListPage> {
                     testCount: test.totalQuestions,
                     lessonId: test.lessonId,
                     topicId: test.topicId,
+                    testFileName: test.testFileName,
                   ),
                 ),
               );
@@ -251,13 +256,26 @@ class _OngoingTestsListPageState extends State<OngoingTestsListPage> {
                         const SizedBox(height: 2),
                         Row(
                           children: [
-                            Text(
-                              'Test',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF2563EB).withOpacity(0.8),
-                              ),
+                            Builder(
+                              builder: (context) {
+                                String testLabel = 'Test İlerlemesi';
+                                if (test.title.contains(' - Test ')) {
+                                  testLabel = test.title.split(' - ').last;
+                                } else if (test.testFileName != null) {
+                                  final match = RegExp(r'Test\s*(\d+)', caseSensitive: false).firstMatch(test.testFileName!);
+                                  if (match != null) {
+                                    testLabel = 'Test ${match.group(1)}';
+                                  }
+                                }
+                                return Text(
+                                  testLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF2563EB),
+                                  ),
+                                );
+                              },
                             ),
                             const Spacer(),
                             Text(
