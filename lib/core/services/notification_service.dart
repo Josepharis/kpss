@@ -44,27 +44,41 @@ class NotificationService {
       debugPrint('App opened from notification: ${message.notification?.title}');
       // Navigate to a specific page if needed
     });
+
+    // Fetch token on init for logging
+    await getToken();
   }
 
   Future<String?> getToken() async {
     try {
-      // In iOS, we need to wait for APNS token to be available
-      // or Firebase will throw a 'apns-token-not-set' error.
+      print('🔔 NotificationService: Token alma süreci başlatıldı...');
+      
       if (Platform.isIOS) {
+        print('🔔 NotificationService: iOS algılandı, APNS kontrol ediliyor...');
         String? apnsToken = await _fcm.getAPNSToken();
+        
         if (apnsToken == null) {
-          debugPrint('NotificationService: APNS token not ready yet, waiting...');
-          // Give it a little delay or it will fail in next step
+          print('🔔 NotificationService: ⚠️ APNS Token henüz hazır değil. 3 saniye bekleniyor...');
           await Future.delayed(const Duration(seconds: 3));
           apnsToken = await _fcm.getAPNSToken();
+        }
+
+        if (apnsToken != null) {
+          print('🔔 NotificationService: ✅ APNS Token başarıyla alındı: $apnsToken');
+        } else {
+          print('🔔 NotificationService: ❌ Kritik: APNS Token alınamadı. Simülatör kısıtlaması veya Xcode ayarı eksik olabilir.');
         }
       }
 
       String? token = await _fcm.getToken();
-      debugPrint('FCM Token: $token');
+      if (token != null) {
+        print('🔔 NotificationService: 🚀 FCM Token Hazır: $token');
+      } else {
+        print('🔔 NotificationService: ❌ FCM Token boş döndü.');
+      }
       return token;
     } catch (e) {
-      debugPrint('NotificationService: Error getting token: $e');
+      print('🔔 NotificationService: 💥 HATA: $e');
       return null;
     }
   }

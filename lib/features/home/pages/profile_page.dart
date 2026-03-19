@@ -354,7 +354,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 icon: Icons.admin_panel_settings_rounded,
                                 title: 'Yönetici Paneli',
                                 subtitle: 'Soruları ve dersleri yönet',
-                                onTap: () => Navigator.pushNamed(context, '/admin'),
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/admin'),
                                 isSmallScreen: isSmallScreen,
                                 isDark: isDark,
                                 color: Colors.redAccent,
@@ -1560,12 +1561,13 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              final navigator = Navigator.of(context);
+              navigator.pop(); // Dismiss dialog
+              
               await _authService.logout();
+              
               if (mounted) {
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
+                navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               }
             },
             child: Text('Çıkış Yap', style: TextStyle(color: Colors.red)),

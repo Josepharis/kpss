@@ -30,6 +30,7 @@ class _RegisterPageState extends State<RegisterPage>
   bool _isLoading = false;
   bool _agreeToTerms = false;
   KpssType? _selectedKpssType;
+  bool _showKpssError = false;
   late AnimationController _animationController;
   late AnimationController _waveController;
   late AnimationController _particleController;
@@ -104,11 +105,13 @@ class _RegisterPageState extends State<RegisterPage>
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedKpssType == null) {
+        setState(() => _showKpssError = true);
         HapticFeedback.vibrate();
         PremiumSnackBar.show(
           context,
           message: 'Lütfen KPSS türünü seçin',
           type: SnackBarType.warning,
+          title: 'SINAV SEÇİMİ GEREKLİ',
         );
         return;
       }
@@ -326,67 +329,73 @@ class _RegisterPageState extends State<RegisterPage>
                           children: [
                             const SizedBox(height: 0),
                             Transform.translate(
-                              offset: const Offset(0, -60),
+                              offset: const Offset(0, 15),
                               child: Center(
-                                child: AnimatedBuilder(
-                                  animation: Listenable.merge([
-                                    _fadeAnimation,
-                                    _glowAnimation,
-                                  ]),
-                                  builder: (context, child) {
-                                    return Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Container(
-                                          width: screenWidth * 1.0,
-                                          height: screenWidth * 0.5,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: RadialGradient(
-                                              colors: [
-                                                Colors.white.withOpacity(
-                                                  _glowAnimation.value * 0.1,
+                                child: SizedBox(
+                                  height: screenWidth * 0.3,
+                                  child: OverflowBox(
+                                    maxHeight: screenWidth * 1.0,
+                                    maxWidth: screenWidth * 1.3,
+                                    child: AnimatedBuilder(
+                                      animation: Listenable.merge([
+                                        _fadeAnimation,
+                                        _glowAnimation,
+                                      ]),
+                                      builder: (context, child) {
+                                        return Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Container(
+                                              width: screenWidth * 1.2,
+                                              height: screenWidth * 0.7,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                gradient: RadialGradient(
+                                                  colors: [
+                                                    Colors.white.withOpacity(
+                                                      _glowAnimation.value * 0.15,
+                                                    ),
+                                                    Colors.white.withOpacity(0),
+                                                  ],
                                                 ),
-                                                Colors.white.withOpacity(0),
-                                              ],
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                        Image.asset(
-                                          'assets/images/kadrox_logo.png',
-                                          width: screenWidth * 1.0,
-                                          height: screenWidth * 0.5,
-                                          fit: BoxFit.contain,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
+                                            Image.asset(
+                                              'assets/images/kadrox_logo.png',
+                                              width: screenWidth * 1.0,
+                                              height: screenWidth * 0.6,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) =>
                                                   const Icon(
                                                     Icons.auto_awesome_rounded,
-                                                    size: 80,
+                                                    size: 100,
                                                     color: Colors.white,
                                                   ),
-                                        ),
-                                      ],
-                                    );
-                                  },
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: 35),
                             Transform.translate(
-                              offset: const Offset(0, -100),
+                              offset: const Offset(0, 5),
                               child: Text(
                                 'Yeni Hesap',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: isSmallScreen ? 30 : 34,
-                                  fontWeight: FontWeight.w900,
+                                  fontSize: isSmallScreen ? 24 : 30,
+                                  fontWeight: FontWeight.w800,
                                   color: Colors.white,
-                                  letterSpacing: -1.5,
+                                  letterSpacing: -0.5,
                                   height: 1.1,
                                   shadows: [
                                     Shadow(
-                                      color: Colors.black.withOpacity(0.5),
-                                      offset: const Offset(0, 4),
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      offset: const Offset(0, 6),
                                       blurRadius: 15,
                                     ),
                                   ],
@@ -394,7 +403,7 @@ class _RegisterPageState extends State<RegisterPage>
                               ),
                             ),
                             Transform.translate(
-                              offset: const Offset(0, -100),
+                              offset: const Offset(0, 5),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -422,7 +431,9 @@ class _RegisterPageState extends State<RegisterPage>
                                     isDark: true,
                                     validator: (value) {
                                       if (value == null || value.isEmpty)
-                                        return 'E-posta gerekli';
+                                        return 'Lütfen e-posta adresinizi girin';
+                                      if (!value.contains('@'))
+                                        return 'Geçerli bir e-posta adresi girin';
                                       return null;
                                     },
                                   ),
@@ -452,7 +463,9 @@ class _RegisterPageState extends State<RegisterPage>
                                     ),
                                     validator: (value) {
                                       if (value == null || value.isEmpty)
-                                        return 'Şifre gerekli';
+                                        return 'Lütfen bir şifre belirleyin';
+                                      if (value.length < 6)
+                                        return 'Şifre en az 6 karakter olmalıdır';
                                       return null;
                                     },
                                   ),
@@ -480,7 +493,7 @@ class _RegisterPageState extends State<RegisterPage>
                                     ),
                                     validator: (value) {
                                       if (value != _passwordController.text)
-                                        return 'Şifreler eşleşmiyor';
+                                        return 'Şifreler birbiriyle eşleşmiyor';
                                       return null;
                                     },
                                   ),
@@ -526,15 +539,13 @@ class _RegisterPageState extends State<RegisterPage>
                                               text: 'Giriş Yap',
                                               style: TextStyle(
                                                 color: const Color(0xFFF48C06),
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 18,
-                                                letterSpacing: 0.5,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
+                                                letterSpacing: 0.2,
                                                 shadows: [
                                                   Shadow(
-                                                    color: const Color(
-                                                      0xFFF48C06,
-                                                    ).withOpacity(0.5),
-                                                    blurRadius: 15,
+                                                    color: const Color(0xFFF48C06).withValues(alpha: 0.3),
+                                                    blurRadius: 10,
                                                   ),
                                                 ],
                                               ),
@@ -590,21 +601,22 @@ class _RegisterPageState extends State<RegisterPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             'SINAV SEÇİMİ',
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              color: Colors.white60,
-              letterSpacing: 1.2,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.6),
+              letterSpacing: 1.0,
             ),
           ),
         ),
         _PremiumDropdown<KpssType>(
           value: _selectedKpssType,
           hint: 'Gireceğiniz Sınavı Seçin',
+          hasError: _showKpssError,
           items: KpssType.values.map((type) {
             return DropdownMenuItem<KpssType>(
               value: type,
@@ -612,7 +624,10 @@ class _RegisterPageState extends State<RegisterPage>
             );
           }).toList(),
           onChanged: (value) {
-            setState(() => _selectedKpssType = value);
+            setState(() {
+              _selectedKpssType = value;
+              _showKpssError = false;
+            });
             HapticFeedback.selectionClick();
           },
         ),
@@ -622,7 +637,7 @@ class _RegisterPageState extends State<RegisterPage>
 
   Widget _buildRegisterButton(bool isSmallScreen, bool isDark) {
     return Container(
-      height: 54,
+      height: 52,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
@@ -630,9 +645,9 @@ class _RegisterPageState extends State<RegisterPage>
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE85D04).withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+            color: const Color(0xFFE85D04).withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -644,10 +659,10 @@ class _RegisterPageState extends State<RegisterPage>
           child: Center(
             child: _isLoading
                 ? const SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     child: CircularProgressIndicator(
-                      strokeWidth: 3,
+                      strokeWidth: 2.5,
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
@@ -655,17 +670,17 @@ class _RegisterPageState extends State<RegisterPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Hesabını Oluştur',
+                        'Kayıt Ol',
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                           color: Colors.white,
                           letterSpacing: 0.5,
                         ),
                       ),
                       SizedBox(width: 8),
                       Icon(
-                        Icons.arrow_forward_rounded,
+                        Icons.check_circle_outline_rounded,
                         color: Colors.white,
                         size: 20,
                       ),
@@ -789,11 +804,14 @@ class _PremiumDropdown<T> extends StatelessWidget {
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
 
+  final bool hasError;
+
   const _PremiumDropdown({
     required this.value,
     required this.hint,
     required this.items,
     required this.onChanged,
+    this.hasError = false,
   });
 
   @override
@@ -806,12 +824,21 @@ class _PremiumDropdown<T> extends StatelessWidget {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
+            color: hasError ? Colors.red.withOpacity(0.1) : Colors.black.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.white.withOpacity(0.12),
+              color: hasError ? const Color(0xFFFF6B6B) : Colors.white.withOpacity(0.12),
               width: 1.0,
             ),
+            boxShadow: hasError
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFF6B6B).withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 0),
+                    ),
+                  ]
+                : null,
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<T>(
@@ -878,11 +905,11 @@ class _PremiumTextField extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 6),
           child: Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: Colors.white54,
-              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.6),
+              letterSpacing: 1.0,
             ),
           ),
         ),

@@ -4,10 +4,12 @@ import '../../../core/services/quick_access_service.dart';
 import '../../../core/models/quick_access_item.dart';
 import '../../../core/models/topic.dart';
 import '../pages/podcasts_page.dart';
-import '../pages/videos_page.dart';
 import '../pages/flash_cards_page.dart';
 import '../pages/topic_detail_page.dart';
 import '../pages/pdfs_page.dart';
+import '../../../core/services/questions_service.dart';
+import '../pages/tests_page.dart';
+import '../pages/tests_list_page.dart';
 
 class QuickAccessSection extends StatefulWidget {
   final bool isSmallScreen;
@@ -148,7 +150,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> {
                   onRemove: _removeItem,
                   onNavigatePdfs: _navigateToPdfs,
                   onNavigatePodcasts: _navigateToPodcasts,
-                  onNavigateVideos: _navigateToVideos,
+                  onNavigateTests: _navigateToTests,
                   onNavigateFlashCards: _navigateToFlashCards,
                 ),
               );
@@ -177,7 +179,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> {
             averageQuestionCount: 0,
             testCount: 1,
             podcastCount: item.podcastCount,
-            videoCount: item.videoCount,
+            videoCount: 0,
             noteCount: 0,
             flashCardCount: item.flashCardCount,
             pdfCount: item.pdfCount,
@@ -203,18 +205,72 @@ class _QuickAccessSectionState extends State<QuickAccessSection> {
     );
   }
 
-  void _navigateToVideos(QuickAccessItem item) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideosPage(
-          topicName: item.topicName,
-          videoCount: item.videoCount,
-          topicId: item.topicId,
-          lessonId: item.lessonId,
-        ),
-      ),
+
+  Future<void> _navigateToTests(QuickAccessItem item) async {
+    final qService = QuestionsService();
+    // Fetch available tests
+    final availableTests = await qService.getAvailableTestsByTopic(
+      item.topicId,
+      item.lessonId,
     );
+
+    if (!mounted) return;
+
+    if (availableTests.length > 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TestsListPage(
+            topicName: item.topicName,
+            lessonId: item.lessonId,
+            topicId: item.topicId,
+            testCount: availableTests.length,
+            tests: availableTests,
+          ),
+        ),
+      );
+    } else if (availableTests.length == 1) {
+      final test = availableTests[0];
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TestsPage(
+            topicName: item.topicName,
+            testCount: (test['questionCount'] as int? ?? 0),
+            lessonId: item.lessonId,
+            topicId: item.topicId,
+            testFileName: test['fileName'] as String?,
+          ),
+        ),
+      );
+    } else {
+      // No tests found, fall back to TopicDetailPage or show message
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TopicDetailPage(
+            topic: Topic(
+              id: item.topicId,
+              lessonId: item.lessonId,
+              name: item.topicName,
+              subtitle: '',
+              duration: '',
+              averageQuestionCount: item.testCount,
+              testCount: 0,
+              podcastCount: item.podcastCount,
+              videoCount: 0,
+              noteCount: 0,
+              flashCardCount: item.flashCardCount,
+              pdfCount: item.pdfCount,
+              progress: 0.0,
+              order: 0,
+            ),
+            lessonName: item.lessonName,
+            initialTab: 'test',
+          ),
+        ),
+      );
+    }
   }
 
   void _navigateToFlashCards(QuickAccessItem item) {
@@ -238,7 +294,7 @@ class FavoriteTopicCard extends StatefulWidget {
   final Function(String) onRemove;
   final Function(QuickAccessItem) onNavigatePdfs;
   final Function(QuickAccessItem) onNavigatePodcasts;
-  final Function(QuickAccessItem) onNavigateVideos;
+  final Function(QuickAccessItem) onNavigateTests;
   final Function(QuickAccessItem) onNavigateFlashCards;
 
   const FavoriteTopicCard({
@@ -248,7 +304,7 @@ class FavoriteTopicCard extends StatefulWidget {
     required this.onRemove,
     required this.onNavigatePdfs,
     required this.onNavigatePodcasts,
-    required this.onNavigateVideos,
+    required this.onNavigateTests,
     required this.onNavigateFlashCards,
   });
 
@@ -374,7 +430,7 @@ class _FavoriteTopicCardState extends State<FavoriteTopicCard>
                                 averageQuestionCount: 0,
                                 testCount: 1,
                                 podcastCount: widget.item.podcastCount,
-                                videoCount: widget.item.videoCount,
+                                videoCount: 0,
                                 noteCount: 0,
                                 flashCardCount: widget.item.flashCardCount,
                                 pdfCount: widget.item.pdfCount,
@@ -455,18 +511,16 @@ class _FavoriteTopicCardState extends State<FavoriteTopicCard>
                                 ),
                                 const SizedBox(width: 4),
                                 _buildLuxeTile(
-                                  icon: Icons.play_circle_fill_rounded,
-                                  label: 'Video',
-                                  count: widget.item.videoCount,
-                                  color: const Color(0xFF42A5F5),
+                                  icon: Icons.checklist_rtl_rounded,
+                                  label: 'Test',
+                                  count: widget.item.testCount,
+                                  color: const Color(0xFF10B981),
                                   onTap: () =>
-                                      widget.onNavigateVideos(widget.item),
+                                      widget.onNavigateTests(widget.item),
                                 ),
                               ],
                             ),
-                            const SizedBox(
-                              height: 4,
-                            ), // Increased from 2 for "sufficient" space
+                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 _buildLuxeTile(
@@ -480,7 +534,7 @@ class _FavoriteTopicCardState extends State<FavoriteTopicCard>
                                 const SizedBox(width: 4),
                                 _buildLuxeTile(
                                   icon: Icons.style_rounded,
-                                  label: 'Bilgi Kartı',
+                                  label: 'Kart',
                                   count: widget.item.flashCardCount,
                                   color: const Color(0xFFFFA726),
                                   onTap: () =>

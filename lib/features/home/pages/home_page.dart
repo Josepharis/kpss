@@ -7,17 +7,11 @@ import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/ongoing_test.dart';
 import '../../../core/models/ongoing_podcast.dart';
-import '../../../core/models/ongoing_video.dart';
 import '../../../core/models/ongoing_flash_card.dart';
-import '../../../core/models/info_card.dart';
-import '../../../core/models/topic.dart';
 import '../../../core/services/progress_service.dart';
-import '../../../core/services/lessons_service.dart';
 import '../widgets/ongoing_tests_section.dart';
 import '../widgets/ongoing_podcasts_section.dart';
-import '../widgets/ongoing_videos_section.dart';
 import '../widgets/ongoing_flash_cards_section.dart';
-import '../widgets/info_cards_section.dart';
 import '../widgets/daily_quote_card.dart';
 import '../widgets/exam_countdown_card.dart';
 import '../../../core/services/auth_service.dart';
@@ -35,23 +29,18 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ProgressService _progressService = ProgressService();
-  final LessonsService _lessonsService = LessonsService();
   final AuthService _authService = AuthService();
 
   // Memory cache for instant display
   static List<OngoingTest> _cachedTests = [];
   static List<OngoingPodcast> _cachedPodcasts = [];
-  static List<OngoingVideo> _cachedVideos = [];
   static List<OngoingFlashCard> _cachedFlashCards = [];
-  static List<InfoCard> _cachedInfoCards = [];
   static int _cachedScore = 0;
   static String? _cachedUserId;
 
   List<OngoingTest> _ongoingTests = _cachedTests;
   List<OngoingPodcast> _ongoingPodcasts = _cachedPodcasts;
-  List<OngoingVideo> _ongoingVideos = _cachedVideos;
   List<OngoingFlashCard> _ongoingFlashCards = _cachedFlashCards;
-  List<InfoCard> _infoCards = _cachedInfoCards;
   String _userName = 'Kullanıcı';
   int _userTotalScore = _cachedScore;
 
@@ -81,12 +70,11 @@ class _HomePageState extends State<HomePage> {
     _loadOngoingContentFromCache();
     _loadUserScore();
     _loadUserData();
-    Future.microtask(() {
-      _loadOngoingContent();
-      _loadUserScore();
-      _loadUserData();
-      _loadUserData();
-      _loadActiveTask();
+    _loadActiveTask();
+    
+    // Refresh content in background after a short delay to keep UI smooth
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _loadOngoingContent();
     });
 
     _programSubscription = StudyProgramService.instance.onProgramUpdated.listen(
@@ -99,15 +87,11 @@ class _HomePageState extends State<HomePage> {
   void _clearStaticMemoryCaches() {
     _cachedTests = [];
     _cachedPodcasts = [];
-    _cachedVideos = [];
     _cachedFlashCards = [];
-    _cachedInfoCards = [];
     _cachedScore = 0;
     _ongoingTests = [];
     _ongoingPodcasts = [];
-    _ongoingVideos = [];
     _ongoingFlashCards = [];
-    _infoCards = [];
     _userTotalScore = 0;
   }
 
@@ -165,19 +149,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _ongoingPodcasts = items);
         } catch (e) {}
       }
-      final videosJson = prefs.getString('ongoing_videos_cache_$userKey');
-      if (videosJson != null && videosJson.isNotEmpty) {
-        try {
-          final List<dynamic> list = jsonDecode(videosJson);
-          final items = list
-              .map((j) => OngoingVideo.fromMap(j as Map<String, dynamic>))
-              .toList();
-          if (mounted) setState(() => _ongoingVideos = items);
-        } catch (e) {}
-      }
-      final flashCardsJson = prefs.getString(
-        'ongoing_flash_cards_cache_$userKey',
-      );
+      final flashCardsJson = prefs.getString('ongoing_flash_cards_cache_$userKey');
       if (flashCardsJson != null && flashCardsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(flashCardsJson);
@@ -185,16 +157,6 @@ class _HomePageState extends State<HomePage> {
               .map((j) => OngoingFlashCard.fromMap(j as Map<String, dynamic>))
               .toList();
           if (mounted) setState(() => _ongoingFlashCards = items);
-        } catch (e) {}
-      }
-      final infoCardsJson = prefs.getString('info_cards_cache_$userKey');
-      if (infoCardsJson != null && infoCardsJson.isNotEmpty) {
-        try {
-          final List<dynamic> list = jsonDecode(infoCardsJson);
-          final items = list
-              .map((j) => InfoCard.fromMap(j as Map<String, dynamic>))
-              .toList();
-          if (mounted) setState(() => _infoCards = items);
         } catch (e) {}
       }
     } catch (e) {}
@@ -205,48 +167,12 @@ class _HomePageState extends State<HomePage> {
       final results = await Future.wait([
         _progressService.getOngoingTests(),
         _progressService.getOngoingPodcasts(),
-        _progressService.getOngoingVideos(),
         _progressService.getOngoingFlashCards(),
-        _lessonsService.getAllTopics(),
       ]);
 
       final tests = results[0] as List<OngoingTest>;
       final podcasts = results[1] as List<OngoingPodcast>;
-      final videos = results[2] as List<OngoingVideo>;
-      final flashCards = results[3] as List<OngoingFlashCard>;
-      final allTopics = results[4] as List<Topic>;
-
-      // Bilgi kartı olan konuları filtrele (videoCount yerine flashCardCount kullan)
-      final topicsWithFlashCards = allTopics
-          .where((topic) => topic.flashCardCount > 0)
-          .toList();
-      
-      // Sadece 6 adet göster ve içeriği olanları önceliklendir
-      topicsWithFlashCards.sort((a, b) => b.flashCardCount.compareTo(a.flashCardCount));
-      final displayedTopics = topicsWithFlashCards.take(6).toList();
-
-      final infoCards = displayedTopics.map((topic) {
-        final colors = [
-          'green',
-          'orange',
-          'teal',
-          'purple',
-          'blue',
-          'yellow',
-          'red',
-        ];
-        final colorIndex = topic.name.hashCode.abs() % colors.length;
-        return InfoCard(
-          id: topic.id,
-          title: topic.name,
-          description: '${topic.flashCardCount} kart',
-          icon: 'book',
-          color: colors[colorIndex],
-          topicId: topic.id,
-          lessonId: topic.lessonId,
-          cardCount: topic.flashCardCount,
-        );
-      }).toList();
+      final flashCards = results[2] as List<OngoingFlashCard>;
 
       final prefs = await SharedPreferences.getInstance();
       final uid = _authService.getUserId();
@@ -261,33 +187,23 @@ class _HomePageState extends State<HomePage> {
         jsonEncode(podcasts.map((p) => p.toMap()).toList()),
       );
       await prefs.setString(
-        'ongoing_videos_cache_$userKey',
-        jsonEncode(videos.map((v) => v.toMap()).toList()),
-      );
-      await prefs.setString(
         'ongoing_flash_cards_cache_$userKey',
         jsonEncode(flashCards.map((f) => f.toMap()).toList()),
-      );
-      await prefs.setString(
-        'info_cards_cache_$userKey',
-        jsonEncode(infoCards.map((c) => c.toMap()).toList()),
       );
 
       if (mounted) {
         setState(() {
           _ongoingTests = tests;
           _ongoingPodcasts = podcasts;
-          _ongoingVideos = videos;
           _ongoingFlashCards = flashCards;
-          _infoCards = infoCards;
           _cachedTests = tests;
           _cachedPodcasts = podcasts;
-          _cachedVideos = videos;
           _cachedFlashCards = flashCards;
-          _cachedInfoCards = infoCards;
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error loading ongoing content: $e');
+    }
   }
 
   void refreshContent() {
@@ -424,7 +340,6 @@ class _HomePageState extends State<HomePage> {
                       final hasOngoingContent =
                           _ongoingTests.isNotEmpty ||
                           _ongoingPodcasts.isNotEmpty ||
-                          _ongoingVideos.isNotEmpty ||
                           _ongoingFlashCards.isNotEmpty;
 
                       return CustomScrollView(
@@ -503,15 +418,6 @@ class _HomePageState extends State<HomePage> {
                               child: SizedBox(height: 6.0),
                             ),
 
-                          if (_ongoingVideos.isNotEmpty)
-                            SliverToBoxAdapter(
-                              child: OngoingVideosSection(
-                                videos: _ongoingVideos,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: isSmallScreen ? 160 : 200,
-                              ),
-                            ),
-                          if (_ongoingVideos.isNotEmpty)
                             const SliverToBoxAdapter(
                               child: SizedBox(height: 6.0),
                             ),
@@ -529,14 +435,7 @@ class _HomePageState extends State<HomePage> {
                               child: SizedBox(height: 6.0),
                             ),
 
-                          if (_infoCards.isNotEmpty && _ongoingFlashCards.isNotEmpty)
-                            SliverToBoxAdapter(
-                              child: InfoCardsSection(
-                                infoCards: _infoCards,
-                                isSmallScreen: isSmallScreen,
-                                availableHeight: isSmallScreen ? 160 : 200,
-                              ),
-                            ),
+                          // InfoCardsSection removed for less clutter as requested
 
                           // Empty State Centering
                           if (!hasOngoingContent)
@@ -898,93 +797,73 @@ class _HomePageState extends State<HomePage> {
           color: isDark
               ? Colors.white.withOpacity(0.1)
               : Colors.black.withOpacity(0.05),
-          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: grad),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: grad[0].withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: grad,
+              ),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
-              Icons.rocket_launch_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
+            child: const Icon(Icons.timer_rounded, color: Colors.white, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "SIRADAKİ GÖREV",
+                  'Sıradaki Görev',
                   style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: isDark
-                        ? Colors.blueAccent.shade100
-                        : Colors.blueAccent.shade700,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryBlue,
+                    letterSpacing: 0.5,
                   ),
                 ),
                 Text(
                   _activeTask!.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : AppColors.textPrimary,
-                  ),
                 ),
-                if (_activeTask!.lesson.isNotEmpty)
-                  Text(
-                    "${_activeTask!.start} - ${_activeTask!.lesson}",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: (isDark ? Colors.white : AppColors.textSecondary)
-                          .withOpacity(0.5),
-                    ),
-                  ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
           Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: _completeActiveTask,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: (isDark ? Colors.white : Colors.black).withOpacity(
-                    0.05,
-                  ),
+                  color: AppColors.primaryBlue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: (isDark ? Colors.white : Colors.black).withOpacity(
-                      0.1,
-                    ),
-                  ),
                 ),
-                child: Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: isDark ? Colors.greenAccent : Colors.green.shade700,
+                child: Text(
+                  'Tamamla',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryBlue,
+                  ),
                 ),
               ),
             ),

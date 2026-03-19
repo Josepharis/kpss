@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'dart:math' as math;
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/services/auth_service.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -253,135 +254,143 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             SizedBox(height: isSmallScreen ? 0 : 4),
                             // Splash-style Glowing Logo
                             Center(
-                              child: AnimatedBuilder(
-                                animation: Listenable.merge([
-                                  _fadeAnimation,
-                                  _glowAnimation,
-                                ]),
-                                builder: (context, child) {
-                                  return Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Container(
-                                        width: screenWidth * 0.95,
-                                        height: screenWidth * 0.55,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              Colors.white.withOpacity(
-                                                _glowAnimation.value * 0.1,
-                                              ),
-                                              Colors.white.withOpacity(0),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      Image.asset(
-                                        'assets/images/kadrox_logo.png',
-                                        width: screenWidth * 0.85,
-                                        height: screenWidth * 0.55,
-                                        fit: BoxFit.contain,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const Icon(
-                                                  Icons.auto_awesome_rounded,
-                                                  size: 80,
-                                                  color: Colors.white,
+                              child: SizedBox(
+                                height: screenWidth * 0.28, // Pushes even more space for logo without moving bottom
+                                child: OverflowBox(
+                                  maxHeight: screenWidth * 1.2,
+                                  maxWidth: screenWidth * 1.5,
+                                  child: Transform.translate(
+                                    offset: Offset(0, -screenWidth * 0.1), // Moves logo UP into top space
+                                    child: AnimatedBuilder(
+                                      animation: Listenable.merge([
+                                        _fadeAnimation,
+                                        _glowAnimation,
+                                      ]),
+                                      builder: (context, child) {
+                                        return Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Container(
+                                              width: screenWidth * 1.3,
+                                              height: screenWidth * 0.8,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                gradient: RadialGradient(
+                                                  colors: [
+                                                    Colors.white.withOpacity(
+                                                      _glowAnimation.value * 0.18,
+                                                    ),
+                                                    Colors.white.withOpacity(0),
+                                                  ],
                                                 ),
-                                      ),
-                                    ],
-                                  );
-                                },
+                                              ),
+                                            ),
+                                            Image.asset(
+                                              'assets/images/kadrox_logo.png',
+                                              width: screenWidth * 1.15,
+                                              height: screenWidth * 0.7,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  const Icon(
+                                                    Icons.auto_awesome_rounded,
+                                                    size: 110,
+                                                    color: Colors.white,
+                                                  ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                            SizedBox(height: isSmallScreen ? 0 : 0),
+                            const SizedBox(height: 35),
                             Transform.translate(
-                              offset: const Offset(0, -20),
+                              offset: const Offset(0, 10),
                               child: Text(
                                 'Giriş Yap',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: isSmallScreen ? 46 : 56,
-                                  fontWeight: FontWeight.w900,
+                                  fontSize: isSmallScreen ? 32 : 40,
+                                  fontWeight: FontWeight.w800,
                                   color: Colors.white,
-                                  letterSpacing: -1.5,
-                                  height: 0.9,
+                                  letterSpacing: -0.5,
+                                  height: 1.1,
                                   shadows: [
                                     Shadow(
-                                      color: const Color(
-                                        0xFF6366F1,
-                                      ).withOpacity(0.6),
-                                      offset: const Offset(0, 0),
-                                      blurRadius: 40,
-                                    ),
-                                    Shadow(
-                                      color: const Color(
-                                        0xFF6366F1,
-                                      ).withOpacity(0.4),
-                                      offset: const Offset(0, 0),
+                                      color: const Color(0xFF6366F1).withOpacity(0.4),
+                                      offset: const Offset(0, 4),
                                       blurRadius: 20,
                                     ),
                                     Shadow(
-                                      color: Colors.black.withOpacity(0.7),
-                                      offset: const Offset(0, 15),
-                                      blurRadius: 35,
+                                      color: Colors.black.withOpacity(0.5),
+                                      offset: const Offset(0, 10),
+                                      blurRadius: 25,
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 0),
-
-                            _PremiumTextField(
-                              controller: _emailController,
-                              focusNode: _emailFocusNode,
-                              label: 'E-POSTA',
-                              hint: 'ornek@email.com',
-                              icon: Icons.alternate_email_rounded,
-                              keyboardType: TextInputType.emailAddress,
-                              isDark: isDark,
-                              validator: (value) {
-                                if (value == null || value.isEmpty)
-                                  return 'Lütfen e-postayı girin';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                            _PremiumTextField(
-                              controller: _passwordController,
-                              focusNode: _passwordFocusNode,
-                              label: 'ŞİFRE',
-                              hint: '••••••••',
-                              icon: Icons.lock_outline_rounded,
-                              obscureText: !_isPasswordVisible,
-                              isDark: isDark,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isPasswordVisible
-                                      ? Icons.visibility_rounded
-                                      : Icons.visibility_off_rounded,
-                                  color: isDark
-                                      ? Colors.white38
-                                      : Colors.black26,
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(
-                                  () =>
-                                      _isPasswordVisible = !_isPasswordVisible,
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty)
-                                  return 'Şifre gerekli';
-                                return null;
-                              },
-                            ),
+                             const SizedBox(height: 15),
+                             _PremiumTextField(
+                               controller: _emailController,
+                               focusNode: _emailFocusNode,
+                               label: 'E-POSTA',
+                               hint: 'ornek@email.com',
+                               icon: Icons.alternate_email_rounded,
+                               keyboardType: TextInputType.emailAddress,
+                               isDark: isDark,
+                               validator: (value) {
+                                 if (value == null || value.isEmpty)
+                                   return 'Lütfen e-posta adresinizi girin';
+                                 if (!value.contains('@'))
+                                   return 'Geçerli bir e-posta adresi girin';
+                                 return null;
+                               },
+                             ),
+                             const SizedBox(height: 10),
+                             _PremiumTextField(
+                               controller: _passwordController,
+                               focusNode: _passwordFocusNode,
+                               label: 'ŞİFRE',
+                               hint: '••••••••',
+                               icon: Icons.lock_outline_rounded,
+                               obscureText: !_isPasswordVisible,
+                               isDark: isDark,
+                               suffixIcon: IconButton(
+                                 icon: Icon(
+                                   _isPasswordVisible
+                                       ? Icons.visibility_rounded
+                                       : Icons.visibility_off_rounded,
+                                   color: isDark ? Colors.white38 : Colors.black26,
+                                   size: 20,
+                                 ),
+                                 onPressed: () => setState(
+                                   () => _isPasswordVisible = !_isPasswordVisible,
+                                 ),
+                               ),
+                               validator: (value) {
+                                 if (value == null || value.isEmpty)
+                                   return 'Lütfen şifrenizi girin';
+                                 if (value.length < 6)
+                                   return 'Şifre en az 6 karakter olmalıdır';
+                                 return null;
+                               },
+                             ),
 
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const ForgotPasswordPage(),
+                                    ),
+                                  );
+                                },
                                 child: Text(
                                   'Şifremi Unuttum',
                                   style: TextStyle(
@@ -395,56 +404,58 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               ),
                             ),
 
-                            SizedBox(height: isSmallScreen ? 24 : 40),
+                            SizedBox(height: isSmallScreen ? 12 : 18), // Reduced gap
 
                             _buildLoginButton(isSmallScreen, isDark),
 
-                            SizedBox(height: isSmallScreen ? 16 : 24),
+                            const SizedBox(height: 100), // Reserve space for bottom items
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
-                            Center(
-                              child: GestureDetector(
-                                onTap: () => Navigator.of(
-                                  context,
-                                ).pushNamed('/register'),
-                                child: RichText(
-                                  text: TextSpan(
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isDark
-                                          ? Colors.white54
-                                          : Colors.black45,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                    children: [
-                                      const TextSpan(text: 'Hesabın yok mu? '),
-                                      TextSpan(
-                                        text: 'Kayıt Ol',
-                                        style: TextStyle(
-                                          color: const Color(0xFFF48C06),
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 18,
-                                          letterSpacing: 0.5,
-                                          shadows: [
-                                            Shadow(
-                                              color: const Color(
-                                                0xFFF48C06,
-                                              ).withOpacity(0.5),
-                                              blurRadius: 15,
-                                            ),
-                                          ],
-                                        ),
+                  // Fixed at bottom
+                  Positioned(
+                    bottom: 24,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).pushNamed('/register'),
+                          child: RichText(
+                            text: TextSpan(
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              children: [
+                                const TextSpan(text: 'Hesabın yok mu? '),
+                                TextSpan(
+                                  text: 'Kayıt Ol',
+                                  style: TextStyle(
+                                    color: const Color(0xFFF48C06),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    letterSpacing: 0.2,
+                                    shadows: [
+                                      Shadow(
+                                        color: const Color(0xFFF48C06).withOpacity(0.3),
+                                        blurRadius: 10,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(height: 32),
-                            _buildLegalLinks(isDark),
-                            const SizedBox(height: 40),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                        _buildLegalLinks(isDark),
+                      ],
                     ),
                   ),
                 ],
@@ -458,17 +469,18 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   Widget _buildLoginButton(bool isSmallScreen, bool isDark) {
     return Container(
-      height: 56,
+      height: 42,
+      margin: const EdgeInsets.symmetric(horizontal: 40),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFFFF9D6C), Color(0xFFE85D04)],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE85D04).withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFFE85D04).withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -476,34 +488,34 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         color: Colors.transparent,
         child: InkWell(
           onTap: _isLoading ? null : _handleLogin,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Center(
             child: _isLoading
                 ? const SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     child: CircularProgressIndicator(
-                      strokeWidth: 3,
+                      strokeWidth: 2.5,
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Row(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Hadi Başlayalım',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
+                        Text(
+                          _isLoading ? 'Giriş Yapılıyor...' : 'Başla',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                      ),
-                      SizedBox(width: 10),
+                      SizedBox(width: 8),
                       Icon(
                         Icons.arrow_forward_rounded,
                         color: Colors.white,
-                        size: 22,
+                        size: 20,
                       ),
                     ],
                   ),
@@ -898,11 +910,11 @@ class _PremiumTextField extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 6),
           child: Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: Colors.white54,
-              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.6),
+              letterSpacing: 1.0,
             ),
           ),
         ),

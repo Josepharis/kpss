@@ -61,7 +61,6 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
         final t = topics[i];
         int qCount = t.averageQuestionCount;
         int pCount = t.podcastCount;
-        int vCount = t.videoCount;
         int fCount = t.flashCardCount;
         int pdfCount = t.pdfCount;
 
@@ -70,7 +69,6 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
         if (contentCountsJson != null && contentCountsJson.isNotEmpty) {
           try {
             final Map<String, dynamic> counts = jsonDecode(contentCountsJson);
-            vCount = counts['videoCount'] as int? ?? vCount;
             pCount = counts['podcastCount'] as int? ?? pCount;
             fCount = counts['flashCardCount'] as int? ?? fCount;
             pdfCount = counts['pdfCount'] as int? ?? pdfCount;
@@ -95,7 +93,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
           averageQuestionCount: qCount,
           testCount: qCount > 0 ? 1 : 0,
           podcastCount: pCount,
-          videoCount: vCount,
+          videoCount: 0,
           noteCount: t.noteCount,
           flashCardCount: fCount,
           pdfCount: pdfCount,
@@ -815,9 +813,9 @@ class _TopicListItemState extends State<_TopicListItem> {
       topicName: widget.topic.name,
       lessonName: widget.lessonName,
       podcastCount: widget.topic.podcastCount,
-      videoCount: widget.topic.videoCount,
       flashCardCount: widget.topic.flashCardCount,
       pdfCount: widget.topic.pdfCount,
+      testCount: widget.topic.averageQuestionCount,
     );
     if (mounted) {
       setState(() {

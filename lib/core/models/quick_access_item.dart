@@ -8,6 +8,7 @@ class QuickAccessItem {
   final int videoCount;
   final int flashCardCount;
   final int pdfCount;
+  final int testCount;
 
   QuickAccessItem({
     required this.topicId,
@@ -19,6 +20,7 @@ class QuickAccessItem {
     this.videoCount = 0,
     this.flashCardCount = 0,
     this.pdfCount = 0,
+    this.testCount = 0,
   });
 
   factory QuickAccessItem.fromMap(Map<String, dynamic> map) {
@@ -32,6 +34,7 @@ class QuickAccessItem {
       videoCount: map['videoCount'] ?? 0,
       flashCardCount: map['flashCardCount'] ?? 0,
       pdfCount: map['pdfCount'] ?? 0,
+      testCount: map['testCount'] ?? 0,
     );
   }
 
@@ -46,6 +49,7 @@ class QuickAccessItem {
       'videoCount': videoCount,
       'flashCardCount': flashCardCount,
       'pdfCount': pdfCount,
+      'testCount': testCount,
     };
   }
 
@@ -59,6 +63,7 @@ class QuickAccessItem {
     int? videoCount,
     int? flashCardCount,
     int? pdfCount,
+    int? testCount,
   }) {
     return QuickAccessItem(
       topicId: topicId ?? this.topicId,
@@ -70,6 +75,7 @@ class QuickAccessItem {
       videoCount: videoCount ?? this.videoCount,
       flashCardCount: flashCardCount ?? this.flashCardCount,
       pdfCount: pdfCount ?? this.pdfCount,
+      testCount: testCount ?? this.testCount,
     );
   }
 }

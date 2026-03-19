@@ -80,26 +80,35 @@ class AuthService {
 
       switch (e.code) {
         case 'user-not-found':
-          errorMessage = 'Bu e-posta adresine kayıtlı kullanıcı bulunamadı.';
-          break;
         case 'wrong-password':
-          errorMessage = 'Hatalı şifre. Lütfen tekrar deneyin.';
+        case 'invalid-credential':
+          errorMessage =
+              'E-posta adresi veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
           break;
         case 'invalid-email':
-          errorMessage = 'Geçersiz e-posta adresi.';
+          errorMessage =
+              'E-posta adresi geçersiz görünüyor. Lütfen geçerli bir adres girin.';
           break;
         case 'user-disabled':
-          errorMessage = 'Bu kullanıcı hesabı devre dışı bırakılmış.';
+          errorMessage =
+              'Bu hesap güvenliğiniz için askıya alınmış. Lütfen destekle iletişime geçin.';
           break;
         case 'too-many-requests':
           errorMessage =
-              'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
+              'Çok fazla giriş denemesi yapıldı. Lütfen bir süre bekleyip tekrar deneyin.';
           break;
         case 'network-request-failed':
-          errorMessage = 'İnternet bağlantınızı kontrol edin.';
+          errorMessage =
+              'İnternet bağlantınızda bir sorun oluştu. Lütfen bağlantınızı kontrol edip tekrar deneyin.';
+          break;
+        case 'channel-error':
+          errorMessage =
+              'Lütfen e-posta ve şifre alanlarını eksiksiz doldurun.';
           break;
         default:
-          errorMessage = 'Giriş başarısız: ${e.message ?? "Bilinmeyen hata"}';
+          errorMessage =
+              'Giriş yapılamadı. Lütfen bilgilerinizin doğruluğundan emin olun veya daha sonra tekrar deneyin.';
+          debugPrint('Auth Error: ${e.code} - ${e.message}');
       }
 
       return AuthResult.failure(errorMessage);
@@ -163,22 +172,24 @@ class AuthService {
 
       switch (e.code) {
         case 'weak-password':
-          errorMessage = 'Şifre çok zayıf. Daha güçlü bir şifre seçin.';
+          errorMessage =
+              'Şifreniz çok zayıf. Güvenliğiniz için en az 6 karakterli bir şifre belirleyin.';
           break;
         case 'email-already-in-use':
-          errorMessage = 'Bu e-posta adresi zaten kullanılıyor.';
+          errorMessage =
+              'Bu e-posta adresi zaten kullanımda. Giriş yapmayı deneyebilir veya başka bir adres kullanabilirsiniz.';
           break;
         case 'invalid-email':
-          errorMessage = 'Geçersiz e-posta adresi.';
-          break;
-        case 'operation-not-allowed':
-          errorMessage = 'Bu işlem şu anda kullanılamıyor.';
+          errorMessage =
+              'Geçersiz bir e-posta adresi girdiniz. Lütfen kontrol edin.';
           break;
         case 'network-request-failed':
           errorMessage = 'İnternet bağlantınızı kontrol edin.';
           break;
         default:
-          errorMessage = 'Kayıt başarısız: ${e.message ?? "Bilinmeyen hata"}';
+          errorMessage =
+              'Kayıt işlemi şu anda gerçekleştirilemiyor. Lütfen daha sonra tekrar deneyin.';
+          debugPrint('Auth Register Error: ${e.code} - ${e.message}');
       }
 
       return AuthResult.failure(errorMessage);
@@ -200,7 +211,7 @@ class AuthService {
         debugPrint('Error removing FCM token on logout: $e');
       }
     }
-    
+
     await _auth.signOut();
     ProgressService.clearStatsCache();
     final prefs = await SharedPreferences.getInstance();
@@ -358,14 +369,19 @@ class AuthService {
 
       switch (e.code) {
         case 'user-not-found':
-          errorMessage = 'Bu e-posta adresine kayıtlı kullanıcı bulunamadı.';
+          errorMessage =
+              'Bu e-posta adresine kayıtlı bir hesap bulunamadı. Lütfen kontrol edin.';
           break;
         case 'invalid-email':
-          errorMessage = 'Geçersiz e-posta adresi.';
+          errorMessage = 'Geçersiz bir e-posta adresi girdiniz.';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'İnternet bağlantınızı kontrol edin.';
           break;
         default:
           errorMessage =
-              'E-posta gönderilemedi: ${e.message ?? "Bilinmeyen hata"}';
+              'Şifre sıfırlama e-postası şu anda gönderilemiyor. Lütfen daha sonra tekrar deneyin.';
+          debugPrint('Auth Reset Error: ${e.code} - ${e.message}');
       }
 
       return AuthResult.failure(errorMessage);
@@ -407,7 +423,9 @@ class AuthService {
       }
 
       await userDoc.set(data, SetOptions(merge: true));
-      debugPrint('✅ User data saved to Firestore for $uid (Platform: $platform)');
+      debugPrint(
+        '✅ User data saved to Firestore for $uid (Platform: $platform)',
+      );
     } catch (e) {
       debugPrint('❌ Error saving user data to Firestore: $e');
     }
@@ -442,7 +460,9 @@ class AuthService {
           'lastLogin': FieldValue.serverTimestamp(),
           'email': user.email,
           'name': user.displayName,
-          'platform': Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'unknown'),
+          'platform': Platform.isAndroid
+              ? 'android'
+              : (Platform.isIOS ? 'ios' : 'unknown'),
         };
 
         if (fcmToken != null) {

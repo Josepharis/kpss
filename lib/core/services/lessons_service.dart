@@ -6,6 +6,7 @@ import '../models/lesson.dart';
 import '../models/topic.dart';
 import 'storage_service.dart';
 import 'questions_service.dart';
+import 'flash_card_cache_service.dart';
 
 /// Service for managing lessons and topics from Firestore
 class LessonsService {
@@ -87,8 +88,9 @@ class LessonsService {
       final doc = await _lessonsCollection.doc(lessonId).get();
       if (doc.exists) {
         final data = doc.data()! as Map<String, dynamic>;
-        // Save to cache
-        await prefs.setString(cacheKey, jsonEncode(data));
+        // Save to cache - Handle potential Timestamp objects
+        final encodableData = _makeEncodable(data);
+        await prefs.setString(cacheKey, jsonEncode(encodableData));
         return Lesson.fromMap(data, doc.id);
       }
       return null;
@@ -96,6 +98,27 @@ class LessonsService {
       debugPrint('Error fetching lesson: $e');
       return null;
     }
+  }
+
+  /// Helper to make a map encodable by converting Timestamps to strings
+  Map<String, dynamic> _makeEncodable(Map<String, dynamic> data) {
+    final Map<String, dynamic> encodable = {};
+    data.forEach((key, value) {
+      if (value is Timestamp) {
+        encodable[key] = value.toDate().toIso8601String();
+      } else if (value is Map<String, dynamic>) {
+        encodable[key] = _makeEncodable(value);
+      } else if (value is List) {
+        encodable[key] = value.map((e) {
+          if (e is Map<String, dynamic>) return _makeEncodable(e);
+          if (e is Timestamp) return e.toDate().toIso8601String();
+          return e;
+        }).toList();
+      } else {
+        encodable[key] = value;
+      }
+    });
+    return encodable;
   }
 
   /// Get all topics
@@ -666,85 +689,93 @@ class LessonsService {
   /// Bu metod konu detay sayfasında kullanılır
   Future<Topic> getTopicContentCounts(Topic topic) async {
     try {
-      // Topic zaten lessonId'yi içeriyor, direkt kullan
-      final lessonId = topic.lessonId;
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'content_counts_${topic.id}';
+      final cacheTimeKey = 'content_counts_time_${topic.id}';
 
-      // Lesson'ı al
-      final lesson = await getLessonById(lessonId);
-      if (lesson == null) {
-        // Silent error handling
-        return topic;
+      // 0. Check Cache First (to avoid heavy storage calls)
+      final cachedJson = prefs.getString(cacheKey);
+      final cacheTime = prefs.getInt(cacheTimeKey);
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Cache is valid for 1 day for content counts (Storage changes might happen)
+      if (cachedJson != null &&
+          cacheTime != null &&
+          (now - cacheTime) < 1000 * 60 * 60 * 24 * 1) {
+        try {
+          final decoded = jsonDecode(cachedJson) as Map<String, dynamic>;
+          return Topic(
+            id: topic.id,
+            lessonId: topic.lessonId,
+            name: topic.name,
+            subtitle: topic.subtitle,
+            duration: topic.duration,
+            averageQuestionCount: (decoded['testQuestionCount'] ?? 0) as int,
+            testCount: (decoded['testCount'] ?? 0) as int,
+            podcastCount: (decoded['podcastCount'] ?? 0) as int,
+            videoCount: (decoded['videoCount'] ?? 0) as int,
+            noteCount: (decoded['noteCount'] ?? 0) as int,
+            flashCardCount: (decoded['flashCardCount'] ?? 0) as int,
+            pdfCount: (decoded['pdfCount'] ?? 0) as int,
+            progress: topic.progress,
+            order: topic.order,
+          );
+        } catch (_) {}
       }
 
-      // Lesson name'i storage path'ine çevir
-      final lessonNameForPath = lesson.name
-          .toLowerCase()
-          .replaceAll(' ', '_')
-          .replaceAll('ı', 'i')
-          .replaceAll('ğ', 'g')
-          .replaceAll('ü', 'u')
-          .replaceAll('ş', 's')
-          .replaceAll('ö', 'o')
-          .replaceAll('ç', 'c');
+      final lessonId = topic.lessonId;
+      final lesson = await getLessonById(lessonId);
+      if (lesson == null) return topic;
 
-      // Konu klasörü path'ini oluştur (önce konular/ altına bakar, yoksa direkt ders altına bakar)
+      final lessonNameForPath = normalizeForStoragePath(lesson.name);
       final topicBasePath = await getTopicBasePath(
         lessonId: lessonId,
         topicId: topic.id,
         lessonNameForPath: lessonNameForPath,
       );
 
-      final videoPath = '$topicBasePath/video';
       final podcastPath = '$topicBasePath/podcast';
       final bilgikartiPath = '$topicBasePath/bilgikarti';
       final notPath = '$topicBasePath/not';
       final notlarPath = '$topicBasePath/notlar';
 
-      // Dosya sayılarını paralel olarak say (hızlı - sadece dosya sayısı)
-      // Test soru sayısı ayrı hesaplanacak (cache'den hızlı)
       final counts = await Future.wait([
-        _storageService.countFilesInFolder(videoPath).catchError((_) => 0),
+        Future.value(0), // videoCount her zaman 0 olacak (istek üzerine kaldırıldı)
         _storageService.countFilesInFolder(podcastPath).catchError((_) => 0),
-        _storageService
-            .countFilesInFolder(bilgikartiPath)
-            .catchError((_) => 0), // Hızlı: sadece dosya sayısı
+        _countFlashCardsTotal(topic.id, bilgikartiPath), // Toplam kart sayısı
         _storageService.countFilesInFolder(notPath).catchError((_) => 0),
         _storageService.countFilesInFolder(notlarPath).catchError((_) => 0),
-        _countPdfsFast(topicBasePath), // PDF sayısını paralel hesapla
+        _countPdfsFast(topicBasePath),
         _storageService
             .listJsonFiles('$topicBasePath/soru')
             .then((list) => list.length)
             .catchError((_) => 0),
       ]);
 
-      // Test soru sayısını hesapla
       int testQuestionCount = 0;
       try {
-        // 1) Önce cache'den hızlıca almayı dene
-        final prefs = await SharedPreferences.getInstance();
-        final cacheKey = 'questions_${topic.id}';
-        final cachedJson = prefs.getString(cacheKey);
+        final qCacheKey = 'questions_${topic.id}';
+        final qCachedJson = prefs.getString(qCacheKey);
 
-        if (cachedJson != null && cachedJson.isNotEmpty) {
+        if (qCachedJson != null && qCachedJson.isNotEmpty) {
           int braceCount = 0;
-          for (int i = 0; i < cachedJson.length; i++) {
-            if (cachedJson[i] == '{') braceCount++;
+          for (int i = 0; i < qCachedJson.length; i++) {
+            if (qCachedJson[i] == '{') braceCount++;
           }
           testQuestionCount = braceCount;
         }
 
-        // 2) Cache'de yoksa veya 0 ise Firestore'dan çekmeyi dene
-        if (testQuestionCount == 0) {
+        if (testQuestionCount <= 0) {
           final topicDoc = await _topicsCollection.doc(topic.id).get();
-          final data = topicDoc.data();
-          if (topicDoc.exists && data != null && data is Map) {
-            final topicMap = Map<String, dynamic>.from(data);
-            testQuestionCount = (topicMap['averageQuestionCount'] ?? 0) as int;
+          if (topicDoc.exists) {
+            final data = topicDoc.data();
+            if (data != null && data is Map) {
+              testQuestionCount = (data['averageQuestionCount'] ?? 0) as int;
+            }
           }
         }
 
-        // 3) Hala 0 ise, Storage'dan gerçek testleri saymayı dene (En son çare - yavaş olabilir)
-        if (testQuestionCount == 0 && counts[6] > 0) {
+        if (testQuestionCount <= 0 && counts[6] > 0) {
           try {
             final qService = QuestionsService();
             final availableTests = await qService.getAvailableTestsByTopic(
@@ -758,54 +789,36 @@ class LessonsService {
             testQuestionCount = totalQ;
           } catch (_) {}
         }
-      } catch (e) {
-        debugPrint('⚠️ Error fetching test question count: $e');
-      }
-      final videoCount = counts[0];
+      } catch (_) {}
+
       final podcastCount = counts[1];
-      final bilgikartiFileCount = counts[2]; // Dosya sayısı (hızlı)
+      final bilgikartiCount = counts[2];
       final notCount = counts[3] + counts[4];
-      final pdfCount = counts[5]; // PDF sayısı
-
-      // Bilgi kartı sayısı: Dosya sayısını direkt kullan (hızlı - cache kontrolü yok)
-      int bilgikartiCount = bilgikartiFileCount;
-
-      // PDF URL'ini bul (ilk PDF için - lazy load, sadece gerektiğinde)
-      // Şu an sadece sayıları gösteriyoruz, URL'ye gerek yok
-      String? pdfUrl;
-      // PDF URL'i lazy load edilecek (kullanıcı PDF sayfasına girdiğinde)
-
-      // Test sayısı: Soru klasöründeki JSON dosyası sayısı
+      final pdfCount = counts[5];
       final testCount = counts[6];
 
-      // Topic'i güncelle
       final updatedTopic = Topic(
         id: topic.id,
         lessonId: topic.lessonId,
         name: topic.name,
         subtitle: topic.subtitle,
         duration: topic.duration,
-        averageQuestionCount: testQuestionCount, // Soru sayısını buraya kaydet
-        testCount: testCount, // Test sayısı (soru varsa 1)
+        averageQuestionCount: testQuestionCount,
+        testCount: testCount,
         podcastCount: podcastCount,
-        videoCount: videoCount,
-        noteCount: notCount, // Notlar ayrı
-        flashCardCount: bilgikartiCount, // Bilgi kartı sayısı
-        pdfCount: pdfCount, // PDF sayısı
+        videoCount: 0,
+        noteCount: notCount,
+        flashCardCount: bilgikartiCount,
+        pdfCount: pdfCount,
         progress: topic.progress,
         order: topic.order,
-        pdfUrl: pdfUrl,
       );
 
-      // Sayıları cache'e kaydet (hızlı erişim için - 7 gün geçerli)
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final cacheKey = 'content_counts_${topic.id}';
-        final cacheTimeKey = 'content_counts_time_${topic.id}';
         await prefs.setString(
           cacheKey,
           jsonEncode({
-            'videoCount': videoCount,
+            'videoCount': 0,
             'podcastCount': podcastCount,
             'flashCardCount': bilgikartiCount,
             'noteCount': notCount,
@@ -814,88 +827,43 @@ class LessonsService {
             'testCount': testCount,
           }),
         );
-        await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+        await prefs.setInt(cacheTimeKey, now);
 
-        // Firestore'a da kaydet (Diğer kullanıcılar için hazır olsun)
-        // Bu sayede her kullanıcı storage saymak zorunda kalmaz
-        await _topicsCollection
-            .doc(topic.id)
-            .set({
-              'videoCount': videoCount,
-              'podcastCount': podcastCount,
-              'flashCardCount': bilgikartiCount,
-              'noteCount': notCount,
-              'pdfCount': pdfCount,
-              'averageQuestionCount': testQuestionCount,
-              'testCount': testCount,
-              'lastUpdated': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true))
-            .catchError((e) {
-              debugPrint('⚠️ Error updating topic counts in Firestore: $e');
-            });
-
-        // Soru sayısını ayrı bir key ile de kaydet (lesson_card için hızlı erişim)
-        if (testQuestionCount > 0) {
-          await prefs.setInt('questions_count_${topic.id}', testQuestionCount);
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error caching content counts: $e');
-      }
+        await _topicsCollection.doc(topic.id).set({
+          'videoCount': 0,
+          'podcastCount': podcastCount,
+          'flashCardCount': bilgikartiCount,
+          'noteCount': notCount,
+          'pdfCount': pdfCount,
+          'averageQuestionCount': testQuestionCount,
+          'testCount': testCount,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
 
       return updatedTopic;
     } catch (e) {
-      debugPrint('❌ Error fetching content counts for topic ${topic.name}: $e');
+      debugPrint('❌ Error in getTopicContentCounts: $e');
       return topic;
     }
   }
 
-  /// Helper method to count PDFs quickly (sadece dosya isimlerine bak, URL almadan)
+  /// Helper method to count PDFs quickly
   Future<int> _countPdfsFast(String topicBasePath) async {
-    try {
-      final konuAnlatimiPath = '$topicBasePath/konu';
-      final konuAnlatimiPathAlt = '$topicBasePath/konu_anlatimi';
-      final pdfPath = '$topicBasePath/pdf';
+    int totalPdfCount = 0;
+    final folderPaths = [
+      '$topicBasePath/konu',
+      '$topicBasePath/konu_anlatimi',
+      '$topicBasePath/pdf',
+    ];
 
-      // PDF dosyalarını filtrele (sadece dosya isimlerine bak, URL almadan - çok hızlı)
-      int totalPdfCount = 0;
-
-      // konu/ klasöründen PDF sayısı
+    for (final folderPath in folderPaths) {
       try {
-        final fileNames = await _storageService.listFileNames(konuAnlatimiPath);
-        totalPdfCount += fileNames
-            .where((name) => name.toLowerCase().endsWith('.pdf'))
-            .length;
-      } catch (e) {
-        // Hata olursa devam et
-      }
-
-      // konu_anlatimi/ klasöründen PDF sayısı
-      try {
-        final fileNames = await _storageService.listFileNames(
-          konuAnlatimiPathAlt,
-        );
-        totalPdfCount += fileNames
-            .where((name) => name.toLowerCase().endsWith('.pdf'))
-            .length;
-      } catch (e) {
-        // Hata olursa devam et
-      }
-
-      // pdf/ klasöründen PDF sayısı
-      try {
-        final fileNames = await _storageService.listFileNames(pdfPath);
-        totalPdfCount += fileNames
-            .where((name) => name.toLowerCase().endsWith('.pdf'))
-            .length;
-      } catch (e) {
-        // Hata olursa devam et
-      }
-
-      return totalPdfCount;
-    } catch (e) {
-      // Silent error handling
-      return 0;
+        final fileNames = await _storageService.listFileNames(folderPath);
+        totalPdfCount += fileNames.where((n) => n.toLowerCase().endsWith('.pdf')).length;
+      } catch (_) {}
     }
+    return totalPdfCount;
   }
 
   /// Helper method to get topics from Firestore
@@ -988,7 +956,6 @@ class LessonsService {
     }
   }
 
-  /// Update topic progress
   Future<bool> updateTopicProgress(String topicId, double progress) async {
     try {
       await _topicsCollection.doc(topicId).update({'progress': progress});
@@ -996,6 +963,37 @@ class LessonsService {
     } catch (e) {
       debugPrint('Error updating topic progress: $e');
       return false;
+    }
+  }
+
+  /// Toplam bilgi kartı sayısını hesaplar (CSV içindeki satırları sayar)
+  Future<int> _countFlashCardsTotal(String topicId, String folderPath) async {
+    try {
+      final files = await _storageService.listFilesWithPaths(folderPath);
+      if (files.isEmpty) return 0;
+
+      int totalCount = 0;
+      for (final file in files) {
+        final filePath = file['fullPath']!;
+        final fileUrl = file['url']!;
+        
+        // 1. Önce cache'de var mı bak
+        if (await FlashCardCacheService.isCachedByPath(filePath)) {
+          final cachedCards = await FlashCardCacheService.getCachedCardsByPath(filePath);
+          totalCount += cachedCards.length;
+        } else {
+          // 2. Cache'de yoksa, indir ve parse et (indirirken cache'ler)
+          final cards = await FlashCardCacheService.cacheFlashCardsByPath(
+            fileUrl, 
+            filePath,
+          );
+          totalCount += cards.length;
+        }
+      }
+      return totalCount;
+    } catch (e) {
+      debugPrint('Error counting total flashcards for $topicId: $e');
+      return 0;
     }
   }
 }

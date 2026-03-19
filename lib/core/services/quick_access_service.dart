@@ -31,6 +31,7 @@ class QuickAccessService {
         'podcastCount': readInt('podcastCount'),
         'flashCardCount': readInt('flashCardCount'),
         'pdfCount': readInt('pdfCount'),
+        'testCount': readInt('testCount'),
       };
     } catch (_) {
       return {};
@@ -47,6 +48,7 @@ class QuickAccessService {
     int videoCount = 0,
     int flashCardCount = 0,
     int pdfCount = 0,
+    int testCount = 0,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -68,6 +70,7 @@ class QuickAccessService {
         videoCount: videoCount,
         flashCardCount: flashCardCount,
         pdfCount: pdfCount,
+        testCount: testCount,
       );
 
       items.add(newItem);
@@ -131,6 +134,7 @@ class QuickAccessService {
     int? videoCount,
     int? flashCardCount,
     int? pdfCount,
+    int? testCount,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -144,6 +148,7 @@ class QuickAccessService {
           videoCount: videoCount ?? item.videoCount,
           flashCardCount: flashCardCount ?? item.flashCardCount,
           pdfCount: pdfCount ?? item.pdfCount,
+          testCount: testCount ?? item.testCount,
         );
 
         // Save updated items
@@ -183,6 +188,7 @@ class QuickAccessService {
     int videoCount = 0,
     int flashCardCount = 0,
     int pdfCount = 0,
+    int testCount = 0,
   }) async {
     try {
       final isInQuickAccess = await QuickAccessService.isInQuickAccess(topicId);
@@ -205,6 +211,9 @@ class QuickAccessService {
         final resolvedPdfCount = pdfCount > 0
             ? pdfCount
             : (cached['pdfCount'] ?? 0);
+        final resolvedTestCount = testCount > 0
+            ? testCount
+            : (cached['testCount'] ?? 0);
 
         await addQuickAccessItem(
           topicId: topicId,
@@ -215,6 +224,7 @@ class QuickAccessService {
           videoCount: resolvedVideoCount,
           flashCardCount: resolvedFlashCardCount,
           pdfCount: resolvedPdfCount,
+          testCount: resolvedTestCount,
         );
         return true;
       }

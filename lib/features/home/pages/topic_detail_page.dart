@@ -22,7 +22,6 @@ import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
 import 'notes_page.dart';
 import 'past_questions_page.dart';
-import 'videos_page.dart';
 import 'tests_list_page.dart';
 import 'pdfs_page.dart';
 import 'subscription_page.dart';
@@ -31,11 +30,13 @@ import '../../../core/services/topic_notes_service.dart';
 class TopicDetailPage extends StatefulWidget {
   final Topic topic;
   final String lessonName;
+  final String? initialTab;
 
   const TopicDetailPage({
     super.key,
     required this.topic,
     required this.lessonName,
+    this.initialTab,
   });
 
   @override
@@ -102,8 +103,54 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
         // Test tamamlanma durumunu kontrol et
         _checkTestCompletion();
+
+        // Eğer 'test' sekmesiyle açıldıysa otomatik olarak testi aç
+        if (widget.initialTab == 'test') {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _navigateToTestDirectly();
+          });
+        }
       }
     });
+  }
+
+  Future<void> _navigateToTestDirectly() async {
+    final qService = QuestionsService();
+    final availableTests = await qService.getAvailableTestsByTopic(
+      _topic.id,
+      _topic.lessonId,
+    );
+
+    if (!mounted) return;
+
+    if (availableTests.length > 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TestsListPage(
+            topicName: _topic.name,
+            lessonId: _topic.lessonId,
+            topicId: _topic.id,
+            testCount: availableTests.length,
+            tests: availableTests,
+          ),
+        ),
+      );
+    } else if (availableTests.length == 1) {
+      final test = availableTests[0];
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TestsPage(
+            topicName: _topic.name,
+            testCount: (test['questionCount'] as int? ?? 0),
+            lessonId: _topic.lessonId,
+            topicId: _topic.id,
+            testFileName: test['fileName'] as String?,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _loadAiContent() async {
@@ -147,8 +194,8 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       final contentCountsJson = prefs.getString(contentCountsKey);
       final cacheTime = prefs.getInt(contentCountsTimeKey);
 
-      // Cache geçerlilik süresi: 7 gün (içerik sayıları çok sık değişmez)
-      const cacheValidDuration = Duration(days: 7);
+      // Cache geçerlilik süresi: 1 gün
+      const cacheValidDuration = Duration(days: 1);
       final now = DateTime.now().millisecondsSinceEpoch;
       final isCacheValid =
           cacheTime != null &&
@@ -255,8 +302,8 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       final contentCountsJson = prefs.getString(contentCountsKey);
       final cacheTime = prefs.getInt(contentCountsTimeKey);
 
-      // Cache geçerlilik süresi: 7 gün
-      const cacheValidDuration = Duration(days: 7);
+      // Cache geçerlilik süresi: 1 gün
+      const cacheValidDuration = Duration(days: 1);
       final now = DateTime.now().millisecondsSinceEpoch;
       final isCacheValid =
           cacheTime != null &&
@@ -272,10 +319,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
               (counts['videoCount'] as int? ?? 0) > 0 ||
               (counts['podcastCount'] as int? ?? 0) > 0 ||
               (counts['testQuestionCount'] as int? ?? 0) > 0 ||
-              (counts['pdfCount'] as int? ?? 0) > 0;
+              (counts['pdfCount'] as int? ?? 0) > 0 ||
+              (counts['flashCardCount'] as int? ?? 0) > 0;
 
           if (hasContent) {
-            print('✅ Content counts loaded from cache (NO Storage request)');
+            print('✅ Content counts loaded from cache');
+            // Cache taze olsa bile arka planda sessizce bir güncelleme başlatalım (eğer çok eskiyse)
+            if ((now - cacheTime) > const Duration(hours: 1).inMilliseconds) {
+              _loadContentCounts();
+            }
             return;
           }
           print(
@@ -323,7 +375,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           contentCountsTimeKey,
           DateTime.now().millisecondsSinceEpoch,
         );
-        print('✅ Saved content counts to cache (valid for 7 days)');
+        print('✅ Saved content counts to cache (valid for 1 day)');
       } catch (e) {
         print('⚠️ Error saving content counts to cache: $e');
       }
@@ -332,9 +384,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       await QuickAccessService.updateContentCounts(
         topicId: _topic.id,
         podcastCount: _topic.podcastCount,
-        videoCount: _topic.videoCount,
         flashCardCount: _topic.flashCardCount,
         pdfCount: _topic.pdfCount,
+        testCount: _topic.averageQuestionCount,
       );
 
       // Eğer favoriye ekliyse, anasayfayı yenile
@@ -626,9 +678,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         topicName: _topic.name,
         lessonName: widget.lessonName,
         podcastCount: _topic.podcastCount,
-        videoCount: _topic.videoCount,
         flashCardCount: _topic.flashCardCount,
         pdfCount: _topic.pdfCount,
+        testCount: _topic.averageQuestionCount,
       );
 
       if (mounted) {
@@ -917,40 +969,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         ),
       );
     }
-    // Videolar
-    if (widget.lessonName.toLowerCase() != 'türkçe' &&
-        widget.lessonName.toLowerCase() != 'matematik') {
-      allCards.add(
-        _buildModernPathCard(
-          context: context,
-          type: 'videos',
-          title: 'Videolar',
-          count: _isLoadingContent ? 0 : _topic.videoCount,
-          countLabel: 'içerik',
-          icon: Icons.play_circle_fill_rounded,
-          color: getCardColor('videos'),
-          isSmallScreen: isSmallScreen,
-          isDark: isDark,
-          onTap: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => VideosPage(
-                  topicName: _topic.name,
-                  videoCount: _topic.videoCount,
-                  topicId: _topic.id,
-                  lessonId: _topic.lessonId,
-                ),
-              ),
-            );
-            if (result == true && mounted) {
-              final mainScreen = MainScreen.of(context);
-              if (mainScreen != null) mainScreen.refreshHomePage();
-            }
-          },
-        ),
-      );
-    }
+
     // Bilgi Kartları
     if (widget.lessonName.toLowerCase() != 'matematik') {
       allCards.add(
@@ -959,7 +978,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           type: 'flashcards',
           title: 'Bilgi Kartları',
           count: _isLoadingContent ? 0 : _topic.flashCardCount,
-          countLabel: 'içerik',
+          countLabel: 'kart',
           icon: Icons.layers_rounded,
           color: getCardColor('flashcards'),
           isSmallScreen: isSmallScreen,
@@ -1001,9 +1020,8 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
             context,
             MaterialPageRoute(
               builder: (context) => NotesPage(
-                topicName: _topic.name,
-                noteCount: _userNoteCount,
                 topicId: _topic.id,
+                topicTitle: _topic.name,
               ),
             ),
           );
@@ -1044,7 +1062,14 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     bool isTestCompleted = false,
     int attemptCount = 0,
   }) {
-    final label = countLabel == 'soru' ? '$count soru' : '$count içerik';
+    final String label;
+    if (countLabel == 'soru') {
+      label = '$count soru';
+    } else if (countLabel == 'kart') {
+      label = '$count kart';
+    } else {
+      label = '$count içerik';
+    }
 
     return Container(
       decoration: BoxDecoration(

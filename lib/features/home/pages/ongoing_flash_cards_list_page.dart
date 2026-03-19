@@ -111,209 +111,53 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark, // Android
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
-        systemNavigationBarColor: isDark
-            ? const Color(0xFF0F0F1A)
-            : const Color(0xFFF8FAFF),
-        systemNavigationBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark,
-      ),
-      child: Scaffold(
-        backgroundColor: isDark
-            ? const Color(0xFF0F0F1A)
-            : const Color(0xFFF8FAFF),
-        body: Stack(
-          children: [
-            // Mesh Background
-            _buildMeshBackground(isDark, screenWidth),
-
-            // Content
-            Column(
-              children: [
-                SizedBox(height: statusBarHeight + 70),
-                Expanded(
-                  child: _flashCards.isEmpty
-                      ? _buildEmptyState(isDark)
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          itemCount: _flashCards.length,
-                          itemBuilder: (context, index) {
-                            final flashCard = _flashCards[index];
-                            return _buildUltraCompactCard(flashCard, isDark);
-                          },
-                        ),
-                ),
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF1F5F9),
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.gradientGreenStart,
+                AppColors.gradientGreenEnd,
               ],
             ),
-
-            // Custom Header
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildCustomHeader(context, isDark, statusBarHeight),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMeshBackground(bool isDark, double screenWidth) {
-    return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF8FAFF),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    const Color(0xFF0D0221),
-                    const Color(0xFF0F0F1A),
-                    const Color(0xFF19102E),
-                  ]
-                : [const Color(0xFFF0F4FF), const Color(0xFFFFFFFF)],
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -screenWidth * 0.4,
-              left: -screenWidth * 0.2,
-              child: _buildBlurCircle(
-                size: screenWidth * 1.2,
-                color: isDark
-                    ? const Color(0xFF4C1D95).withOpacity(0.15)
-                    : const Color(0xFFC4B5FD).withOpacity(0.2),
-              ),
-            ),
-            Positioned(
-              bottom: -screenWidth * 0.4,
-              right: -screenWidth * 0.2,
-              child: _buildBlurCircle(
-                size: screenWidth * 1.2,
-                color: isDark
-                    ? const Color(0xFFBE185D).withOpacity(0.15)
-                    : const Color(0xFFFBCFE8).withOpacity(0.2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBlurCircle({required double size, required Color color}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 0.5,
-          colors: [color, color.withOpacity(0)],
-          stops: const [0.1, 1.0],
-        ),
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-        child: Container(color: Colors.transparent),
-      ),
-    );
-  }
-
-  Widget _buildCustomHeader(
-    BuildContext context,
-    bool isDark,
-    double statusBarHeight,
-  ) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: statusBarHeight + 10,
-            bottom: 12,
-            left: 20,
-            right: 20,
+        elevation: 0,
+        toolbarHeight: 56,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 18,
           ),
-          color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
-          child: Row(
-            children: [
-              _buildGlassIconButton(
-                context,
-                icon: Icons.arrow_back_ios_new_rounded,
-                isDark: isDark,
-                onTap: () => Navigator.of(context).pop(_didChange),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'Devam Eden Kartlar',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
-                  ),
-                ),
-              ),
-            ],
+          onPressed: () => Navigator.of(context).pop(_didChange),
+        ),
+        title: const Text(
+          'Devam Eden Kartlar',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
+        centerTitle: true,
       ),
-    );
-  }
-
-  Widget _buildGlassIconButton(
-    BuildContext context, {
-    required IconData icon,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      body: _flashCards.isEmpty
+          ? _buildEmptyState(isDark)
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              itemCount: _flashCards.length,
+              itemBuilder: (context, index) {
+                final flashCard = _flashCards[index];
+                return _buildUltraCompactCard(flashCard, isDark);
+              },
             ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white : const Color(0xFF1E293B),
-        ),
-      ),
     );
   }
 
@@ -322,27 +166,17 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.green.withOpacity(0.05),
-            ),
-            child: Icon(
-              Icons.style_outlined,
-              size: 64,
-              color: isDark ? Colors.white24 : Colors.green.withOpacity(0.3),
-            ),
+          Icon(
+            Icons.style_outlined,
+            size: 48,
+            color: isDark ? Colors.white24 : Colors.grey.shade300,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Text(
-            'Devam eden çalışma yok',
+            'Devam eden bulunmuyor',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : Colors.black54,
+              fontSize: 14,
+              color: isDark ? Colors.white38 : Colors.grey.shade500,
             ),
           ),
         ],
@@ -352,27 +186,21 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
 
   Widget _buildUltraCompactCard(OngoingFlashCard flashCard, bool isDark) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.white.withOpacity(0.8),
-        ),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         child: Material(
-          color: Colors.transparent,
+          color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
           child: InkWell(
             onTap: () async {
               final result = await Navigator.push(
@@ -392,12 +220,12 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
                   Container(
-                    width: 50,
-                    height: 50,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -407,22 +235,15 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
                           AppColors.gradientGreenEnd,
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.gradientGreenStart.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
-                      Icons.play_lesson_rounded,
+                      Icons.style_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,63 +251,64 @@ class _OngoingFlashCardsListPageState extends State<OngoingFlashCardsListPage> {
                         Text(
                           flashCard.topic,
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF1E293B),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF1E293B),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: flashCard.progress,
-                            backgroundColor: isDark
-                                ? Colors.white10
-                                : Colors.black.withOpacity(0.05),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.gradientGreenStart,
-                            ),
-                            minHeight: 6,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '%${(flashCard.progress * 100).toInt()} Tamamlandı',
+                              'Bilgi Kartı İlerlemesi',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.gradientGreenStart,
                               ),
                             ),
+                            const Spacer(),
                             Text(
-                              '${flashCard.currentCard}/${flashCard.totalCards}',
+                              '${flashCard.currentCard}/${flashCard.totalCards} kart',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white38 : Colors.black45,
+                                fontSize: 10,
+                                color: isDark ? Colors.white38 : Colors.grey.shade500,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: flashCard.progress,
+                            backgroundColor: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.gradientGreenStart,
+                            ),
+                            minHeight: 3,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => _resetFlashCard(flashCard),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     icon: Icon(
-                      Icons.refresh_rounded,
-                      color: isDark ? Colors.white38 : Colors.black26,
-                      size: 22,
+                      Icons.delete_outline_rounded,
+                      color: Colors.red.withOpacity(0.4),
+                      size: 18,
                     ),
-                    tooltip: 'Sıfırla',
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.grey,
+                    size: 18,
                   ),
                 ],
               ),
