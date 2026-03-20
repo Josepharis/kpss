@@ -212,12 +212,11 @@ class LessonsService {
       final cacheKey = 'topics_cache_$lessonId';
       final cacheTimeKey = 'topics_cache_time_$lessonId';
 
-      // 1. Check Cache
+      // 1. Önce Yerel Cache Kontrolü
       final cachedJson = prefs.getString(cacheKey);
       final cacheTime = prefs.getInt(cacheTimeKey);
       final now = DateTime.now().millisecondsSinceEpoch;
 
-      // Cache valid for 3 days for topic LIST (Storage structure rarely changes)
       if (cachedJson != null &&
           cacheTime != null &&
           (now - cacheTime) < 1000 * 60 * 60 * 24 * 3) {
@@ -233,7 +232,20 @@ class LessonsService {
         } catch (_) {}
       }
 
-      // 2. Fetch from Storage/Firestore
+      // 2. Cache yoksa önce FIRESTORE Kontrolü
+      final firestoreTopics = await _getTopicsFromFirestore(lessonId);
+      if (firestoreTopics.isNotEmpty) {
+        // Firestore'da veri varsa cache'le ve döndür
+        await prefs.setString(
+          cacheKey,
+          jsonEncode(firestoreTopics.map((t) => t.toMap()..['id'] = t.id).toList()),
+        );
+        await prefs.setInt(cacheTimeKey, now);
+        debugPrint('🔥 Topics loaded from Firestore for lesson: $lessonId');
+        return firestoreTopics;
+      }
+
+      // 3. Firestore boşsa (Fallback), STORAGE üzerinden tara (Sadece Admin sync yapmamışsa çalışır)
       final lesson = await getLessonById(lessonId);
       if (lesson == null) {
         return _getTopicsFromFirestore(lessonId);
@@ -687,18 +699,31 @@ class LessonsService {
 
   /// Get content counts for a specific topic (video, podcast, flashcard, PDF)
   /// Bu metod konu detay sayfasında kullanılır
-  Future<Topic> getTopicContentCounts(Topic topic) async {
+  Future<Topic> getTopicContentCounts(
+    Topic topic, {
+    bool syncPdfs = true,
+    bool syncPodcasts = true,
+    bool syncNotes = true,
+    bool syncFlashCards = true,
+    bool syncTests = true,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'content_counts_${topic.id}';
       final cacheTimeKey = 'content_counts_time_${topic.id}';
 
-      // 0. Check Cache First (to avoid heavy storage calls)
+      // 0. Firestore'dan mevcut verileri çek (Eksik alanları korumak için)
+      final topicSnapshot = await _topicsCollection.doc(topic.id).get();
+      Map<String, dynamic> currentData = {};
+      if (topicSnapshot.exists) {
+        currentData = topicSnapshot.data() as Map<String, dynamic>? ?? {};
+      }
+
+      // 1. Yerel Cache Kontrolü
       final cachedJson = prefs.getString(cacheKey);
       final cacheTime = prefs.getInt(cacheTimeKey);
       final now = DateTime.now().millisecondsSinceEpoch;
 
-      // Cache is valid for 1 day for content counts (Storage changes might happen)
       if (cachedJson != null &&
           cacheTime != null &&
           (now - cacheTime) < 1000 * 60 * 60 * 24 * 1) {
@@ -723,6 +748,25 @@ class LessonsService {
         } catch (_) {}
       }
 
+      // 2. FIRESTORE "Global Sync" Kontrolü
+      if (currentData.containsKey('lastGlobalSync')) {
+          final updatedTopic = Topic.fromMap(currentData, topic.id);
+          
+          await prefs.setString(cacheKey, jsonEncode({
+            'videoCount': updatedTopic.videoCount,
+            'podcastCount': updatedTopic.podcastCount,
+            'flashCardCount': updatedTopic.flashCardCount,
+            'noteCount': updatedTopic.noteCount,
+            'pdfCount': updatedTopic.pdfCount,
+            'testQuestionCount': updatedTopic.averageQuestionCount,
+            'testCount': updatedTopic.testCount,
+          }));
+          await prefs.setInt(cacheTimeKey, now);
+          
+          return updatedTopic;
+      }
+
+      // 3. STORAGE üzerinden say (Sadece sync istenenleri tara)
       final lessonId = topic.lessonId;
       final lesson = await getLessonById(lessonId);
       if (lesson == null) return topic;
@@ -734,68 +778,52 @@ class LessonsService {
         lessonNameForPath: lessonNameForPath,
       );
 
-      final podcastPath = '$topicBasePath/podcast';
-      final bilgikartiPath = '$topicBasePath/bilgikarti';
-      final notPath = '$topicBasePath/not';
-      final notlarPath = '$topicBasePath/notlar';
+      int podcastCount = currentData['podcastCount'] ?? 0;
+      if (syncPodcasts) {
+        try {
+          podcastCount = await _storageService.countFilesInFolder('$topicBasePath/podcast');
+        } catch (_) {}
+      }
 
-      final counts = await Future.wait([
-        Future.value(0), // videoCount her zaman 0 olacak (istek üzerine kaldırıldı)
-        _storageService.countFilesInFolder(podcastPath).catchError((_) => 0),
-        _countFlashCardsTotal(topic.id, bilgikartiPath), // Toplam kart sayısı
-        _storageService.countFilesInFolder(notPath).catchError((_) => 0),
-        _storageService.countFilesInFolder(notlarPath).catchError((_) => 0),
-        _countPdfsFast(topicBasePath),
-        _storageService
-            .listJsonFiles('$topicBasePath/soru')
-            .then((list) => list.length)
-            .catchError((_) => 0),
-      ]);
+      int flashCardCount = currentData['flashCardCount'] ?? 0;
+      if (syncFlashCards) {
+        flashCardCount = await _countFlashCardsTotal(topic.id, '$topicBasePath/bilgikarti');
+      }
 
-      int testQuestionCount = 0;
-      try {
-        final qCacheKey = 'questions_${topic.id}';
-        final qCachedJson = prefs.getString(qCacheKey);
+      int noteCount = currentData['noteCount'] ?? 0;
+      if (syncNotes) {
+        try {
+          final n1 = await _storageService.countFilesInFolder('$topicBasePath/not');
+          final n2 = await _storageService.countFilesInFolder('$topicBasePath/notlar');
+          noteCount = n1 + n2;
+        } catch (_) {}
+      }
 
-        if (qCachedJson != null && qCachedJson.isNotEmpty) {
-          int braceCount = 0;
-          for (int i = 0; i < qCachedJson.length; i++) {
-            if (qCachedJson[i] == '{') braceCount++;
+      int pdfCount = currentData['pdfCount'] ?? 0;
+      if (syncPdfs) {
+        pdfCount = await _countPdfsFast(topicBasePath);
+      }
+
+      int testCount = currentData['testCount'] ?? 0;
+      if (syncTests) {
+        try {
+          final testFiles = await _storageService.listJsonFiles('$topicBasePath/soru');
+          testCount = testFiles.length;
+        } catch (_) {}
+      }
+
+      int testQuestionCount = currentData['averageQuestionCount'] ?? 0;
+      if (syncTests) {
+        try {
+          final qService = QuestionsService();
+          final availableTests = await qService.getAvailableTestsByTopic(topic.id, topic.lessonId);
+          int totalQ = 0;
+          for (final test in availableTests) {
+            totalQ += (test['questionCount'] as int? ?? 0);
           }
-          testQuestionCount = braceCount;
-        }
-
-        if (testQuestionCount <= 0) {
-          final topicDoc = await _topicsCollection.doc(topic.id).get();
-          if (topicDoc.exists) {
-            final data = topicDoc.data();
-            if (data != null && data is Map) {
-              testQuestionCount = (data['averageQuestionCount'] ?? 0) as int;
-            }
-          }
-        }
-
-        if (testQuestionCount <= 0 && counts[6] > 0) {
-          try {
-            final qService = QuestionsService();
-            final availableTests = await qService.getAvailableTestsByTopic(
-              topic.id,
-              topic.lessonId,
-            );
-            int totalQ = 0;
-            for (final test in availableTests) {
-              totalQ += (test['questionCount'] as int? ?? 0);
-            }
-            testQuestionCount = totalQ;
-          } catch (_) {}
-        }
-      } catch (_) {}
-
-      final podcastCount = counts[1];
-      final bilgikartiCount = counts[2];
-      final notCount = counts[3] + counts[4];
-      final pdfCount = counts[5];
-      final testCount = counts[6];
+          testQuestionCount = totalQ;
+        } catch (_) {}
+      }
 
       final updatedTopic = Topic(
         id: topic.id,
@@ -807,36 +835,31 @@ class LessonsService {
         testCount: testCount,
         podcastCount: podcastCount,
         videoCount: 0,
-        noteCount: notCount,
-        flashCardCount: bilgikartiCount,
+        noteCount: noteCount,
+        flashCardCount: flashCardCount,
         pdfCount: pdfCount,
         progress: topic.progress,
         order: topic.order,
       );
 
+      // Firestore ve Cache Güncelleme
       try {
-        await prefs.setString(
-          cacheKey,
-          jsonEncode({
-            'videoCount': 0,
-            'podcastCount': podcastCount,
-            'flashCardCount': bilgikartiCount,
-            'noteCount': notCount,
-            'pdfCount': pdfCount,
-            'testQuestionCount': testQuestionCount,
-            'testCount': testCount,
-          }),
-        );
+        final Map<String, dynamic> dataToLocal = {
+          'videoCount': 0,
+          'podcastCount': podcastCount,
+          'flashCardCount': flashCardCount,
+          'noteCount': noteCount,
+          'pdfCount': pdfCount,
+          'testQuestionCount': testQuestionCount,
+          'testCount': testCount,
+        };
+
+        await prefs.setString(cacheKey, jsonEncode(dataToLocal));
         await prefs.setInt(cacheTimeKey, now);
 
         await _topicsCollection.doc(topic.id).set({
-          'videoCount': 0,
-          'podcastCount': podcastCount,
-          'flashCardCount': bilgikartiCount,
-          'noteCount': notCount,
-          'pdfCount': pdfCount,
-          'averageQuestionCount': testQuestionCount,
-          'testCount': testCount,
+          ...dataToLocal,
+          'averageQuestionCount': testQuestionCount, // rename for consistency if needed
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (_) {}

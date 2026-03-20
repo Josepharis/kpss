@@ -361,9 +361,9 @@ class _RegisterPageState extends State<RegisterPage>
                                               ),
                                             ),
                                             Image.asset(
-                                              'assets/images/kadrox_logo.png',
-                                              width: screenWidth * 1.0,
-                                              height: screenWidth * 0.6,
+                                              'assets/images/splash.png',
+                                              width: screenWidth * 1.3,
+                                              height: screenWidth * 0.8,
                                               fit: BoxFit.contain,
                                               errorBuilder: (context, error, stackTrace) =>
                                                   const Icon(
@@ -555,6 +555,7 @@ class _RegisterPageState extends State<RegisterPage>
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 40), // Space for keyboard
                                 ],
                               ),
                             ),

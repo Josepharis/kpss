@@ -16,6 +16,7 @@ import 'features/auth/pages/register_page.dart';
 import 'core/services/storage_cleanup_service.dart';
 import 'core/services/iap_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/auth_service.dart';
 import 'features/admin/pages/admin_home_page.dart';
 
 void main() async {
@@ -129,9 +130,30 @@ class _MyAppState extends State<MyApp> {
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/home': (context) => const MainScreen(),
-        '/admin': (context) => const AdminHomePage(),
+        '/admin': (context) => const _AdminGuardPage(),
       },
     );
+  }
+}
+
+/// Admin route'u koruyucu widget.
+/// Sadece isAdmin() == true olan kullanıcılar AdminHomePage'i görebilir.
+class _AdminGuardPage extends StatelessWidget {
+  const _AdminGuardPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final authService = AuthService();
+    if (!authService.isAdmin()) {
+      // Admin değilse anasayfaya yönlendir
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return const AdminHomePage();
   }
 }
 

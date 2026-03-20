@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/services/initial_sync_service.dart';
+import '../../../core/services/subscription_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,6 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _waveAnimation;
   late Animation<double> _glowAnimation;
+  Future<void>? _prefetchFuture;
 
   @override
   void initState() {
@@ -85,16 +86,34 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _logoController.forward();
+    
+    // Prefetch'i hemen başlat
+    _prefetchFuture = _startPrefetch();
+    
     _checkAuthAndNavigate();
   }
 
+  Future<void> _startPrefetch() async {
+    try {
+      final authService = AuthService();
+      final subscriptionService = SubscriptionService();
+      await Future.wait([
+        authService.syncUserData(),
+        subscriptionService.getSubscriptionStatus(forceRefresh: true),
+      ]);
+    } catch (e) {
+      debugPrint('⚠️ Prefetch error: $e');
+    }
+  }
+
   Future<void> _checkAuthAndNavigate() async {
-    await Future.delayed(const Duration(seconds: 3));
+    // Minimum 3 saniye bekle VEYA prefetch bitene kadar bekle (hangisi uzun sürerse)
+    await Future.wait([
+      Future.delayed(const Duration(seconds: 3)),
+      if (_prefetchFuture != null) _prefetchFuture!,
+    ]);
 
     if (!mounted) return;
-
-    // Arka planda initial sync başlat (uygulamayı bloklamaz)
-    Future.microtask(() => InitialSyncService().runInitialSync());
 
     final authService = AuthService();
     final isLoggedIn = await authService.isLoggedIn();
@@ -212,9 +231,9 @@ class _SplashScreenState extends State<SplashScreen>
                 animation: Listenable.merge([_logoController, _glowController]),
                 builder: (context, child) {
                   final screenSize = MediaQuery.of(context).size;
-                  final logoWidth = screenSize.width; // Full screen width
-                  final logoHeight = logoWidth; // Square aspect ratio
-                  final glowSize = logoWidth * 1.3;
+                  final logoWidth = screenSize.width * 0.95; // Daha büyük ve etkileyici
+                  final logoHeight = logoWidth;
+                  final glowSize = logoWidth * 1.5;
 
                   return FadeTransition(
                     opacity: _fadeAnimation,
@@ -223,7 +242,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Subtle glow to lift the logo
+                          // Subtle glow
                           Container(
                             width: glowSize,
                             height: glowSize,
@@ -232,21 +251,20 @@ class _SplashScreenState extends State<SplashScreen>
                               gradient: RadialGradient(
                                 colors: [
                                   Colors.white.withOpacity(
-                                    _glowAnimation.value * 0.08,
+                                    _glowAnimation.value * 0.15,
                                   ),
                                   Colors.transparent,
                                 ],
                                 stops: const [0.0, 0.8],
+                                ),
                               ),
                             ),
-                          ),
-                          // Logo only (no frame/no text) - full screen width
+                          // Orijinal Splash Logosu
                           Image.asset(
-                            'assets/images/kadrox_logo.png',
+                            'assets/images/splash.png',
                             width: logoWidth,
                             height: logoHeight,
                             fit: BoxFit.contain,
-                            colorBlendMode: BlendMode.srcOver,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 width: 200,

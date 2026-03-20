@@ -23,6 +23,13 @@ class StudyProgramService {
   DocumentReference get _userDoc =>
       _firestore.collection('userProgress').doc(_userId ?? 'anonymous');
 
+  // --- Throttle: arka plan sync en az 60 saniyede bir çalışır ---
+  DateTime? _lastSyncTime;
+  static const _syncCooldown = Duration(seconds: 60);
+
+  // --- Self-save bayrağı: kendi kaydettiğimiz güncellemeyi ignore ederiz ---
+  bool _isSelfSaving = false;
+
   Future<StudyProgram?> getProgram() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -35,8 +42,8 @@ class StudyProgramService {
           final program = StudyProgram.fromMap(
             Map<String, dynamic>.from(decoded),
           );
-          // Arka planda Firestore ile senkronize et (Eğer Firestore'da daha yenisi varsa)
-          _syncFromFirestore();
+          // Arka planda Firestore ile senkronize et ANCAK throttle uygula
+          _scheduleBackgroundSync();
           return program;
         }
       }
@@ -65,10 +72,22 @@ class StudyProgramService {
     }
   }
 
+  /// Cooldown süresi geçmişse arka planda sync başlatır.
+  void _scheduleBackgroundSync() {
+    final now = DateTime.now();
+    if (_lastSyncTime != null &&
+        now.difference(_lastSyncTime!) < _syncCooldown) {
+      return; // Henüz çok yakın, sync atlanıyor
+    }
+    _lastSyncTime = now;
+    _syncFromFirestore();
+  }
+
   final _programUpdateController = StreamController<void>.broadcast();
   Stream<void> get onProgramUpdated => _programUpdateController.stream;
 
   Future<void> saveProgram(StudyProgram program) async {
+    _isSelfSaving = true;
     try {
       final prefs = await SharedPreferences.getInstance();
 
@@ -86,6 +105,9 @@ class StudyProgramService {
       _programUpdateController.add(null);
     } catch (e) {
       debugPrint('Error saving study program: $e');
+    } finally {
+      // Kısa süre sonra bayrağı sıfırla (stream listener'ın işlemesi için zaman ver)
+      Future.microtask(() => _isSelfSaving = false);
     }
   }
 
@@ -96,7 +118,7 @@ class StudyProgramService {
       // 1. Yerel olarak sil
       await prefs.remove(_key);
 
-      // 2. Firestore'da sil (vaya pasife çek)
+      // 2. Firestore'da sil
       if (_userId != null) {
         await _userDoc.collection('metadata').doc('studyProgram').delete();
       }
@@ -117,14 +139,43 @@ class StudyProgramService {
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
-          final program = StudyProgram.fromMap(data);
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_key, jsonEncode(program.toMap()));
-          _programUpdateController.add(null);
+          final newJson = jsonEncode(StudyProgram.fromMap(data).toMap());
+          final oldJson = prefs.getString(_key);
+
+          // Veri değişmemişse UI'ı gereksiz yere tetikleme
+          if (newJson == oldJson) {
+            debugPrint('StudyProgramService: Firestore sync – veri aynı, emit atlanıyor.');
+            return;
+          }
+
+          await prefs.setString(_key, newJson);
+
+          // Sadece dışarıdan gelen bir değişiklik ise UI'ı güncelle
+          if (!_isSelfSaving) {
+            _programUpdateController.add(null);
+          }
         }
       }
     } catch (e) {
       debugPrint('Error syncing study program from Firestore: $e');
+    }
+  }
+
+  /// Programı yalnızca local cache'den okur (Firestore çağrısı yok, hızlı).
+  Future<StudyProgram?> getProgramFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return StudyProgram.fromMap(Map<String, dynamic>.from(decoded));
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 

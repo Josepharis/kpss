@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'admin_lessons_page.dart';
 import 'admin_notifications_page.dart';
+import 'admin_detailed_sync_page.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -30,7 +31,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Future<void> _loadStats() async {
     setState(() => _isLoadingStats = true);
     try {
-      // 1. Total Users Breakdown
       final usersCollection = _firestore.collection('users');
       
       final totalRes = await usersCollection.count().get();
@@ -42,9 +42,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
       final iosRes = await usersCollection.where('platform', isEqualTo: 'ios').count().get();
       _iosUsers = iosRes.count ?? 0;
 
-      // 2. Active Subscribers (Collection Group query)
-      // Note: This might require an index, but let's try. 
-      // If it fails, we fall back to a safer (but heavier) method or 0.
       try {
         final subsSnapshot = await _firestore
             .collectionGroup('subscription')
@@ -54,7 +51,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
         
         _activeSubscribers = subsSnapshot.docs.length;
         
-        // Reset and count types
         _subscriptionTypes = {'monthly': 0, '6monthly': 0, 'yearly': 0};
         for (var doc in subsSnapshot.docs) {
           final type = doc.data()['type'] as String? ?? 'monthly';
@@ -63,11 +59,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
           }
         }
       } catch (e) {
-        debugPrint('Collection group query error (likely index missing): $e');
+        debugPrint('Collection group query error: $e');
         _activeSubscribers = 0;
       }
 
-      // 3. Total Questions
       final questionsSnapshot = await _firestore.collection('questions').count().get();
       _totalQuestions = questionsSnapshot.count ?? 0;
 
@@ -367,6 +362,19 @@ class _AdminHomePageState extends State<AdminHomePage> {
           Icons.settings_suggest_rounded,
           const Color(0xFFF59E0B),
           () {},
+        ),
+        _buildMenuCard(
+          context,
+          'Global Senkronizasyon',
+          'Tüm verileri baştan say ve yaz',
+          Icons.sync_problem_rounded,
+          const Color(0xFF6366F1),
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AdminDetailedSyncPage()),
+            );
+          },
         ),
       ],
     );

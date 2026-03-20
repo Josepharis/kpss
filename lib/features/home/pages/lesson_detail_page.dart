@@ -964,38 +964,41 @@ class _TopicListItemState extends State<_TopicListItem> {
   }
 
   Widget _buildComingSoonState() {
-    return Opacity(
-      opacity: 0.6,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? const Color(0xFF1E1E2E) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: widget.isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.1),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: widget.isDark
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: widget.isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.05),
+          width: 1,
         ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            // Disabled Number Box
+            // Muted Number Box
             Container(
-              width: 50,
-              height: 50,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: widget.isDark
-                    ? Colors.white.withOpacity(0.05)
-                    : Colors.grey.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
                 child: Text(
                   widget.topicNumber,
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.grey.withOpacity(0.6),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: (widget.isDark ? Colors.white : Colors.black)
+                        .withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -1007,39 +1010,63 @@ class _TopicListItemState extends State<_TopicListItem> {
                 children: [
                   Text(
                     widget.topic.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                    style: TextStyle(
+                      fontSize: widget.isSmallScreen ? 14 : 16,
+                      fontWeight: FontWeight.w700,
+                      color: (widget.isDark ? Colors.white : Colors.black)
+                          .withValues(alpha: 0.3),
+                      letterSpacing: -0.5,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: widget.lessonColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.lock_clock_rounded, size: 12, color: widget.lessonColor.withOpacity(0.8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Hazırlanıyor / Yakında',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: widget.lessonColor.withOpacity(0.8),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: widget.lessonColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: widget.lessonColor.withValues(alpha: 0.15),
                           ),
                         ),
-                      ],
-                    ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 10,
+                              color: widget.lessonColor.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Hazırlanıyor',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: widget.lessonColor.withValues(alpha: 0.6),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.lock_outline_rounded,
+              color: (widget.isDark ? Colors.white : Colors.black)
+                  .withValues(alpha: 0.1),
+              size: 18,
             ),
           ],
         ),

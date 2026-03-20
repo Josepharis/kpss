@@ -27,7 +27,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = AuthService();
   final SubscriptionService _subscriptionService = SubscriptionService();
   bool _autoCleanupEnabled = true;
-  SubscriptionStatus _subscriptionStatus = SubscriptionStatus.free();
   int _cleanupDays = 7;
   double _maxStorageGB = 5.0;
   double _currentStorageGB = 0.0;
@@ -50,7 +49,6 @@ class _ProfilePageState extends State<ProfilePage> {
       _loadSettings();
       _loadUserData();
       _loadStatistics();
-      _loadSubscriptionStatus();
     });
   }
 
@@ -135,21 +133,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _loadSubscriptionStatus({bool forceRefresh = false}) async {
-    try {
-      final status = await _subscriptionService.getSubscriptionStatus(
-        forceRefresh: forceRefresh,
-      );
-      if (mounted) {
-        setState(() {
-          _subscriptionStatus = status;
-        });
-      }
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
   Future<void> _refreshStorageInfo() async {
     if (!mounted) return;
     setState(() {
@@ -186,7 +169,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _loadSettings(),
       _loadUserData(),
       _loadStatistics(),
-      _loadSubscriptionStatus(forceRefresh: true),
+      _subscriptionService.getSubscriptionStatus(forceRefresh: true),
       _refreshStorageInfo(),
     ]);
   }
@@ -225,11 +208,19 @@ class _ProfilePageState extends State<ProfilePage> {
             Column(
               children: [
                 // Premium Header
-                _buildPremiumHeader(
-                  statusBarHeight,
-                  isDark,
-                  screenWidth,
-                  isSmallScreen,
+                StreamBuilder<SubscriptionStatus>(
+                  stream: _subscriptionService.statusStream,
+                  initialData: _subscriptionService.currentStatus,
+                  builder: (context, snapshot) {
+                    final status = snapshot.data ?? SubscriptionStatus.free();
+                    return _buildPremiumHeader(
+                      statusBarHeight,
+                      isDark,
+                      screenWidth,
+                      isSmallScreen,
+                      status,
+                    );
+                  },
                 ),
 
                 // Main Content Area
@@ -256,7 +247,18 @@ class _ProfilePageState extends State<ProfilePage> {
                           SizedBox(height: compactSpacing),
 
                           // Subscription
-                          _buildSubscriptionCard(isSmallScreen, compactSpacing),
+                          StreamBuilder<SubscriptionStatus>(
+                            stream: _subscriptionService.statusStream,
+                            initialData: _subscriptionService.currentStatus,
+                            builder: (context, snapshot) {
+                              final status = snapshot.data ?? SubscriptionStatus.free();
+                              return _buildSubscriptionCard(
+                                isSmallScreen,
+                                compactSpacing,
+                                status,
+                              );
+                            },
+                          ),
                           SizedBox(height: compactSpacing + 4),
 
                           // Settings Sections
@@ -339,27 +341,20 @@ class _ProfilePageState extends State<ProfilePage> {
                                 isDark: isDark,
                                 color: Colors.tealAccent,
                               ),
-                              _buildDivider(isDark),
-                              _buildSettingTile(
-                                icon: Icons.star_outline_rounded,
-                                title: 'Premium Aktifleştir (Dev)',
-                                subtitle: 'Simülatör için geçici çözüm',
-                                onTap: () => _activatePremiumDev(),
-                                isSmallScreen: isSmallScreen,
-                                isDark: isDark,
-                                color: Colors.orangeAccent,
-                              ),
-                              _buildDivider(isDark),
-                              _buildSettingTile(
-                                icon: Icons.admin_panel_settings_rounded,
-                                title: 'Yönetici Paneli',
-                                subtitle: 'Soruları ve dersleri yönet',
-                                onTap: () =>
-                                    Navigator.pushNamed(context, '/admin'),
-                                isSmallScreen: isSmallScreen,
-                                isDark: isDark,
-                                color: Colors.redAccent,
-                              ),
+                              // Admin-only butonlar: sadece admin hesaplarda görünür
+                              if (_authService.isAdmin()) ...[
+                                _buildDivider(isDark),
+                                _buildSettingTile(
+                                  icon: Icons.admin_panel_settings_rounded,
+                                  title: 'Yönetici Paneli',
+                                  subtitle: 'Soruları ve dersleri yönet',
+                                  onTap: () =>
+                                      Navigator.pushNamed(context, '/admin'),
+                                  isSmallScreen: isSmallScreen,
+                                  isDark: isDark,
+                                  color: Colors.redAccent,
+                                ),
+                              ],
                             ],
                           ),
                           SizedBox(height: compactSpacing + 8),
@@ -445,6 +440,7 @@ class _ProfilePageState extends State<ProfilePage> {
     bool isDark,
     double screenWidth,
     bool isSmallScreen,
+    SubscriptionStatus status,
   ) {
     return ClipRRect(
       child: BackdropFilter(
@@ -515,7 +511,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-                  if (_subscriptionStatus.isPremium)
+                  if (status.isPremium)
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -579,24 +575,24 @@ class _ProfilePageState extends State<ProfilePage> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: _subscriptionStatus.isPremium
+                            color: status.isPremium
                                 ? Colors.amber.withOpacity(0.1)
                                 : Colors.blueAccent.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: _subscriptionStatus.isPremium
+                              color: status.isPremium
                                   ? Colors.amber.withOpacity(0.2)
                                   : Colors.blueAccent.withOpacity(0.1),
                             ),
                           ),
                           child: Text(
-                            _subscriptionStatus.isPremium
+                            status.isPremium
                                 ? 'PREMIUM'
                                 : 'ÜCRETSİZ',
                             style: TextStyle(
                               fontSize: 8,
                               fontWeight: FontWeight.w900,
-                              color: _subscriptionStatus.isPremium
+                              color: status.isPremium
                                   ? Colors.amber.shade700
                                   : Colors.blueAccent,
                               letterSpacing: 1.0,
@@ -1438,7 +1434,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing) {
+  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing, SubscriptionStatus status) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final secondaryTextColor = isDark ? Colors.white54 : Colors.black54;
@@ -1446,7 +1442,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return _buildGlassCard(
       isDark: isDark,
       borderRadius: 24,
-      borderColor: _subscriptionStatus.isPremium
+      borderColor: status.isPremium
           ? Colors.amber.withOpacity(0.3)
           : Colors.blueAccent.withOpacity(0.1),
       onTap: () async {
@@ -1455,7 +1451,7 @@ class _ProfilePageState extends State<ProfilePage> {
           MaterialPageRoute(builder: (context) => const SubscriptionPage()),
         );
         if (result == true) {
-          _loadSubscriptionStatus(forceRefresh: true);
+          _subscriptionService.getSubscriptionStatus(forceRefresh: true);
         }
       },
       child: Container(
@@ -1466,7 +1462,7 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: _subscriptionStatus.isPremium
+                  colors: status.isPremium
                       ? [Colors.amber.shade300, Colors.orange.shade600]
                       : [Colors.blue.shade400, Colors.indigo.shade700],
                 ),
@@ -1474,7 +1470,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 boxShadow: [
                   BoxShadow(
                     color:
-                        (_subscriptionStatus.isPremium
+                        (status.isPremium
                                 ? Colors.orange
                                 : Colors.blue)
                             .withOpacity(0.3),
@@ -1484,7 +1480,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
               child: Icon(
-                _subscriptionStatus.isPremium
+                status.isPremium
                     ? Icons.star_rounded
                     : Icons.workspace_premium_rounded,
                 size: 20,
@@ -1497,7 +1493,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _subscriptionStatus.isPremium
+                    status.isPremium
                         ? 'Premium Aktif'
                         : 'Premium\'a Yükselt',
                     style: TextStyle(
@@ -1509,7 +1505,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _subscriptionStatus.isPremium
+                    status.isPremium
                         ? 'Sınırsız erişimin tadını çıkarın'
                         : 'Özel içerikler için yükseltin',
                     style: TextStyle(
@@ -1518,11 +1514,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (_subscriptionStatus.isPremium &&
-                      _subscriptionStatus.endDate != null) ...[
+                  if (status.isPremium &&
+                      status.endDate != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Bitiş: ${_formatDate(_subscriptionStatus.endDate!)}',
+                      'Bitiş: ${_formatDate(status.endDate!)}',
                       style: TextStyle(
                         fontSize: 9,
                         color: secondaryTextColor.withOpacity(0.7),
@@ -1621,24 +1617,6 @@ class _ProfilePageState extends State<ProfilePage> {
         context,
         message: result.message.isNotEmpty ? result.message : 'Hata oluştu.',
         type: SnackBarType.error,
-      );
-    }
-  }
-
-  Future<void> _activatePremiumDev() async {
-    final result = await _subscriptionService.setSubscriptionStatus(
-      status: 'premium',
-      type: 'yearly',
-      endDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (result && mounted) {
-      await _loadSubscriptionStatus(forceRefresh: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Premium başarıyla aktifleştirildi (Dev)'),
-          backgroundColor: Colors.green,
-        ),
       );
     }
   }

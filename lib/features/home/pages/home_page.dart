@@ -71,9 +71,9 @@ class _HomePageState extends State<HomePage> {
     _loadUserScore();
     _loadUserData();
     _loadActiveTask();
-    
+
     // Refresh content in background after a short delay to keep UI smooth
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) _loadOngoingContent();
     });
 
@@ -129,35 +129,47 @@ class _HomePageState extends State<HomePage> {
       final userKey = uid ?? 'anon';
       final prefs = await SharedPreferences.getInstance();
 
+      // Tüm cache'leri paralel oku
+      List<OngoingTest> tests = _ongoingTests;
+      List<OngoingPodcast> podcasts = _ongoingPodcasts;
+      List<OngoingFlashCard> flashCards = _ongoingFlashCards;
+
       final testsJson = prefs.getString('ongoing_tests_cache_$userKey');
       if (testsJson != null && testsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(testsJson);
-          final items = list
+          tests = list
               .map((j) => OngoingTest.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) setState(() => _ongoingTests = items);
         } catch (e) {}
       }
       final podcastsJson = prefs.getString('ongoing_podcasts_cache_$userKey');
       if (podcastsJson != null && podcastsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(podcastsJson);
-          final items = list
+          podcasts = list
               .map((j) => OngoingPodcast.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) setState(() => _ongoingPodcasts = items);
         } catch (e) {}
       }
-      final flashCardsJson = prefs.getString('ongoing_flash_cards_cache_$userKey');
+      final flashCardsJson =
+          prefs.getString('ongoing_flash_cards_cache_$userKey');
       if (flashCardsJson != null && flashCardsJson.isNotEmpty) {
         try {
           final List<dynamic> list = jsonDecode(flashCardsJson);
-          final items = list
+          flashCards = list
               .map((j) => OngoingFlashCard.fromMap(j as Map<String, dynamic>))
               .toList();
-          if (mounted) setState(() => _ongoingFlashCards = items);
         } catch (e) {}
+      }
+
+      // Tüm veriyi tek bir setState ile uygula (3 rebuild yerine 1)
+      if (mounted) {
+        setState(() {
+          _ongoingTests = tests;
+          _ongoingPodcasts = podcasts;
+          _ongoingFlashCards = flashCards;
+        });
       }
     } catch (e) {}
   }
@@ -227,7 +239,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final program = await StudyProgramService.instance.getProgram();
+    // Cache'den oku: Firestore round-trip ve _syncFromFirestore() tetiklemez.
+    final program = await StudyProgramService.instance.getProgramFromCache();
     if (program == null) {
       if (mounted) setState(() => _showCurrentTask = false);
       return;
@@ -260,7 +273,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _completeActiveTask() async {
     if (_activeTask == null || _activeTaskWeekday == null) return;
 
-    final program = await StudyProgramService.instance.getProgram();
+    final program = await StudyProgramService.instance.getProgramFromCache();
     if (program == null) return;
 
     final updatedDays = program.days.map((day) {
@@ -565,7 +578,7 @@ class _HomePageState extends State<HomePage> {
       ),
       child: ClipRRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
           child: Row(
         children: [
           // Sidebar Toggle Button

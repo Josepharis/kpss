@@ -58,13 +58,26 @@ class _MyProgramPageState extends State<MyProgramPage> {
     _load();
     _programSubscription = StudyProgramService.instance.onProgramUpdated.listen(
       (_) {
+        // Sadece düzenleme modu dışında VE kendi kaydetmediğimiz güncellemelerde
+        // tam reload yap. _isSelfSaving kontrolü service katmanında yapılıyor
+        // (emit zaten atlanıyor), bu listener her emit'e güvenle tepki verebilir.
         if (mounted && !_editMode) _load();
       },
     );
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    // Cache'den önce göster (anlık), loading ekranı gösterme
+    final cached = await StudyProgramService.instance.getProgramFromCache();
+    if (cached != null && mounted) {
+      setState(() {
+        _program = cached;
+        _loading = false;
+      });
+    } else if (mounted) {
+      setState(() => _loading = true);
+    }
+
     final program = await StudyProgramService.instance.getProgram();
     if (!mounted) return;
     setState(() {
@@ -79,12 +92,15 @@ class _MyProgramPageState extends State<MyProgramPage> {
   }
 
   Future<void> _saveProgram(StudyProgram program) async {
-    // Optimistic UI update.
+    // Optimistic UI update – UI anında güncellendi, reload gerekmez.
     setState(() => _program = program);
     try {
       await StudyProgramService.instance.saveProgram(program);
+      // NOT: saveProgram() içinde _isSelfSaving=true olduğu için
+      // stream event'i bu widget'ta _load() tetiklemez. Optimistic update yeterli.
     } catch (_) {
-      // Ignore persistence failures for now; UI already updated.
+      // Hata olursa cache'den tekrar yükle
+      _load();
     }
   }
 
@@ -352,7 +368,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
 
   void _startAutoScroll() {
     if (_autoScrollTimer != null) return;
-    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 32), (_) {
       if (!_scrollController.hasClients) return;
       // Can be attached before first layout; avoid reading extents too early.
       if (!_scrollController.position.hasContentDimensions) return;

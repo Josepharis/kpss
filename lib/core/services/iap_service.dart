@@ -175,12 +175,16 @@ class IAPService {
 
     final endDate = DateTime.now().add(Duration(days: days));
 
-    await _subscriptionService.setSubscriptionStatus(
-      status: 'premium',
-      type: type,
-      endDate: endDate,
-    );
+    // Yalnızca YENİ bir satın alım ise veya geçerli bir süresi yoksa güncelle
+    // Restored olanlar için Firestore sync zaten Splash screen'de yapılıyor.
+    if (purchaseDetails.status == PurchaseStatus.purchased) {
+      await _subscriptionService.setSubscriptionStatus(
+        status: 'premium',
+        type: type,
+        endDate: endDate,
+      );
+    }
 
-    debugPrint('Successful purchase handled for: ${purchaseDetails.productID}');
+    debugPrint('Successful purchase handled for: ${purchaseDetails.productID} (${purchaseDetails.status})');
   }
 }

@@ -9,6 +9,12 @@ import 'progress_service.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+/// Yönetici yetkisi olan e-posta adresleri.
+/// Buraya yeni admin eklemek için listeye e-posta adresini ekle.
+const List<String> _kAdminEmails = [
+  'yftsoftware@gmail.com',
+];
+
 /// Authentication service for handling user login, registration, and session management
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -37,6 +43,14 @@ class AuthService {
   /// Get current user email
   String? getUserEmail() {
     return _auth.currentUser?.email;
+  }
+
+  /// Kullanıcının yönetici olup olmadığını kontrol eder.
+  /// Kontrol anlık (senkron), Firebase yetkilendirmesine bakılır.
+  bool isAdmin() {
+    final email = _auth.currentUser?.email?.toLowerCase().trim();
+    if (email == null || email.isEmpty) return false;
+    return _kAdminEmails.contains(email);
   }
 
   /// Get current user name
@@ -431,6 +445,33 @@ class AuthService {
     }
   }
 
+  /// Sync user data from Firestore to local cache (SharedPreferences)
+  Future<void> syncUserData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        final prefs = await SharedPreferences.getInstance();
+
+        if (data.containsKey('name') && data['name'] != null) {
+          await prefs.setString(_keyUserName, data['name']);
+        }
+        if (data.containsKey('kpssType') && data['kpssType'] != null) {
+          await prefs.setString(_keyKpssType, data['kpssType']);
+        }
+        if (data.containsKey('email') && data['email'] != null) {
+          await prefs.setString(_keyUserEmail, data['email']);
+        }
+        debugPrint('✅ User data synced from Firestore to cache');
+      }
+    } catch (e) {
+      debugPrint('❌ Error syncing user data: $e');
+    }
+  }
+
   /// Update user's last login timestamp
   Future<void> _updateUserLastLogin(User user) async {
     try {
@@ -471,6 +512,10 @@ class AuthService {
 
         await userDoc.update(updateData);
       }
+      
+      // Her login işleminde verileri yerel cache ile senkronize et
+      await syncUserData();
+      
       debugPrint('✅ User last login and FCM token updated for ${user.uid}');
     } catch (e) {
       debugPrint('❌ Error updating last login: $e');

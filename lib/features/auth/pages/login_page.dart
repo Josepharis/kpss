@@ -260,7 +260,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   maxHeight: screenWidth * 1.2,
                                   maxWidth: screenWidth * 1.5,
                                   child: Transform.translate(
-                                    offset: Offset(0, -screenWidth * 0.1), // Moves logo UP into top space
+                                    offset: Offset(0, -screenWidth * 0.02), // Bir tık daha aşağı (önceki -0.1 idi)
                                     child: AnimatedBuilder(
                                       animation: Listenable.merge([
                                         _fadeAnimation,
@@ -286,9 +286,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                               ),
                                             ),
                                             Image.asset(
-                                              'assets/images/kadrox_logo.png',
-                                              width: screenWidth * 1.15,
-                                              height: screenWidth * 0.7,
+                                              'assets/images/splash.png',
+                                              width: screenWidth * 1.3, // 1.5'ten 1.3'e çekildi
+                                              height: screenWidth * 0.8,
                                               fit: BoxFit.contain,
                                               errorBuilder: (context, error, stackTrace) =>
                                                   const Icon(
@@ -407,55 +407,49 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             SizedBox(height: isSmallScreen ? 12 : 18), // Reduced gap
 
                             _buildLoginButton(isSmallScreen, isDark),
-
-                            const SizedBox(height: 100), // Reserve space for bottom items
+                            const SizedBox(height: 32),
+                            // Footer moved inside scroll to prevent keyboard overlap
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GestureDetector(
+                                  onTap: () => Navigator.of(context).pushNamed('/register'),
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: isDark ? Colors.white54 : Colors.black45,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      children: [
+                                        const TextSpan(text: 'Hesabın yok mu? '),
+                                        TextSpan(
+                                          text: 'Kayıt Ol',
+                                          style: TextStyle(
+                                            color: const Color(0xFFF48C06),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                            letterSpacing: 0.2,
+                                            shadows: [
+                                              Shadow(
+                                                color: const Color(0xFFF48C06).withOpacity(0.3),
+                                                blurRadius: 10,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildLegalLinks(isDark),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-
-                  // Fixed at bottom
-                  Positioned(
-                    bottom: 24,
-                    left: 0,
-                    right: 0,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).pushNamed('/register'),
-                          child: RichText(
-                            text: TextSpan(
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              children: [
-                                const TextSpan(text: 'Hesabın yok mu? '),
-                                TextSpan(
-                                  text: 'Kayıt Ol',
-                                  style: TextStyle(
-                                    color: const Color(0xFFF48C06),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
-                                    letterSpacing: 0.2,
-                                    shadows: [
-                                      Shadow(
-                                        color: const Color(0xFFF48C06).withOpacity(0.3),
-                                        blurRadius: 10,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildLegalLinks(isDark),
-                      ],
                     ),
                   ),
                 ],
