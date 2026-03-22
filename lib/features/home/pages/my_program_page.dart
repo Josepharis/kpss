@@ -33,7 +33,7 @@ class MyProgramPage extends StatefulWidget {
 class _MyProgramPageState extends State<MyProgramPage> {
   bool _loading = true;
   StudyProgram? _program;
-  bool _editMode = false;
+  bool _editMode = true; // Always in edit mode as requested
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _listKey = GlobalKey();
   late final Map<int, GlobalKey> _daySectionKeys;
@@ -57,10 +57,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
     _load();
     _programSubscription = StudyProgramService.instance.onProgramUpdated.listen(
       (_) {
-        // Sadece düzenleme modu dışında VE kendi kaydetmediğimiz güncellemelerde
-        // tam reload yap. _isSelfSaving kontrolü service katmanında yapılıyor
-        // (emit zaten atlanıyor), bu listener her emit'e güvenle tepki verebilir.
-        if (mounted && !_editMode) _load();
+        if (mounted) _load();
       },
     );
   }
@@ -79,15 +76,17 @@ class _MyProgramPageState extends State<MyProgramPage> {
 
     final program = await StudyProgramService.instance.getProgram();
     if (!mounted) return;
-    setState(() {
-      _program = program;
-      _loading = false;
-    });
-  }
-
-  Future<void> _clear() async {
-    await StudyProgramService.instance.clearProgram();
-    await _load();
+    
+    if (program == null) {
+      // If no program exists, automatically create an empty one and enter edit mode
+      // as requested by the USER (bypassing the empty alert state).
+      await _createEmptyProgramAndEnterEdit();
+    } else {
+      setState(() {
+        _program = program;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _saveProgram(StudyProgram program) async {
@@ -169,26 +168,8 @@ class _MyProgramPageState extends State<MyProgramPage> {
     await _saveProgram(program);
   }
 
-  Future<void> _confirmClearProgram() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Programı Sil'),
-        content: const Text('Kaydedilmiş program silinsin mi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Vazgeç'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await _clear();
-  }
+  // _clear method removed as unnecessary / confirm dialog removed as requested
+
 
   List<StudyProgramTask> _tasksForWeekday(StudyProgram program, int weekday) {
     for (final d in program.days) {
@@ -883,12 +864,6 @@ class _MyProgramPageState extends State<MyProgramPage> {
     required int activeDays,
     required double horizontalPadding,
   }) {
-    final title = program.title.trim().isEmpty
-        ? 'Programım'
-        : program.title.trim();
-    final subtitle = program.subtitle.trim().isEmpty
-        ? 'Haftalık plan'
-        : program.subtitle.trim();
     final progress = (activeDays / 7.0).clamp(0.0, 1.0);
     final textPrimary = isDark ? Colors.white : AppColors.textPrimary;
     final textSecondary = isDark ? Colors.white70 : AppColors.textSecondary;
@@ -954,47 +929,14 @@ class _MyProgramPageState extends State<MyProgramPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        color: textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
-                      ),
-                    ),
+                    // Title removed as requested by the user since it's in the AppBar
+                    const SizedBox(height: 4),
+                    // Subtitle removed as requested
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              _buildActionButton(
-                icon: _editMode
-                    ? Icons.check_rounded
-                    : Icons.mode_edit_outline_rounded,
-                tooltip: _editMode ? 'Bitti' : 'Planı Düzenle',
-                isDark: isDark,
-                onPressed: () => setState(() => _editMode = !_editMode),
-                isPrimary: _editMode,
-              ),
               const SizedBox(width: 8),
-              _buildActionButton(
-                icon: Icons.delete_sweep_rounded,
-                tooltip: 'Tümünü Temizle',
-                isDark: isDark,
-                onPressed: _confirmClearProgram,
-                isPrimary: false,
-                colorOverride: Colors.red.withOpacity(0.1),
-                iconColorOverride: Colors.red.shade400,
-              ),
+              // Buttons removed as requested
             ],
           ),
           const SizedBox(height: 14),
@@ -1122,65 +1064,8 @@ class _MyProgramPageState extends State<MyProgramPage> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required bool isDark,
-    bool isPrimary = false,
-    Color? colorOverride,
-    Color? iconColorOverride,
-  }) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        gradient: isPrimary
-            ? const LinearGradient(
-                colors: [
-                  AppColors.gradientTealStart,
-                  AppColors.gradientBlueEnd,
-                ],
-              )
-            : null,
-        color:
-            colorOverride ??
-            (isPrimary
-                ? null
-                : (isDark ? Colors.white.withOpacity(0.08) : Colors.white)),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isPrimary
-              ? Colors.transparent
-              : (isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.black.withOpacity(0.05)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isPrimary
-                ? AppColors.gradientTealStart.withOpacity(0.2)
-                : Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(
-          icon,
-          color:
-              iconColorOverride ??
-              (isPrimary
-                  ? Colors.white
-                  : (isDark ? Colors.white70 : Colors.black87)),
-          size: 19,
-        ),
-      ),
-    );
-  }
+  // _buildActionButton removed as requested
+
 
   String _formatMonth(int month) {
     const names = {
@@ -1430,15 +1315,14 @@ class _MyProgramPageState extends State<MyProgramPage> {
                           ],
                         ),
                       ),
-                      if (_editMode) ...[
-                        const SizedBox(width: 8),
-                        _buildIconButton(
-                          icon: Icons.add_circle_outline_rounded,
-                          onPressed: () => _showTaskEditor(weekday: weekday),
-                          isDark: isDark,
-                          color: dayGrad[0],
-                        ),
-                      ],
+                      const SizedBox(width: 8),
+                      // Add button is now always here as requested
+                      _buildIconButton(
+                        icon: Icons.add_circle_outline_rounded,
+                        onPressed: () => _showTaskEditor(weekday: weekday),
+                        isDark: isDark,
+                        color: dayGrad[0],
+                      ),
                     ],
                   ),
                   if (tasks.isNotEmpty) ...[
@@ -1452,11 +1336,25 @@ class _MyProgramPageState extends State<MyProgramPage> {
                       child: Column(
                         children: [
                           for (var i = 0; i < tasks.length; i++) ...[
-                            _buildTaskRow(
-                              weekday: weekday,
-                              task: tasks[i],
-                              isDark: isDark,
-                              compact: compact,
+                            Dismissible(
+                              key: Key('task_${tasks[i].start}_${tasks[i].title}_$i'),
+                              direction: DismissDirection.endToStart,
+                              onDismissed: (_) => _deleteTask(weekday, tasks[i]),
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                              ),
+                              child: _buildTaskRow(
+                                weekday: weekday,
+                                task: tasks[i],
+                                isDark: isDark,
+                                compact: compact,
+                              ),
                             ),
                             if (i != tasks.length - 1)
                               Divider(
