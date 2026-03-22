@@ -15,6 +15,7 @@ import '../widgets/ongoing_flash_cards_section.dart';
 import '../widgets/daily_quote_card.dart';
 import '../widgets/exam_countdown_card.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../widgets/quick_access_section.dart';
 import '../../../core/models/study_program.dart';
 import '../../../core/services/study_program_service.dart';
@@ -49,6 +50,7 @@ class _HomePageState extends State<HomePage> {
   StudyProgramTask? _activeTask;
   int? _activeTaskWeekday;
   StreamSubscription? _programSubscription;
+  StreamSubscription? _subscriptionSub;
 
   @override
   void dispose() {
@@ -59,6 +61,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _subscriptionSub = SubscriptionService().statusStream.listen((status) {
+      if (mounted) setState(() {});
+    });
 
     // Safety check: if user changed, clear memory statics
     final currentUid = _authService.getUserId();
@@ -595,6 +600,8 @@ class _HomePageState extends State<HomePage> {
                     alignment: Alignment.centerLeft,
                     child: ModernSidebar(
                       onClose: () => Navigator.pop(context),
+                      initialName: _userName,
+                      initialScore: _userTotalScore,
                     ),
                   );
                 },

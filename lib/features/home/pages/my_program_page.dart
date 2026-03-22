@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/study_program.dart';
 import '../../../core/services/study_program_service.dart';
-import 'ai_assistant_page.dart';
 
 class _DraggedProgramTask {
   final int fromWeekday; // 1..7
@@ -554,44 +553,26 @@ class _MyProgramPageState extends State<MyProgramPage> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  LayoutBuilder(
-                    builder: (context, c) {
-                      final wide = c.maxWidth >= 460;
-                      final aiBtn = FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const AiAssistantPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.auto_awesome_rounded),
-                        label: const Text('AI ile program oluştur'),
-                      );
-                      final manualBtn = OutlinedButton.icon(
-                        onPressed: _createEmptyProgramAndEnterEdit,
-                        icon: const Icon(Icons.edit_calendar_rounded),
-                        label: const Text('Manuel program oluştur'),
-                      );
-
-                      if (wide) {
-                        return Row(
-                          children: [
-                            Expanded(child: aiBtn),
-                            const SizedBox(width: 10),
-                            Expanded(child: manualBtn),
-                          ],
-                        );
-                      }
-
-                      return Column(
-                        children: [
-                          SizedBox(width: double.infinity, child: aiBtn),
-                          const SizedBox(height: 10),
-                          SizedBox(width: double.infinity, child: manualBtn),
-                        ],
-                      );
-                    },
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _createEmptyProgramAndEnterEdit,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        backgroundColor: AppColors.gradientTealStart,
+                      ),
+                      icon: const Icon(Icons.edit_calendar_rounded),
+                      label: const Text(
+                        'Haftalık Program Oluştur',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

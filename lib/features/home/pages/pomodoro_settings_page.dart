@@ -70,6 +70,29 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
     Navigator.pop(context);
   }
 
+  Color _getThemeColor(String theme) {
+    switch (theme) {
+      case 'emerald':
+        return const Color(0xFF10B981);
+      case 'rose':
+        return const Color(0xFFF43F5E);
+      case 'amber':
+        return const Color(0xFFF59E0B);
+      case 'violet':
+        return const Color(0xFF8B5CF6);
+      case 'cyan':
+        return const Color(0xFF06B6D4);
+      case 'crimson':
+        return const Color(0xFFBE123C);
+      case 'gold':
+        return const Color(0xFFD97706);
+      case 'obsidian':
+        return const Color(0xFF475569);
+      default:
+        return const Color(0xFF6366F1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -135,26 +158,21 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildThemeOption(
-                          'indigo',
-                          const Color(0xFF6366F1),
-                          isDark,
-                        ),
-                        _buildThemeOption(
-                          'emerald',
-                          const Color(0xFF10B981),
-                          isDark,
-                        ),
-                        _buildThemeOption(
-                          'rose',
-                          const Color(0xFFF43F5E),
-                          isDark,
-                        ),
-                        _buildThemeOption(
-                          'amber',
-                          const Color(0xFFF59E0B),
-                          isDark,
-                        ),
+                        _buildThemeOption('indigo', const Color(0xFF6366F1), isDark),
+                        _buildThemeOption('emerald', const Color(0xFF10B981), isDark),
+                        _buildThemeOption('rose', const Color(0xFFF43F5E), isDark),
+                        _buildThemeOption('amber', const Color(0xFFF59E0B), isDark),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildThemeOption('violet', const Color(0xFF8B5CF6), isDark),
+                        _buildThemeOption('cyan', const Color(0xFF06B6D4), isDark),
+                        _buildThemeOption('crimson', const Color(0xFFBE123C), isDark),
+                        _buildThemeOption('gold', const Color(0xFFD97706), isDark),
+                        _buildThemeOption('obsidian', const Color(0xFF475569), isDark),
                       ],
                     ),
                   ],
@@ -175,8 +193,8 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
                         ),
                         const SizedBox(width: 8),
                         _buildDesignOption(
-                          'rings',
-                          'Halka',
+                          'aura',
+                          'Aura',
                           Icons.blur_circular_rounded,
                           isDark,
                         ),
@@ -185,13 +203,6 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
                           'modern',
                           'Modern',
                           Icons.adjust_rounded,
-                          isDark,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildDesignOption(
-                          'none',
-                          'Sade',
-                          Icons.circle_outlined,
                           isDark,
                         ),
                       ],
@@ -368,19 +379,6 @@ class _PomodoroSettingsPageState extends State<PomodoroSettingsPage> {
         ),
       ),
     );
-  }
-
-  Color _getThemeColor(String theme) {
-    switch (theme) {
-      case 'emerald':
-        return const Color(0xFF10B981);
-      case 'rose':
-        return const Color(0xFFF43F5E);
-      case 'amber':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF6366F1);
-    }
   }
 
   Widget _buildCompactSection({

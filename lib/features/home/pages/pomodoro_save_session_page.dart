@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/constants/app_colors.dart';
+import 'dart:ui';
 import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/models/pomodoro_session.dart';
 import '../../../core/services/pomodoro_storage_service.dart';
@@ -9,6 +9,7 @@ import '../../../../main.dart';
 class PomodoroSaveSessionPage extends StatefulWidget {
   final int sessionCount;
   final int totalMinutes;
+  final int totalSeconds;
   final int sessionDuration;
   final VoidCallback onSaved;
 
@@ -16,6 +17,7 @@ class PomodoroSaveSessionPage extends StatefulWidget {
     super.key,
     required this.sessionCount,
     required this.totalMinutes,
+    required this.totalSeconds,
     required this.sessionDuration,
     required this.onSaved,
   });
@@ -44,11 +46,12 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 600),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutBack,
     );
 
     _animationController.forward();
@@ -77,6 +80,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         sessionCount: widget.sessionCount,
         sessionDuration: widget.sessionDuration,
         totalMinutes: widget.totalMinutes,
+        totalSeconds: widget.totalSeconds,
         topic: _topicController.text.trim().isEmpty
             ? null
             : _topicController.text.trim(),
@@ -100,7 +104,6 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         widget.onSaved();
         Navigator.pop(context);
 
-        // Refresh statistics on profile page
         final mainScreen = MainScreen.of(context);
         if (mainScreen != null) {
           mainScreen.refreshProfilePage();
@@ -108,7 +111,7 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
 
         PremiumSnackBar.show(
           context,
-          message: 'Kayıt başarıyla kaydedildi',
+          message: 'Çalışmanız başarıyla kaydedildi!',
           type: SnackBarType.success,
         );
       }
@@ -117,445 +120,487 @@ class _PomodoroSaveSessionPageState extends State<PomodoroSaveSessionPage>
         setState(() => _isSaving = false);
         PremiumSnackBar.show(
           context,
-          message: 'Hata: $e',
+          message: 'Kaydedilirken bir hata oluştu: $e',
           type: SnackBarType.error,
         );
       }
     }
   }
 
+  String _formatSeconds(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+
+    List<String> parts = [];
+    if (hours > 0) parts.add('$hours sa');
+    if (minutes > 0) parts.add('$minutes dk');
+    parts.add('$seconds sn');
+
+    return parts.join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
-    final isCompact = size.height < 700;
-
+    
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Çalışma Kaydı',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
-        centerTitle: true,
-      ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 16 : 20,
-              vertical: isCompact ? 12 : 16,
-            ),
-            children: [
-              // Kompakt Özet Kartı
-              _buildCompactSummary(isDark, isCompact),
-
-              SizedBox(height: isCompact ? 16 : 20),
-
-              // Konu Input - Kompakt
-              _buildCompactInput(
-                controller: _topicController,
-                label: 'Çalışılan Konu',
-                hint: 'Örn: Matematik - Türev',
-                icon: Icons.book_outlined,
-                isDark: isDark,
-                isCompact: isCompact,
-              ),
-
-              SizedBox(height: isCompact ? 16 : 20),
-
-              // Test Bilgileri - Kompakt
-              _buildTestSection(isDark, isCompact),
-
-              SizedBox(height: isCompact ? 16 : 20),
-
-              // Notlar - Kompakt
-              _buildCompactInput(
-                controller: _notesController,
-                label: 'Notlar',
-                hint: 'Çalışma hakkında notlarınız...',
-                icon: Icons.note_outlined,
-                isDark: isDark,
-                isCompact: isCompact,
-                maxLines: 3,
-              ),
-
-              SizedBox(height: isCompact ? 20 : 24),
-
-              // Kaydet Butonu - Kompakt
-              _buildCompactSaveButton(isDark, isCompact),
-
-              SizedBox(height: isCompact ? 12 : 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactSummary(bool isDark, bool isCompact) {
-    return Container(
-      padding: EdgeInsets.all(isCompact ? 16 : 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.gradientBlueStart, AppColors.gradientBlueEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryBlue.withOpacity(0.25),
-            blurRadius: 16,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      body: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.insights_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Oturum Özeti',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+          // Background Gradient Blobs
+          _buildBackgroundBlobs(size, isDark),
+          
+          SafeArea(
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                _buildSliverAppBar(isDark),
+                SliverToBoxAdapter(
+                  child: Form(
+                    key: _formKey,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: SlideTransition(
+                          position: _fadeAnimation.drive(
+                            Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSummaryCard(isDark),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('ÇALIŞMA DETAYLARI', isDark),
+                              const SizedBox(height: 12),
+                              _buildGlassInput(
+                                controller: _topicController,
+                                label: 'Çalışılan Konu',
+                                hint: 'Örn: Matematik - Fonksiyonlar',
+                                icon: Icons.auto_stories_rounded,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(height: 20),
+                              _buildScoreSection(isDark),
+                              const SizedBox(height: 20),
+                              _buildGlassInput(
+                                controller: _notesController,
+                                label: 'Çalışma Notu',
+                                hint: 'Bugünkü verimin nasıldı? Neleri öğrendin?',
+                                icon: Icons.edit_note_rounded,
+                                isDark: isDark,
+                                maxLines: 4,
+                              ),
+                              const SizedBox(height: 32),
+                              _buildActionButtons(isDark),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: isCompact ? 16 : 20),
-          _buildCompactStatItem(
-            icon: Icons.timer_outlined,
-            label: 'Oturum',
-            value: '${widget.sessionCount}',
-            isCompact: isCompact,
-          ),
-          SizedBox(height: isCompact ? 10 : 12),
-          _buildCompactStatItem(
-            icon: Icons.access_time_rounded,
-            label: 'Toplam Süre',
-            value: '${widget.totalMinutes} dk',
-            isCompact: isCompact,
-          ),
-          SizedBox(height: isCompact ? 10 : 12),
-          _buildCompactStatItem(
-            icon: Icons.hourglass_empty_rounded,
-            label: 'Oturum Süresi',
-            value: '${widget.sessionDuration} dk',
-            isCompact: isCompact,
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCompactStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isCompact,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          color: Colors.white.withOpacity(0.9),
-          size: isCompact ? 16 : 18,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: isCompact ? 13 : 14,
+  Widget _buildBackgroundBlobs(Size size, bool isDark) {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Positioned(
+            top: -size.width * 0.2,
+            right: -size.width * 0.1,
+            child: _buildBlob(
+              size: size.width * 0.8,
+              color: const Color(0xFF6366F1).withOpacity(isDark ? 0.08 : 0.05),
             ),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: isCompact ? 15 : 16,
-            fontWeight: FontWeight.bold,
+          Positioned(
+            bottom: -size.width * 0.2,
+            left: -size.width * 0.2,
+            child: _buildBlob(
+              size: size.width * 0.9,
+              color: const Color(0xFFA855F7).withOpacity(isDark ? 0.06 : 0.04),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildCompactInput({
+  Widget _buildBlob({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, color.withOpacity(0)],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(bool isDark) {
+    return SliverAppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.close_rounded, color: isDark ? Colors.white : Colors.black87, size: 20),
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text(
+        'OTURUMU KAYDET',
+        style: TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.5,
+        ),
+      ),
+      centerTitle: true,
+      pinned: true,
+    );
+  }
+
+  Widget _buildSummaryCard(bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Opacity(
+                opacity: 0.1,
+                child: Icon(Icons.timer_rounded, size: 140, color: Colors.white),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Harika Bir İş Çıkardın!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Oturum başarıyla tamamlandı.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatBox(
+                        'OTURUM',
+                        widget.sessionCount.toString(),
+                        Icons.repeat_rounded,
+                      ),
+                      _buildStatBox(
+                        'SÜRE',
+                        _formatSeconds(widget.totalSeconds),
+                        Icons.history_toggle_off_rounded,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatBox(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, bool isDark) {
+    return Text(
+      title,
+      style: TextStyle(
+        color: isDark ? Colors.white30 : Colors.black38,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 2,
+      ),
+    );
+  }
+
+  Widget _buildGlassInput({
     required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
     required bool isDark,
-    required bool isCompact,
     int maxLines = 1,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.2),
-          width: 1,
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
       ),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87,
-          fontSize: isCompact ? 14 : 15,
-        ),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          hintStyle: TextStyle(
-            color: isDark ? Colors.white38 : Colors.black38,
-            fontSize: isCompact ? 13 : 14,
-          ),
-          prefixIcon: Icon(icon, color: AppColors.primaryBlue, size: 20),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 16 : 18,
-            vertical: isCompact ? 14 : 16,
-          ),
-          labelStyle: TextStyle(
-            fontSize: isCompact ? 13 : 14,
-            color: isDark ? Colors.white70 : Colors.black54,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: TextField(
+              controller: controller,
+              maxLines: maxLines,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                icon: Icon(icon, color: Colors.indigoAccent, size: 22),
+                label: Text(label),
+                labelStyle: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black45,
+                  fontSize: 13,
+                ),
+                hintText: hint,
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                  fontSize: 13,
+                ),
+                border: InputBorder.none,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTestSection(bool isDark, bool isCompact) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildScoreSection(bool isDark) {
+    return Row(
       children: [
-        Row(
-          children: [
-            Text(
-              'Test/Soru Bilgileri',
-              style: TextStyle(
-                fontSize: isCompact ? 14 : 15,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Opsiyonel',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isDark ? Colors.white60 : Colors.black54,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
+        Expanded(
+          child: _buildMiniInput(
+            controller: _correctController,
+            label: 'DOĞRU',
+            icon: Icons.check_circle_rounded,
+            color: const Color(0xFF10B981),
+            isDark: isDark,
+          ),
         ),
-        SizedBox(height: isCompact ? 10 : 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildCompactTestInput(
-                controller: _correctController,
-                label: 'Doğru',
-                icon: Icons.check_circle_outline,
-                color: AppColors.gradientGreenStart,
-                isDark: isDark,
-                isCompact: isCompact,
-              ),
-            ),
-            SizedBox(width: isCompact ? 8 : 10),
-            Expanded(
-              child: _buildCompactTestInput(
-                controller: _wrongController,
-                label: 'Yanlış',
-                icon: Icons.cancel_outlined,
-                color: Colors.red,
-                isDark: isDark,
-                isCompact: isCompact,
-              ),
-            ),
-            SizedBox(width: isCompact ? 8 : 10),
-            Expanded(
-              child: _buildCompactTestInput(
-                controller: _totalController,
-                label: 'Toplam',
-                icon: Icons.quiz_outlined,
-                color: AppColors.primaryBlue,
-                isDark: isDark,
-                isCompact: isCompact,
-              ),
-            ),
-          ],
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMiniInput(
+            controller: _wrongController,
+            label: 'YANLIŞ',
+            icon: Icons.cancel_rounded,
+            color: const Color(0xFFF43F5E),
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMiniInput(
+            controller: _totalController,
+            label: 'TOPLAM',
+            icon: Icons.functions_rounded,
+            color: Colors.blueAccent,
+            isDark: isDark,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCompactTestInput({
+  Widget _buildMiniInput({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     required Color color,
     required bool isDark,
-    required bool isCompact,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87,
-          fontSize: isCompact ? 13 : 14,
-          fontWeight: FontWeight.w600,
-        ),
-        textAlign: TextAlign.center,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-            fontSize: isCompact ? 11 : 12,
-            color: isDark ? Colors.white60 : Colors.black54,
-          ),
-          prefixIcon: Icon(icon, color: color, size: 18),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 8 : 10,
-            vertical: isCompact ? 12 : 14,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.white24 : Colors.black26,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
           ),
         ),
-      ),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: color, size: 16),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildCompactSaveButton(bool isDark, bool isCompact) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _isSaving ? null : _saveSession,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(vertical: isCompact ? 14 : 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.gradientBlueStart, AppColors.gradientBlueEnd],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryBlue.withOpacity(0.35),
-                blurRadius: 16,
-                spreadRadius: 0,
-                offset: const Offset(0, 4),
+  Widget _buildActionButtons(bool isDark) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _isSaving ? null : _saveSession,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
               ),
-            ],
-          ),
-          child: _isSaving
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.save_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Kaydet',
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Center(
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'KAYDI TAMAMLA',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: isCompact ? 15 : 16,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
                       ),
                     ),
-                  ],
-                ),
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'İPTAL ET',
+            style: TextStyle(
+              color: isDark ? Colors.white30 : Colors.black38,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

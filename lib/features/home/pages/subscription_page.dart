@@ -84,13 +84,16 @@ class _SubscriptionPageState extends State<SubscriptionPage>
             }
           });
         }
-      } else if (status == PurchaseStatus.error) {
+      } else if (status == PurchaseStatus.error ||
+          status == PurchaseStatus.canceled) {
         setState(() => _isPurchasing = false);
-        PremiumSnackBar.show(
-          context,
-          message: 'İşlem sırasında bir hata oluştu.',
-          type: SnackBarType.error,
-        );
+        if (status == PurchaseStatus.error) {
+          PremiumSnackBar.show(
+            context,
+            message: 'İşlem sırasında bir hata oluştu.',
+            type: SnackBarType.error,
+          );
+        }
       }
     });
   }
@@ -101,7 +104,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     _particleController.dispose();
     _productsSub.cancel();
     _purchaseStatusSub.cancel();
-    _iapService.dispose();
     super.dispose();
   }
 
@@ -379,11 +381,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         'color': AppColors.gradientRedStart,
       },
       {
-        'icon': Icons.video_library_rounded,
-        'text': 'Özel video ve podcastler',
-        'color': AppColors.gradientGreenStart,
-      },
-      {
         'icon': Icons.analytics_rounded,
         'text': 'Gelişmiş başarı analizi',
         'color': AppColors.gradientOrangeStart,
@@ -551,6 +548,13 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     bool isSmallScreen,
     bool isTablet,
   ) {
+    // 1. Aylık fiyatı hesapla (diğer kâr hesaplamaları için referans)
+    final monthlyProduct =
+        _products.any((p) => p.id == IAPService.productIdMonthly)
+        ? _products.firstWhere((p) => p.id == IAPService.productIdMonthly)
+        : null;
+    final double monthlyRateValue = monthlyProduct?.rawPrice ?? 149.0;
+
     final plans = [
       {
         'title': 'Aylık',
@@ -558,7 +562,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         'period': '/ay',
         'type': 'monthly',
         'isPopular': false,
-        'savings': null,
       },
       {
         'title': '6 Aylık',
@@ -566,7 +569,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         'period': '/6 ay',
         'type': '6monthly',
         'isPopular': true,
-        'savings': '1 ay bedava',
       },
       {
         'title': 'Yıllık',
@@ -574,7 +576,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         'period': '/yıl',
         'type': 'yearly',
         'isPopular': false,
-        'savings': '3 ay bedava',
       },
     ];
 
@@ -602,6 +603,24 @@ class _SubscriptionPageState extends State<SubscriptionPage>
               ? _products.firstWhere((p) => p.id == productId)
               : null;
 
+          // Dinamik kâr hesaplama
+          String? dynamicSavings;
+          if (plan['type'] == '6monthly') {
+            final double currentPrice = product?.rawPrice ?? 799.0;
+            final double expectedFullPrice = monthlyRateValue * 6;
+            final double profit = expectedFullPrice - currentPrice;
+            if (profit > 0) {
+              dynamicSavings = '${profit.toStringAsFixed(0)} TL Avantaj';
+            }
+          } else if (plan['type'] == 'yearly') {
+            final double currentPrice = product?.rawPrice ?? 1299.0;
+            final double expectedFullPrice = monthlyRateValue * 12;
+            final double profit = expectedFullPrice - currentPrice;
+            if (profit > 0) {
+              dynamicSavings = '${profit.toStringAsFixed(0)} TL Avantaj';
+            }
+          }
+
           return Padding(
             padding: EdgeInsets.only(bottom: isSmallScreen ? 7 : 9),
             child: _buildCompactPlanCard(
@@ -610,7 +629,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
               period: plan['period'] as String,
               type: plan['type'] as String,
               isPopular: plan['isPopular'] as bool,
-              savings: plan['savings'] as String?,
+              savings: dynamicSavings,
               isSmallScreen: isSmallScreen,
               isSelected: _selectedPlan == plan['type'],
               isDynamicPrice: product != null,

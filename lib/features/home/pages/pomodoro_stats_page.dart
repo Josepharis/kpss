@@ -17,7 +17,7 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
   List<PomodoroSession> _sessions = [];
   bool _isLoading = true;
   int _totalSessions = 0;
-  int _totalMinutes = 0;
+  int _totalSeconds = 0;
 
   @override
   void initState() {
@@ -30,12 +30,12 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
     try {
       final sessions = await _storageService.getAllSessions();
       final totalSessions = await _storageService.getTotalSessions();
-      final totalMinutes = await _storageService.getTotalMinutes();
+      final totalSeconds = await _storageService.getTotalSeconds();
       
       setState(() {
         _sessions = sessions;
         _totalSessions = totalSessions;
-        _totalMinutes = totalMinutes;
+        _totalSeconds = totalSeconds;
         _isLoading = false;
       });
     } catch (e) {
@@ -147,7 +147,7 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
         Expanded(
           child: _buildStatCard(
             'Toplam Süre',
-            '${(_totalMinutes / 60).toStringAsFixed(1)} saat',
+            _formatDetailedDuration(_totalSeconds),
             Icons.access_time,
             AppColors.gradientGreenEnd,
           ),
@@ -244,10 +244,6 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
     final dividerColor = isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1);
     
     final dateFormat = DateFormat('dd MMMM yyyy', 'tr_TR');
-    final totalMinutes = sessions.fold<int>(
-      0,
-      (sum, session) => sum + session.totalMinutes,
-    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -278,8 +274,8 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
                   ),
                 ),
                 Text(
-                  '${(totalMinutes / 60).toStringAsFixed(1)} saat',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  _formatDetailedDuration(sessions.fold<int>(0, (sum, s) => sum + s.totalSeconds)),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.primaryBlue,
                     fontWeight: FontWeight.bold,
                   ),
@@ -299,48 +295,136 @@ class _PomodoroStatsPageState extends State<PomodoroStatsPage> {
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
     final secondaryTextColor = isDark ? Colors.white70 : AppColors.textSecondary;
     
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: AppColors.primaryBlue.withOpacity(0.1),
-        child: Icon(
-          Icons.timer,
-          color: AppColors.primaryBlue,
-        ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
+        borderRadius: BorderRadius.circular(12),
       ),
-      title: Text(
-        session.topic ?? 'Çalışma Oturumu',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: textColor,
+      child: ExpansionTile(
+        key: PageStorageKey(session.id),
+        backgroundColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        leading: CircleAvatar(
+          backgroundColor: AppColors.primaryBlue.withOpacity(0.1),
+          child: Icon(
+            Icons.timer,
+            color: AppColors.primaryBlue,
+            size: 18,
+          ),
         ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        title: Text(
+          session.topic ?? 'İsimsiz Çalışma',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(
+          '${_formatDetailedDuration(session.totalSeconds)} • ${session.sessionCount} oturum',
+          style: TextStyle(
+            color: secondaryTextColor,
+            fontSize: 12,
+          ),
+        ),
+        trailing: Text(
+          DateFormat('HH:mm').format(session.date),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: secondaryTextColor,
+          ),
+        ),
         children: [
-          const SizedBox(height: 4),
-          Text(
-            '${session.sessionCount} oturum • ${session.totalMinutes} dakika',
-            style: TextStyle(
-              color: secondaryTextColor,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(),
+                if (session.correctAnswers != null || session.wrongAnswers != null || session.totalQuestions != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.analytics_outlined, size: 16, color: Colors.indigoAccent),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Test Sonuçları:',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      if (session.correctAnswers != null)
+                        _buildBadge('Doğru: ${session.correctAnswers}', Colors.green),
+                      if (session.wrongAnswers != null)
+                        _buildBadge('Yanlış: ${session.wrongAnswers}', Colors.red),
+                      if (session.totalQuestions != null)
+                        _buildBadge('Soru: ${session.totalQuestions}', Colors.blue),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (session.notes != null && session.notes!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.notes_rounded, size: 16, color: Colors.amber),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Çalışma Notları:',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      session.notes!,
+                      style: TextStyle(color: secondaryTextColor, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (session.correctAnswers != null && session.wrongAnswers != null)
-            Text(
-              '${session.correctAnswers} doğru / ${session.wrongAnswers} yanlış',
-              style: TextStyle(
-                color: session.correctAnswers! > (session.wrongAnswers ?? 0)
-                    ? Colors.green
-                    : Colors.red,
-              ),
-            ),
         ],
       ),
-      trailing: Text(
-        DateFormat('HH:mm').format(session.date),
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: secondaryTextColor,
-        ),
+    );
+  }
+
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
+  }
+
+  String _formatDetailedDuration(int totalSeconds) {
+    if (totalSeconds <= 0) return '0 sn';
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
+    final s = totalSeconds % 60;
+
+    List<String> parts = [];
+    if (h > 0) parts.add('$h sa');
+    if (m > 0) parts.add('$m dk');
+    if (s > 0 || parts.isEmpty) parts.add('$s sn');
+
+    return parts.join(' ');
   }
 }
 

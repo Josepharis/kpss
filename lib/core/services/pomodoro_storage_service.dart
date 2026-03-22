@@ -48,6 +48,7 @@ class PomodoroStorageService {
               sessionCount: data['sessionCount'] as int? ?? 1,
               sessionDuration: data['sessionDuration'] as int? ?? 25,
               totalMinutes: data['totalMinutes'] as int? ?? 25,
+              totalSeconds: data['totalSeconds'] as int? ?? (data['totalMinutes'] as int? ?? 25) * 60,
               correctAnswers: data['correctAnswers'] as int?,
               wrongAnswers: data['wrongAnswers'] as int?,
               topic: data['topic'] as String?,
@@ -86,6 +87,7 @@ class PomodoroStorageService {
           'sessionCount': session.sessionCount,
           'sessionDuration': session.sessionDuration,
           'totalMinutes': session.totalMinutes,
+          'totalSeconds': session.totalSeconds,
           'correctAnswers': session.correctAnswers,
           'wrongAnswers': session.wrongAnswers,
           'topic': session.topic,
@@ -110,7 +112,7 @@ class PomodoroStorageService {
       final sessionsJson = sessions.map((s) => jsonEncode(s.toJson())).toList();
       await prefs.setStringList(_sessionsKey, sessionsJson);
 
-      // 2. Firestore'dan sil
+      // 2. Firestore'atn sil
       if (_userId != null) {
         await _userDoc.collection('pomodoroSessions').doc(id).delete();
       }
@@ -134,6 +136,7 @@ class PomodoroStorageService {
             sessionCount: data['sessionCount'] as int? ?? 1,
             sessionDuration: data['sessionDuration'] as int? ?? 25,
             totalMinutes: data['totalMinutes'] as int? ?? 25,
+            totalSeconds: data['totalSeconds'] as int? ?? (data['totalMinutes'] as int? ?? 25) * 60,
             correctAnswers: data['correctAnswers'] as int?,
             wrongAnswers: data['wrongAnswers'] as int?,
             topic: data['topic'] as String?,
@@ -188,6 +191,24 @@ class PomodoroStorageService {
     return total;
   }
 
+  Future<int> getTotalSecondsForDate(DateTime date) async {
+    final sessions = await getAllSessions();
+    final targetDate = DateTime(date.year, date.month, date.day);
+
+    int total = 0;
+    for (final session in sessions) {
+      final sessionDate = DateTime(
+        session.date.year,
+        session.date.month,
+        session.date.day,
+      );
+      if (sessionDate.isAtSameMomentAs(targetDate)) {
+        total += session.totalSeconds;
+      }
+    }
+    return total;
+  }
+
   Future<int> getTotalSessions() async {
     final sessions = await getAllSessions();
     return sessions.length;
@@ -198,6 +219,15 @@ class PomodoroStorageService {
     int total = 0;
     for (final session in sessions) {
       total += session.totalMinutes;
+    }
+    return total;
+  }
+
+  Future<int> getTotalSeconds() async {
+    final sessions = await getAllSessions();
+    int total = 0;
+    for (final session in sessions) {
+      total += session.totalSeconds;
     }
     return total;
   }

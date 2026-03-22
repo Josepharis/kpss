@@ -50,5 +50,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Uygulama, ses oynatma ve podcast dinleme sırasında ses kontrolü için mikrofon kısımlarına erişim gerektirebilir.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Uygulama, içerik eklemek veya profil fotoğrafınızı güncellemek için kameraya erişim gerektirir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Uygulama, galerinizden fotoğraf veya belge seçmek için erişim gerektirir.</string>
 </dict>
 </plist>

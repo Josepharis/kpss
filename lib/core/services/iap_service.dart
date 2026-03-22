@@ -13,7 +13,8 @@ class IAPService {
   IAPService._internal();
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
-  late StreamSubscription<List<PurchaseDetails>> _subscription;
+  StreamSubscription<List<PurchaseDetails>>? _subscription;
+  bool _isInitialized = false;
 
   // Product IDs - These must match what's configured in App Store Connect and Google Play Console
   static const String productIdMonthly = 'kpss_premium_monthly';
@@ -41,15 +42,28 @@ class IAPService {
   List<ProductDetails> _products = [];
   List<ProductDetails> get products => _products;
 
+  bool get isClosed => _productsController.isClosed;
+
   void initialize() {
+    if (_isInitialized && _subscription != null) {
+      // Already initialized, but let's refresh products
+      fetchProducts();
+      return;
+    }
+
+    _isInitialized = true;
+    
     final Stream<List<PurchaseDetails>> purchaseUpdated =
         _inAppPurchase.purchaseStream;
+    
+    _subscription?.cancel();
     _subscription = purchaseUpdated.listen(
       (purchaseDetailsList) {
         _listenToPurchaseUpdated(purchaseDetailsList);
       },
       onDone: () {
-        _subscription.cancel();
+        _subscription?.cancel();
+        _subscription = null;
       },
       onError: (error) {
         debugPrint('IAP Subscription Error: $error');
@@ -61,9 +75,14 @@ class IAPService {
   }
 
   void dispose() {
-    _subscription.cancel();
-    _productsController.close();
-    _purchaseStatusController.close();
+    // Note: Since this is a singleton, dispose is usually not called.
+    // However, if it is, we should be careful.
+    _subscription?.cancel();
+    _subscription = null;
+    _isInitialized = false;
+    // We don't close controllers here to allow re-initialization if needed,
+    // or we should recreate them in initialize().
+    // For now, let's just leave them open as it's a singleton.
   }
 
   /// Get products from the stores
@@ -133,6 +152,12 @@ class IAPService {
         if (purchaseDetails.pendingCompletePurchase) {
           await _inAppPurchase.completePurchase(purchaseDetails);
         }
+      } else if (purchaseDetails.status == PurchaseStatus.canceled) {
+        debugPrint('Purchase Canceled');
+        _purchaseStatusController.add(PurchaseStatus.canceled);
+        if (purchaseDetails.pendingCompletePurchase) {
+          await _inAppPurchase.completePurchase(purchaseDetails);
+        }
       } else if (purchaseDetails.status == PurchaseStatus.purchased ||
           purchaseDetails.status == PurchaseStatus.restored) {
         bool valid = await _verifyPurchase(purchaseDetails);
@@ -185,6 +210,8 @@ class IAPService {
       );
     }
 
-    debugPrint('Successful purchase handled for: ${purchaseDetails.productID} (${purchaseDetails.status})');
+    debugPrint(
+      'Successful purchase handled for: ${purchaseDetails.productID} (${purchaseDetails.status})',
+    );
   }
 }

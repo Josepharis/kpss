@@ -251,7 +251,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             stream: _subscriptionService.statusStream,
                             initialData: _subscriptionService.currentStatus,
                             builder: (context, snapshot) {
-                              final status = snapshot.data ?? SubscriptionStatus.free();
+                              final status =
+                                  snapshot.data ?? SubscriptionStatus.free();
                               return _buildSubscriptionCard(
                                 isSmallScreen,
                                 compactSpacing,
@@ -586,9 +587,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           child: Text(
-                            status.isPremium
-                                ? 'PREMIUM'
-                                : 'ÜCRETSİZ',
+                            status.isPremium ? 'PREMIUM' : 'ÜCRETSİZ',
                             style: TextStyle(
                               fontSize: 8,
                               fontWeight: FontWeight.w900,
@@ -1434,7 +1433,11 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSubscriptionCard(bool isSmallScreen, double spacing, SubscriptionStatus status) {
+  Widget _buildSubscriptionCard(
+    bool isSmallScreen,
+    double spacing,
+    SubscriptionStatus status,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final secondaryTextColor = isDark ? Colors.white54 : Colors.black54;
@@ -1469,11 +1472,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color:
-                        (status.isPremium
-                                ? Colors.orange
-                                : Colors.blue)
-                            .withOpacity(0.3),
+                    color: (status.isPremium ? Colors.orange : Colors.blue)
+                        .withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1493,9 +1493,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    status.isPremium
-                        ? 'Premium Aktif'
-                        : 'Premium\'a Yükselt',
+                    status.isPremium ? 'Premium Aktif' : 'Premium\'a Yükselt',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
@@ -1514,8 +1512,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (status.isPremium &&
-                      status.endDate != null) ...[
+                  if (status.isPremium && status.endDate != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       'Bitiş: ${_formatDate(status.endDate!)}',
@@ -1559,9 +1556,9 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: () async {
               final navigator = Navigator.of(context);
               navigator.pop(); // Dismiss dialog
-              
+
               await _authService.logout();
-              
+
               if (mounted) {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               }
