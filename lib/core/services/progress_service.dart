@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:rxdart/rxdart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,20 @@ class ProgressService {
   static Map<String, int>? _cachedStats;
   static bool _statsDirty = true;
   static String? _lastUserId;
+  
+  // Ongoing stats for temporary tracking (for real-time updates)
+  static final Map<String, Map<String, int>> _ongoingStats = {};
+  static Map<String, int> _baseStats = {};
+
+  // Stream for statistics updates
+  static final BehaviorSubject<Map<String, int>> _statsSubject =
+      BehaviorSubject<Map<String, int>>();
+
+  /// Stream of user statistics
+  Stream<Map<String, int>> get statsStream => _statsSubject.stream;
+
+  /// Current cached statistics
+  Map<String, int>? get currentStats => _cachedStats;
 
   /// Mark statistics as dirty so they are re-fetched next time
   static void markStatsDirty() {
@@ -35,6 +50,9 @@ class ProgressService {
     _cachedStats = null;
     _statsDirty = true;
     _lastUserId = null;
+    if (!_statsSubject.isClosed) {
+      _statsSubject.add({});
+    }
   }
 
   /// Get current user ID
@@ -177,11 +195,30 @@ class ProgressService {
 
     try {
       final progress = (currentQuestionIndex + 1) / totalQuestions;
+      final docId = _getTestDocId(topicId, testFileName);
+
+      // 1. Update local ongoing stats for real-time UI updates
+      _ongoingStats[docId] = {
+        'solvedQuestions': (currentQuestionIndex + 1),
+        'correctAnswers': correctAnswers ?? 0,
+        'wrongAnswers': wrongAnswers ?? 0,
+      };
+      
+      // Ensure base stats are loaded (but don't wait for it if not necessary)
+      if (_baseStats.isEmpty) {
+        getUserStatistics();
+      }
+      
+      // Push combined stats to stream
+      _pushCombinedStats();
 
       // Eğer test bittiyse (tüm sorular cevaplandıysa), devam edenlerden sil
       if (progress >= 1.0) {
         debugPrint('🏁 Test completed, removing from ongoing: $topicId, file: $testFileName');
         await deleteTestProgress(topicId, lessonId, testFileName: testFileName);
+        
+        // Remove from local ongoing stats cache
+        _ongoingStats.remove(docId);
 
         // Save test result to testResults collection for permanent history
         await _userProgressDoc.collection('testResults').doc(topicId).set({
@@ -224,7 +261,6 @@ class ProgressService {
       if (correctAnswers != null) data['correctAnswers'] = correctAnswers;
       if (wrongAnswers != null) data['wrongAnswers'] = wrongAnswers;
 
-      final docId = _getTestDocId(topicId, testFileName);
       final docRef = _userProgressDoc.collection('tests').doc(docId);
       await docRef.set(data, SetOptions(merge: true));
 
@@ -712,6 +748,11 @@ class ProgressService {
     try {
       final docId = _getTestDocId(topicId, testFileName);
       await _userProgressDoc.collection('tests').doc(docId).delete();
+      
+      // Also remove from local tracking
+      _ongoingStats.remove(docId);
+      _pushCombinedStats();
+
       if (lessonId != null) {
         _updateLessonProgress(lessonId);
       }
@@ -833,6 +874,11 @@ class ProgressService {
       };
     }
 
+    // Load initial stats once into base if we have any
+    if (_baseStats.isEmpty && _cachedStats != null) {
+      _baseStats = Map.from(_cachedStats!);
+    }
+    
     // Check cache first
     if (!_statsDirty && _cachedStats != null && _lastUserId == _userId) {
       debugPrint('ℹ️ Returning cached user statistics');
@@ -851,10 +897,15 @@ class ProgressService {
             'wrongAnswers': data['wrongAnswers'] as int? ?? 0,
             'totalQuestions': data['totalQuestions'] as int? ?? 0,
           };
+          _baseStats = Map.from(stats);
           _cachedStats = stats;
           _statsDirty = false;
           _lastUserId = _userId;
-          return stats;
+          
+          // Apply ongoing stats on top of base
+          _pushCombinedStats();
+          
+          return _cachedStats!;
         }
       }
 
@@ -937,16 +988,13 @@ class ProgressService {
         'totalQuestions': totalSolved,
       };
 
-      // Update cache
+      _baseStats = statsResult;
       _cachedStats = statsResult;
       _statsDirty = false;
       _lastUserId = _userId;
 
-      // Save to aggregated doc for next time
-      await _userStatsDoc.set({
-        ...statsResult,
-        'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      // Update stream
+      _pushCombinedStats();
 
       return statsResult;
     } catch (e) {
@@ -1197,10 +1245,49 @@ class ProgressService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      final statsResult = {
+        'solvedQuestions': solved,
+        'correctAnswers': correct,
+        'wrongAnswers': wrong,
+        'totalQuestions': solved,
+      };
+      
+      _baseStats = statsResult;
+      _cachedStats = statsResult;
+      
+      _pushCombinedStats();
+
       // Refresh cache
-      _statsDirty = true;
+      _statsDirty = false;
+      _lastUserId = _userId;
     } catch (e) {
       debugPrint('⚠️ Error updating aggregated stats: $e');
+    }
+  }
+
+  /// Combine base stats (finished tests) with ongoing stats tracking
+  static void _pushCombinedStats() {
+    int totalSolved = _baseStats['solvedQuestions'] ?? 0;
+    int totalCorrect = _baseStats['correctAnswers'] ?? 0;
+    int totalWrong = _baseStats['wrongAnswers'] ?? 0;
+
+    // Add ongoing progress
+    _ongoingStats.forEach((_, stats) {
+      totalSolved += (stats['solvedQuestions'] ?? 0);
+      totalCorrect += (stats['correctAnswers'] ?? 0);
+      totalWrong += (stats['wrongAnswers'] ?? 0);
+    });
+
+    final result = {
+      'solvedQuestions': totalSolved,
+      'correctAnswers': totalCorrect,
+      'wrongAnswers': totalWrong,
+      'totalQuestions': totalSolved,
+    };
+
+    _cachedStats = result;
+    if (!_statsSubject.isClosed) {
+      _statsSubject.add(result);
     }
   }
 }

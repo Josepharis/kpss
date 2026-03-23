@@ -20,6 +20,8 @@ import '../widgets/quick_access_section.dart';
 import '../../../core/models/study_program.dart';
 import '../../../core/services/study_program_service.dart';
 import '../widgets/modern_sidebar.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../../core/constants/showcase_keys.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -87,6 +89,28 @@ class _HomePageState extends State<HomePage> {
         if (mounted) _loadActiveTask();
       },
     );
+
+    _checkHomePageShowcase();
+  }
+
+  Future<void> _checkHomePageShowcase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool('showcase_home_shown') ?? false;
+    if (!shown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Biraz bekle animasyonlar bitsin
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            ShowCaseWidget.of(context).startShowCase([
+              ShowcaseKeys.menuKey,
+              ShowcaseKeys.scoreKey,
+              ShowcaseKeys.lessonsTabKey,
+            ]);
+            prefs.setBool('showcase_home_shown', true);
+          }
+        });
+      });
+    }
   }
 
   void _clearStaticMemoryCaches() {
@@ -628,10 +652,30 @@ class _HomePageState extends State<HomePage> {
                   color: isDark ? Colors.white10 : Colors.black.withOpacity(0.08),
                 ),
               ),
-              child: Icon(
-                Icons.menu_rounded,
-                color: isDark ? Colors.white : Colors.black87,
-                size: 22,
+              child: Showcase(
+                key: ShowcaseKeys.menuKey,
+                title: 'Hızlı Menü',
+                description: 'Profilinize, çalışma programına ve ayarlara buradan ulaşabilirsiniz.',
+                tooltipBackgroundColor: const Color(0xFF1E293B),
+                textColor: Colors.white,
+                titleTextStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+                descTextStyle: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withOpacity(0.8),
+                  height: 1.4,
+                ),
+                tooltipPadding: const EdgeInsets.all(20),
+                tooltipBorderRadius: BorderRadius.circular(20),
+                targetPadding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.menu_rounded,
+                  color: isDark ? Colors.white : Colors.black87,
+                  size: 22,
+                ),
               ),
             ),
           ),
@@ -704,66 +748,85 @@ class _HomePageState extends State<HomePage> {
             ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Premium Glow Icon Container
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.amber.shade300, Colors.orange.shade600],
+      child: Showcase(
+        key: ShowcaseKeys.scoreKey,
+        title: 'Başarı Puanın',
+        description: 'Ders çalıştıkça ve test çözdükçe kazandığın puanları buradan takip et.',
+        tooltipBackgroundColor: const Color(0xFF1E293B),
+        textColor: Colors.white,
+        titleTextStyle: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.white,
+        ),
+        descTextStyle: TextStyle(
+          fontSize: 13,
+          color: Colors.white.withOpacity(0.8),
+          height: 1.4,
+        ),
+        tooltipPadding: const EdgeInsets.all(20),
+        tooltipBorderRadius: BorderRadius.circular(20),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Premium Glow Icon Container
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.amber.shade300, Colors.orange.shade600],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.4),
+                    blurRadius: 12,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
-                  blurRadius: 12,
-                  spreadRadius: -2,
-                  offset: const Offset(0, 2),
+              child: const Icon(
+                Icons.stars_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Score Text Section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$_userTotalScore',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : Colors.black87,
+                    letterSpacing: 0.5,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
+                  'PUAN',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: isDark
+                        ? Colors.blueAccent.shade200
+                        : Colors.blueAccent.shade700,
+                    letterSpacing: 1.5,
+                    height: 1.1,
+                  ),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.stars_rounded,
-              color: Colors.white,
-              size: 16,
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Score Text Section
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$_userTotalScore',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : Colors.black87,
-                  letterSpacing: 0.5,
-                  height: 1.1,
-                ),
-              ),
-              Text(
-                'PUAN',
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                  color: isDark
-                      ? Colors.blueAccent.shade200
-                      : Colors.blueAccent.shade700,
-                  letterSpacing: 1.5,
-                  height: 1.1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-        ],
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }

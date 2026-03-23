@@ -21,10 +21,10 @@ import 'tests_page.dart';
 import 'podcasts_page.dart';
 import 'flash_cards_page.dart';
 import 'notes_page.dart';
-import 'past_questions_page.dart';
 import 'tests_list_page.dart';
 import 'pdfs_page.dart';
 import 'subscription_page.dart';
+import '../../../core/widgets/premium_snackbar.dart';
 import '../../../core/services/topic_notes_service.dart';
 
 class TopicDetailPage extends StatefulWidget {
@@ -859,17 +859,8 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           color: getCardColor('questions'),
           isSmallScreen: isSmallScreen,
           isDark: isDark,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PastQuestionsPage(
-                  topicName: _topic.name,
-                  averageQuestionCount: _topic.averageQuestionCount,
-                ),
-              ),
-            );
-          },
+          isLocked: true,
+          onTap: () {}, // Handled internally by isLocked
         ),
       );
     }
@@ -1070,6 +1061,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     bool isTestCompleted = false,
     int attemptCount = 0,
     bool isLoading = false,
+    bool isLocked = false,
   }) {
     final String label;
     if (countLabel == 'soru') {
@@ -1098,13 +1090,23 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           width: 1,
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Opacity(
+        opacity: isLocked ? 0.7 : 1.0,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isLocked 
+              ? () {
+                  PremiumSnackBar.show(
+                    context, 
+                    message: '$title yakında hizmetinizde!', 
+                    type: SnackBarType.info
+                  );
+                }
+              : onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 // Icon Box with specific type style
@@ -1206,11 +1208,12 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (subtitle != null) ...[
-                            Text(
+                      if (!isLocked) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (subtitle != null) ...[
+                              Text(
                               subtitle,
                               style: TextStyle(
                                 fontSize: 12,
@@ -1241,8 +1244,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                               color: color,
                             ),
                           ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1256,7 +1260,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    Icons.arrow_forward_ios_rounded,
+                    isLocked ? Icons.lock_outline_rounded : Icons.arrow_forward_ios_rounded,
                     size: 14,
                     color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                   ),
@@ -1266,8 +1270,9 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAiGeneratedSection({
     required bool isDark,

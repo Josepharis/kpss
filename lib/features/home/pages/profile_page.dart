@@ -36,10 +36,6 @@ class _ProfilePageState extends State<ProfilePage> {
   // User statistics
   String _userName = 'Kullanıcı';
   String _kpssType = '';
-  int _solvedQuestions = 0;
-  int _correctAnswers = 0;
-  int _wrongAnswers = 0;
-  double _successRate = 0.0;
   bool _isLoadingStats = true;
 
   @override
@@ -112,15 +108,9 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      final stats = await _progressService.getUserStatistics();
+      await _progressService.getUserStatistics();
       if (mounted) {
         setState(() {
-          _solvedQuestions = stats['solvedQuestions'] ?? 0;
-          _correctAnswers = stats['correctAnswers'] ?? 0;
-          _wrongAnswers = stats['wrongAnswers'] ?? 0;
-          _successRate = _solvedQuestions > 0
-              ? (_correctAnswers / _solvedQuestions * 100)
-              : 0.0;
           _isLoadingStats = false;
         });
       }
@@ -679,64 +669,82 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildStatisticsCard(bool isSmallScreen, double spacing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return _buildGlassCard(
-      isDark: isDark,
-      borderRadius: 16,
-      padding: EdgeInsets.all(isSmallScreen ? 12 : 14),
-      child: _isLoadingStats
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.auto_graph_rounded,
-                    value: _solvedQuestions.toString(),
-                    label: 'ÇÖZÜLEN',
-                    color: Colors.blueAccent,
-                    isSmallScreen: isSmallScreen,
-                    isDark: isDark,
+    return StreamBuilder<Map<String, int>>(
+      stream: _progressService.statsStream,
+      initialData: _progressService.currentStats ??
+          {
+            'solvedQuestions': 0,
+            'correctAnswers': 0,
+            'wrongAnswers': 0,
+            'totalQuestions': 0,
+          },
+      builder: (context, snapshot) {
+        final stats = snapshot.data ?? {};
+        final solved = stats['solvedQuestions'] ?? 0;
+        final correct = stats['correctAnswers'] ?? 0;
+        final wrong = stats['wrongAnswers'] ?? 0;
+        final rate = solved > 0 ? (correct / solved * 100) : 0.0;
+
+        return _buildGlassCard(
+          isDark: isDark,
+          borderRadius: 16,
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 14),
+          child: _isLoadingStats && !snapshot.hasData
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.auto_graph_rounded,
+                        value: solved.toString(),
+                        label: 'ÇÖZÜLEN',
+                        color: Colors.blueAccent,
+                        isSmallScreen: isSmallScreen,
+                        isDark: isDark,
+                      ),
+                    ),
+                    _buildStatDivider(isDark),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.check_circle_rounded,
+                        value: correct.toString(),
+                        label: 'DOĞRU',
+                        color: Colors.greenAccent,
+                        isSmallScreen: isSmallScreen,
+                        isDark: isDark,
+                      ),
+                    ),
+                    _buildStatDivider(isDark),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.cancel_rounded,
+                        value: wrong.toString(),
+                        label: 'YANLIŞ',
+                        color: Colors.redAccent,
+                        isSmallScreen: isSmallScreen,
+                        isDark: isDark,
+                      ),
+                    ),
+                    _buildStatDivider(isDark),
+                    Expanded(
+                      child: _buildStatItem(
+                        icon: Icons.shutter_speed_rounded,
+                        value: '${rate.toStringAsFixed(0)}%',
+                        label: 'BAŞARI',
+                        color: Colors.orangeAccent,
+                        isSmallScreen: isSmallScreen,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
                 ),
-                _buildStatDivider(isDark),
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.check_circle_rounded,
-                    value: _correctAnswers.toString(),
-                    label: 'DOĞRU',
-                    color: Colors.greenAccent,
-                    isSmallScreen: isSmallScreen,
-                    isDark: isDark,
-                  ),
-                ),
-                _buildStatDivider(isDark),
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.cancel_rounded,
-                    value: _wrongAnswers.toString(),
-                    label: 'YANLIŞ',
-                    color: Colors.redAccent,
-                    isSmallScreen: isSmallScreen,
-                    isDark: isDark,
-                  ),
-                ),
-                _buildStatDivider(isDark),
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.shutter_speed_rounded,
-                    value: '${_successRate.toStringAsFixed(0)}%',
-                    label: 'BAŞARI',
-                    color: Colors.orangeAccent,
-                    isSmallScreen: isSmallScreen,
-                    isDark: isDark,
-                  ),
-                ),
-              ],
-            ),
+        );
+      },
     );
   }
 

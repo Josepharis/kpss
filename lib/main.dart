@@ -18,6 +18,7 @@ import 'core/services/iap_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/auth_service.dart';
 import 'features/admin/pages/admin_home_page.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -291,10 +292,12 @@ class MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        key: ValueKey(_themeKey),
-        index: _currentIndex,
-        children: List.generate(5, (index) => _getPage(index)),
+      body: ShowCaseWidget(
+        builder: (context) => IndexedStack(
+          key: ValueKey(_themeKey),
+          index: _currentIndex,
+          children: List.generate(5, (index) => _getPage(index)),
+        ),
       ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _currentIndex,

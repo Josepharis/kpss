@@ -13,6 +13,8 @@ import '../../../core/widgets/floating_home_button.dart';
 import '../../../../main.dart';
 import 'topic_detail_page.dart';
 import 'subscription_page.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../../core/constants/showcase_keys.dart';
 
 class LessonDetailPage extends StatefulWidget {
   final Lesson lesson;
@@ -42,6 +44,21 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
     Future.microtask(() => _checkSubscription());
     // Konuları hemen yükle
     _loadTopics();
+    _checkLessonDetailShowcase();
+  }
+
+  Future<void> _checkLessonDetailShowcase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool('showcase_lesson_detail_shown') ?? false;
+    if (!shown) {
+      // Konuların yüklenmesini bekle
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _topics.isNotEmpty) {
+          ShowCaseWidget.of(context).startShowCase([ShowcaseKeys.favoriteKey]);
+          prefs.setBool('showcase_lesson_detail_shown', true);
+        }
+      });
+    }
   }
 
   Future<void> _loadTopics() async {
@@ -554,6 +571,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                                 isPublished: !_hiddenTopicIds.contains(topic.id), // Change log: true if NOT in hidden list
                                 onTap: () => _handleTopicTap(topic),
                                 lessonColor: lessonColor,
+                                showcaseKey: index == 0 ? ShowcaseKeys.favoriteKey : null,
                               ),
                             );
                           }, childCount: _topics.length),
@@ -778,7 +796,10 @@ class _TopicListItem extends StatefulWidget {
     required this.isPublished,
     required this.onTap,
     required this.lessonColor,
+    this.showcaseKey,
   });
+
+  final GlobalKey? showcaseKey;
 
   @override
   State<_TopicListItem> createState() => _TopicListItemState();
@@ -923,24 +944,29 @@ class _TopicListItemState extends State<_TopicListItem> {
                       if (!_isLoadingFavorite)
                         GestureDetector(
                           onTap: _toggleFavorite,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color:
-                                  (widget.isDark ? Colors.white : Colors.black)
-                                      .withOpacity(0.04),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _isFavorite
-                                  ? Icons.star_rounded
-                                  : Icons.star_outline_rounded,
-                              color: _isFavorite
-                                  ? Colors.amber
-                                  : (widget.isDark
+                          child: Showcase(
+                            key: widget.showcaseKey ?? GlobalKey(),
+                            title: 'Hızlı Erişim',
+                            description: 'Bu üniteyi ana sayfanıza eklemek için yıldızlayın.',
+                            targetPadding: const EdgeInsets.all(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (widget.isDark ? Colors.white : Colors.black)
+                                    .withOpacity(0.04),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _isFavorite
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: _isFavorite
+                                    ? Colors.amber
+                                    : (widget.isDark
                                         ? Colors.white24
                                         : Colors.grey.shade300),
-                              size: 20,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),

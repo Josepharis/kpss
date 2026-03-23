@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:curved_labeled_navigation_bar/curved_navigation_bar.dart';
 import 'package:curved_labeled_navigation_bar/curved_navigation_bar_item.dart';
 import '../constants/app_colors.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../constants/showcase_keys.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -61,10 +63,15 @@ class CustomBottomNavBar extends StatelessWidget {
             ),
           ),
           CurvedNavigationBarItem(
-            child: Icon(
-              Icons.menu_book_rounded,
-              size: isSmallPhone ? 22 : 24,
-              color: currentIndex == 1 ? AppColors.navActive : inactiveColor,
+            child: Showcase(
+              key: ShowcaseKeys.lessonsTabKey,
+              title: 'Dersler',
+              description: 'Tüm ders notlarına, videolara ve testlere buradan ulaşabilirsiniz.',
+              child: Icon(
+                Icons.menu_book_rounded,
+                size: isSmallPhone ? 22 : 24,
+                color: currentIndex == 1 ? AppColors.navActive : inactiveColor,
+              ),
             ),
             label: 'Dersler',
             labelStyle: TextStyle(
