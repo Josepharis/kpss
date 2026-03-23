@@ -41,6 +41,12 @@ class _PdfsPageState extends State<PdfsPage> {
 
   bool _isLoadingFromStorage = false;
 
+  String _cleanTitle(String title) {
+    if (title.isEmpty) return title;
+    // Regex matches leading numbers followed by common separators like -, ., space, or underscore
+    return title.replaceFirst(RegExp(r'^\d+[-.\s_]+'), '').trim();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -250,7 +256,7 @@ class _PdfsPageState extends State<PdfsPage> {
         // Uzantıyı kaldır ve formatla
         fileName = fileName.replaceAll('.pdf', '').replaceAll('_', ' ').trim();
 
-        return fileName.isNotEmpty ? fileName : 'PDF';
+        return _cleanTitle(fileName.isNotEmpty ? fileName : 'PDF');
       }
 
       // 1. konu/ klasöründen PDF'leri al (öncelikli)
@@ -260,6 +266,8 @@ class _PdfsPageState extends State<PdfsPage> {
         final konuFiles = await _storageService.listFilesWithPaths(
           konuAnlatimiPath,
         );
+        // Sort by name to ensure consistent numbering
+        konuFiles.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
         print('📄 Found ${konuFiles.length} files in konu/ folder');
         for (final fileInfo in konuFiles) {
           final url = fileInfo['url'] ?? '';
@@ -291,6 +299,8 @@ class _PdfsPageState extends State<PdfsPage> {
         final konuAnlatimiFiles = await _storageService.listFilesWithPaths(
           konuAnlatimiPathAlt,
         );
+        // Sort by name to ensure consistent numbering
+        konuAnlatimiFiles.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
         print(
           '📄 Found ${konuAnlatimiFiles.length} files in konu_anlatimi/ folder',
         );
@@ -320,6 +330,8 @@ class _PdfsPageState extends State<PdfsPage> {
       try {
         print('📡 Making Storage request to list files in: $pdfPath');
         final pdfFiles = await _storageService.listFilesWithPaths(pdfPath);
+        // Sort by name to ensure consistent numbering
+        pdfFiles.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
         print('📄 Found ${pdfFiles.length} files in pdf/ folder');
         for (final fileInfo in pdfFiles) {
           final url = fileInfo['url'] ?? '';
@@ -435,7 +447,7 @@ class _PdfsPageState extends State<PdfsPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
+        preferredSize: Size.fromHeight(isSmallScreen ? 70 : 80),
         child: Container(
           decoration: BoxDecoration(
             gradient: isDark
@@ -499,23 +511,23 @@ class _PdfsPageState extends State<PdfsPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              widget.topicName,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 11 : 12,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'PDF Dosyaları',
+                              'Konu Anlatımı',
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 letterSpacing: 0.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.topicName,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 11 : 12,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w500,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -569,13 +581,13 @@ class _PdfsPageState extends State<PdfsPage> {
                 print('📋 Building PDF card ${index + 1}/${_pdfs.length}');
                 final pdf = _pdfs[index];
                 print('   PDF data: $pdf');
-                return _buildPdfCard(pdf, isSmallScreen);
+                return _buildPdfCard(pdf, index, isSmallScreen);
               },
             ),
     );
   }
 
-  Widget _buildPdfCard(Map<String, String> pdf, bool isSmallScreen) {
+  Widget _buildPdfCard(Map<String, String> pdf, int index, bool isSmallScreen) {
     print('🎨 Building PDF card widget');
     print('   PDF map: $pdf');
     final pdfUrl = pdf['pdfUrl'] ?? '';
@@ -655,17 +667,17 @@ class _PdfsPageState extends State<PdfsPage> {
           padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
           child: Row(
             children: [
-              // PDF thumbnail/icon
+              // PDF thumbnail/icon - Shrunk to make room for text
               Container(
-                width: isSmallScreen ? 80 : 100,
-                height: isSmallScreen ? 60 : 75,
+                width: isSmallScreen ? 48 : 56,
+                height: isSmallScreen ? 48 : 56,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [const Color(0xFFFF9800), const Color(0xFFFF6B35)],
                   ),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -673,7 +685,7 @@ class _PdfsPageState extends State<PdfsPage> {
                     Icon(
                       Icons.picture_as_pdf_rounded,
                       color: Colors.white,
-                      size: isSmallScreen ? 32 : 40,
+                      size: isSmallScreen ? 24 : 28,
                     ),
                     if (isDownloaded)
                       Positioned(
@@ -702,14 +714,14 @@ class _PdfsPageState extends State<PdfsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      pdfName,
+                      '${index + 1}. $pdfName',
                       style: TextStyle(
-                        fontSize: isSmallScreen ? 14 : 16,
+                        fontSize: isSmallScreen ? 14 : 15,
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : AppColors.textPrimary,
+                        height: 1.2,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      // Removed maxLines and ellipsis to allow full readability
                     ),
                     SizedBox(height: isSmallScreen ? 4 : 6),
                     Row(

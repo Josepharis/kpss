@@ -242,7 +242,7 @@ class _VideosPageState extends State<VideosPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const FloatingHomeButton(),
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(isSmallScreen ? 100 : 110),
+        preferredSize: Size.fromHeight(isSmallScreen ? 70 : 80),
         child: Container(
           decoration: BoxDecoration(
             gradient: isDark
@@ -308,23 +308,23 @@ class _VideosPageState extends State<VideosPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              widget.topicName,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 11 : 12,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 2),
-                            Text(
                               'Videolar',
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 letterSpacing: 0.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.topicName,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 11 : 12,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w500,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

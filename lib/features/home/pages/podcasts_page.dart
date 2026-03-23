@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -61,8 +62,14 @@ class _PodcastsPageState extends State<PodcastsPage>
   Duration _currentPosition = Duration.zero;
   Duration? _totalDuration;
   int _selectedPodcastIndex = 0;
-  late AnimationController _waveController;
-  late AnimationController _pulseController;
+  late final AnimationController _waveController;
+  late final AnimationController _pulseController;
+
+  String _cleanTitle(String title) {
+    if (title.isEmpty) return title;
+    // Regex matches leading numbers followed by common separators like -, ., space, or underscore
+    return title.replaceFirst(RegExp(r'^\d+[-.\s_]+'), '').trim();
+  }
   Timer? _progressSaveTimer;
   Map<String, bool> _downloadedPodcasts = {}; // Track downloaded podcasts
 
@@ -158,7 +165,20 @@ class _PodcastsPageState extends State<PodcastsPage>
       if (cachedJson != null && cachedJson.isNotEmpty) {
         final List<dynamic> cachedList = jsonDecode(cachedJson);
         _podcasts = cachedList
-            .map((json) => Podcast.fromMap(json, json['id'] ?? ''))
+            .map((json) {
+              final p = Podcast.fromMap(json, json['id'] ?? '');
+              return Podcast(
+                id: p.id,
+                title: _cleanTitle(p.title),
+                description: p.description,
+                audioUrl: p.audioUrl,
+                durationMinutes: p.durationMinutes,
+                thumbnailUrl: p.thumbnailUrl,
+                topicId: p.topicId,
+                lessonId: p.lessonId,
+                order: p.order,
+              );
+            })
             .toList();
         debugPrint('✅ Loaded ${_podcasts.length} podcasts from local cache');
 
@@ -236,7 +256,17 @@ class _PodcastsPageState extends State<PodcastsPage>
       await _savePodcastsToLocalCache(podcasts);
 
       // Cache'deki dosyaları kontrol et ve file:// URL'lerini güncelle
-      _podcasts = podcasts;
+      _podcasts = podcasts.map((p) => Podcast(
+        id: p.id,
+        title: _cleanTitle(p.title),
+        description: p.description,
+        audioUrl: p.audioUrl,
+        durationMinutes: p.durationMinutes,
+        thumbnailUrl: p.thumbnailUrl,
+        topicId: p.topicId,
+        lessonId: p.lessonId,
+        order: p.order,
+      )).toList();
       await _updateCachedFileUrls();
 
       if (mounted) {
@@ -469,14 +499,15 @@ class _PodcastsPageState extends State<PodcastsPage>
               continue;
             }
 
-            // Title oluştur
-            final title = fileName
+            // Title oluştur ve temizle
+            final rawTitle = fileName
                 .replaceAll('.m4a', '')
                 .replaceAll('.mp3', '')
                 .replaceAll('.mp4', '')
                 .replaceAll('_', ' ')
                 .replaceAll('%20', ' ')
                 .trim();
+            final title = _cleanTitle(rawTitle);
 
             _podcasts.add(
               Podcast(
@@ -552,13 +583,14 @@ class _PodcastsPageState extends State<PodcastsPage>
             }
 
             fileName = fileName.replaceAll('\\', '/').split('/').last;
-            final title = fileName
+            final rawTitle = fileName
                 .replaceAll('.m4a', '')
                 .replaceAll('.mp3', '')
                 .replaceAll('.mp4', '')
                 .replaceAll('_', ' ')
                 .replaceAll('%20', ' ')
                 .trim();
+            final title = _cleanTitle(rawTitle);
 
             _podcasts.add(
               Podcast(
@@ -593,11 +625,9 @@ class _PodcastsPageState extends State<PodcastsPage>
 
       // Listeyi HEMEN göster (anında açılış için)
       debugPrint('📊 Total podcasts after loading: ${_podcasts.length}');
-      for (int i = 0; i < _podcasts.length; i++) {
-        debugPrint(
-          '  Podcast ${i + 1}: ${_podcasts[i].title} (${_podcasts[i].audioUrl})',
-        );
-      }
+      
+      // 🚀 Arka planda Firestore'a kaydet (Sync)
+      _syncDiscoveredPodcastsToFirestore(_podcasts);
 
       // Cache'e kaydet (bir sonraki açılışta kullanılmak üzere)
       await _savePodcastsToLocalCache(_podcasts);
@@ -608,7 +638,6 @@ class _PodcastsPageState extends State<PodcastsPage>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          // _podcasts listesi zaten güncellendi, sadece UI'ı yenile
         });
       }
 
@@ -616,7 +645,10 @@ class _PodcastsPageState extends State<PodcastsPage>
       _checkDownloadedPodcasts();
 
       // Arka planda duration'ları yükle (non-blocking)
-      _loadDurationsInBackground();
+      await _loadDurationsInBackground();
+      
+      // 🚀 Duration'lar yüklendikten sonra Firestore'u tekrar güncelle
+      _syncDiscoveredPodcastsToFirestore(_podcasts);
     } catch (e) {
       debugPrint('❌ Error loading podcasts: $e');
       debugPrint('Error stack: ${e.toString()}');
@@ -1599,7 +1631,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            currentPodcast.title,
+                            '${_selectedPodcastIndex + 1}. ${currentPodcast.title}',
                             style: TextStyle(
                               fontSize: isSmallScreen ? 16 : 18,
                               fontWeight: FontWeight.w900,
@@ -1966,7 +1998,7 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
           ),
         ),
         title: Text(
-          podcast.title,
+          '${index + 1}. ${podcast.title}',
           style: TextStyle(
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
@@ -2038,6 +2070,32 @@ ${stackTrace.toString().substring(0, stackTrace.toString().length > 500 ? 500 : 
         ),
       ),
     );
+  }
+
+  /// Arka planda keşfedilen podcast'leri Firestore'a senkronize eder
+  Future<void> _syncDiscoveredPodcastsToFirestore(List<Podcast> podcasts) async {
+    try {
+      final podcastService = PodcastsService();
+      int syncCount = 0;
+      for (final podcast in podcasts) {
+        // file:// URL'lerini Firestore'a kaydetme
+        if (podcast.audioUrl.startsWith('file://')) continue;
+        
+        await podcastService.addPodcast(podcast);
+        syncCount++;
+      }
+      debugPrint('✅ Synced $syncCount podcasts to Firestore');
+      
+      // Topic dokümanını da güncelle (podcastCount için)
+      if (podcasts.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('topics')
+            .doc(widget.topicId)
+            .update({'podcastCount': podcasts.length});
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error syncing podcasts to Firestore: $e');
+    }
   }
 }
 

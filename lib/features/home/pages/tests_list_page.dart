@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/questions_service.dart';
 import 'tests_page.dart';
 
-class TestsListPage extends StatelessWidget {
+class TestsListPage extends StatefulWidget {
   final String topicName;
   final String lessonId;
   final String topicId;
   final int testCount;
-  final List<Map<String, dynamic>>
-  tests; // [{name: "Test 1", questionCount: 10}, ...]
+  final List<Map<String, dynamic>> tests;
 
   const TestsListPage({
     super.key,
@@ -18,6 +18,43 @@ class TestsListPage extends StatelessWidget {
     required this.testCount,
     required this.tests,
   });
+
+  @override
+  State<TestsListPage> createState() => _TestsListPageState();
+}
+
+class _TestsListPageState extends State<TestsListPage> {
+  late List<Map<String, dynamic>> _tests;
+  bool _isLoadingCounts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tests = List<Map<String, dynamic>>.from(widget.tests);
+    _loadMissingCounts();
+  }
+
+  Future<void> _loadMissingCounts() async {
+    // Check if any check marks or question counts are missing/zero
+    if (_tests.every((t) => (t['questionCount'] as int? ?? 0) > 0)) return;
+
+    if (mounted) setState(() => _isLoadingCounts = true);
+    
+    final qService = QuestionsService();
+    
+    // Refresh the list from storage/cache
+    final updatedTests = await qService.getAvailableTestsByTopic(
+      widget.topicId,
+      widget.lessonId,
+    );
+
+    if (mounted) {
+      setState(() {
+        _tests = updatedTests;
+        _isLoadingCounts = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,12 +98,12 @@ class TestsListPage extends StatelessWidget {
                       child: Container(
                         padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
+                           color: Colors.white.withValues(alpha: 0.15),
+                           borderRadius: BorderRadius.circular(12),
+                           border: Border.all(
+                             color: Colors.white.withValues(alpha: 0.3),
+                             width: 1,
+                           ),
                         ),
                         child: Icon(
                           Icons.arrow_back_ios_new_rounded,
@@ -95,7 +132,7 @@ class TestsListPage extends StatelessWidget {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          topicName,
+                          widget.topicName,
                           style: TextStyle(
                             fontSize: isSmallScreen ? 12 : 13,
                             color: Colors.white.withValues(alpha: 0.85),
@@ -107,13 +144,25 @@ class TestsListPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (_isLoadingCounts)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
         ),
       ),
-      body: tests.isEmpty
+      body: _tests.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -137,9 +186,9 @@ class TestsListPage extends StatelessWidget {
             )
           : ListView.builder(
               padding: EdgeInsets.all(isTablet ? 20 : 14),
-              itemCount: tests.length,
+              itemCount: _tests.length,
               itemBuilder: (context, index) {
-                final test = tests[index];
+                final test = _tests[index];
                 final testName = test['name'] as String? ?? 'Test ${index + 1}';
                 final questionCount = test['questionCount'] as int? ?? 0;
 
@@ -164,10 +213,10 @@ class TestsListPage extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => TestsPage(
-                              topicName: '$topicName - $testName',
+                              topicName: '${widget.topicName} - $testName',
                               testCount: questionCount,
-                              lessonId: lessonId,
-                              topicId: topicId,
+                              lessonId: widget.lessonId,
+                              topicId: widget.topicId,
                               testFileName: test['fileName'] as String?,
                             ),
                           ),
@@ -217,7 +266,7 @@ class TestsListPage extends StatelessWidget {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    '$questionCount soru',
+                                    questionCount > 0 ? '$questionCount soru' : 'Yükleniyor...',
                                     style: TextStyle(
                                       fontSize: isSmallScreen ? 12 : 13,
                                       color: AppColors.textSecondary,

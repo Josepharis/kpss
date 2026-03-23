@@ -57,6 +57,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   List<AiQuestion> _aiQuestions = [];
   AiMaterial? _aiMaterial;
   int _userNoteCount = 0;
+  bool _isLoadingTests = false;
 
   @override
   void initState() {
@@ -886,12 +887,19 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
         isDark: isDark,
         isTestCompleted: _isTestCompleted,
         attemptCount: _attemptCount,
+        isLoading: _isLoadingTests,
         onTap: () async {
+          if (_isLoadingTests) return;
+          setState(() => _isLoadingTests = true);
+          
           final qService = QuestionsService();
           final availableTests = await qService.getAvailableTestsByTopic(
             _topic.id,
             _topic.lessonId,
           );
+          
+          if (!mounted) return;
+          setState(() => _isLoadingTests = false);
 
           if (availableTests.length > 1) {
             final result = await Navigator.push(
@@ -1061,6 +1069,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     required VoidCallback onTap,
     bool isTestCompleted = false,
     int attemptCount = 0,
+    bool isLoading = false,
   }) {
     final String label;
     if (countLabel == 'soru') {
@@ -1120,7 +1129,17 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(icon, color: color, size: 22),
+                      if (isLoading)
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: color,
+                          ),
+                        )
+                      else
+                        Icon(icon, color: color, size: 22),
                       if (isTestCompleted)
                         Positioned(
                           top: -4,

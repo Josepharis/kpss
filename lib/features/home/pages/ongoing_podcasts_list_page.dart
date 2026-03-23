@@ -22,6 +22,11 @@ class _OngoingPodcastsListPageState extends State<OngoingPodcastsListPage> {
   late List<OngoingPodcast> _podcasts;
   bool _didChange = false;
 
+  String _cleanTitle(String title) {
+    if (title.isEmpty) return title;
+    return title.replaceFirst(RegExp(r'^\d+[-.\s_]+'), '').trim();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -149,7 +154,19 @@ class _OngoingPodcastsListPageState extends State<OngoingPodcastsListPage> {
               itemCount: _podcasts.length,
               itemBuilder: (context, index) {
                 final podcast = _podcasts[index];
-                return _buildUltraCompactCard(podcast, isDark);
+                final cleanedPodcast = OngoingPodcast(
+                  id: podcast.id,
+                  title: _cleanTitle(podcast.title),
+                  topic: podcast.topic,
+                  currentMinute: podcast.currentMinute,
+                  totalMinutes: podcast.totalMinutes,
+                  progressColor: podcast.progressColor,
+                  icon: podcast.icon,
+                  topicId: podcast.topicId,
+                  lessonId: podcast.lessonId,
+                  audioUrl: podcast.audioUrl,
+                );
+                return _buildUltraCompactCard(cleanedPodcast, isDark);
               },
             ),
     );

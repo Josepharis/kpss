@@ -391,7 +391,27 @@ class QuestionsService {
         }
       }
 
-      // 2. No cache or error, perform full fetch
+      // 2. Check Firestore for metadata (Fastest secondary source)
+      final doc = await _firestore.collection('topics').doc(topicId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('testsMetadata')) {
+          final List<dynamic> testsMeta = data['testsMetadata'] ?? [];
+          final List<Map<String, dynamic>> tests = testsMeta
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          
+          if (tests.isNotEmpty) {
+            debugPrint('🔥 Returning tests metadata from Firestore for: $topicId');
+            // Cache locally for next time
+            await prefs.setString(listCacheKey, jsonEncode(tests));
+            await prefs.setInt('${listCacheKey}_time', DateTime.now().millisecondsSinceEpoch);
+            return tests;
+          }
+        }
+      }
+
+      // 3. Fallback: No cache or Firestore record, perform full fetch from Storage
       return await _fetchAndCacheAvailableTests(topicId, lessonId);
     } catch (e) {
       debugPrint('Error getting available tests: $e');
@@ -464,10 +484,16 @@ class QuestionsService {
         }
       }
 
-      // Eğer soru sayıları eksikse ve dosya sayısı azsa (örn <= 5), arka planda tamamla
-      if (tests.any((t) => t['questionCount'] == 0) && tests.length <= 10) {
-        // İndirme işlemini asenkron başlat ama bekleme
-        _updateQuestionCountsInBackground(topicId, tests);
+      // Eğer soru sayıları eksikse, belli bir sayıya kadar olanları (örn: 5) bekleyerek çekelim
+      // Böylece kullanıcı ilk girişte 0 görmez.
+      if (tests.any((t) => t['questionCount'] == 0)) {
+        if (tests.length <= 5) {
+          debugPrint('📡 Fetching question counts synchronously for ${tests.length} tests...');
+          await _updateQuestionCounts(topicId, tests);
+        } else {
+          // Çok fazla test varsa arka planda devam et
+          _updateQuestionCountsInBackground(topicId, tests);
+        }
       }
 
       // Sort tests numerically
@@ -480,6 +506,18 @@ class QuestionsService {
         '${listCacheKey}_time',
         DateTime.now().millisecondsSinceEpoch,
       );
+
+      // 🚀 Save to Firestore as metadata so we don't need Storage next time
+      try {
+        await _firestore.collection('topics').doc(topicId).set({
+          'testsMetadata': tests,
+          'testCount': tests.length,
+          'lastGlobalSync': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('✅ Persisted tests metadata to Firestore for: $topicId');
+      } catch (e) {
+        debugPrint('⚠️ Error persisting tests metadata to Firestore: $e');
+      }
 
       return tests;
     } catch (e) {
@@ -503,27 +541,44 @@ class QuestionsService {
     String topicId,
     List<Map<String, dynamic>> tests,
   ) async {
+    _updateQuestionCounts(topicId, tests).then((_) {
+      debugPrint('✅ Background question count update finished');
+    }).catchError((e) {
+      debugPrint('⚠️ Background question count update error: $e');
+    });
+  }
+
+  Future<void> _updateQuestionCounts(
+    String topicId,
+    List<Map<String, dynamic>> tests,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      for (final test in tests) {
+      
+      // Fetch in parallel for better performance
+      await Future.wait(tests.map((test) async {
         if (test['questionCount'] == 0) {
           final fileName = test['fileName'];
           final url = test['url'];
           final cacheKey = 'qcount_${topicId}_$fileName';
 
-          final jsonData =
-              await _storageService.downloadAndParseJsonFromUrl(url);
-          if (jsonData != null && jsonData['questions'] is List) {
-            final count = (jsonData['questions'] as List).length;
-            if (count > 0) {
-              await prefs.setInt(cacheKey, count);
-              debugPrint('✅ Lazy updated qCount for $fileName: $count');
+          try {
+            final jsonData = await _storageService.downloadAndParseJsonFromUrl(url);
+            if (jsonData != null && jsonData['questions'] is List) {
+              final count = (jsonData['questions'] as List).length;
+              if (count > 0) {
+                await prefs.setInt(cacheKey, count);
+                test['questionCount'] = count; // Modifies the list item directly
+                debugPrint('✅ Updated qCount for $fileName: $count');
+              }
             }
+          } catch (e) {
+            debugPrint('⚠️ Error updating qCount for $fileName: $e');
           }
         }
-      }
+      }));
     } catch (e) {
-      debugPrint('⚠️ Error in background qCount update: $e');
+      debugPrint('⚠️ Error in _updateQuestionCounts: $e');
     }
   }
 
