@@ -48,17 +48,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
   }
 
   Future<void> _checkLessonDetailShowcase() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shown = prefs.getBool('showcase_lesson_detail_shown') ?? false;
-    if (!shown) {
-      // Konuların yüklenmesini bekle
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && _topics.isNotEmpty) {
-          ShowCaseWidget.of(context).startShowCase([ShowcaseKeys.favoriteKey]);
-          prefs.setBool('showcase_lesson_detail_shown', true);
-        }
-      });
-    }
+    return; // Şimdilik tanıtım kapalı
   }
 
   Future<void> _loadTopics() async {

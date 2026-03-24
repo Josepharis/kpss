@@ -1102,53 +1102,61 @@ class ProgressService {
           .get();
 
       // 2. Fetch all ongoing test progress for THIS lesson in one go
-      final progressSnapshot = await _userProgressDoc
+      final ongoingSnapshot = await _userProgressDoc
           .collection('tests')
           .where('lessonId', isEqualTo: lessonId)
           .get();
 
       // Create maps for quick lookup
-      final Map<String, Map<String, dynamic>> resultsMap = {
-        for (var doc in resultsSnapshot.docs) doc.id: doc.data(),
-      };
-      final Map<String, Map<String, dynamic>> progressMap = {
-        for (var doc in progressSnapshot.docs) doc.id: doc.data(),
-      };
+      debugPrint('📊 [UPDATE_PROGRESS] Found ${resultsSnapshot.docs.length} completed results and ${ongoingSnapshot.docs.length} ongoing tests for lessonId: $lessonId');
+      
+      for (var d in resultsSnapshot.docs) {
+        debugPrint('   ✅ Saved Result ID: ${d.id} | Field LessonId: ${d.data()["lessonId"]}');
+      }
+      for (var d in ongoingSnapshot.docs) {
+        debugPrint('   ⏳ Ongoing Test ID: ${d.id} | Field LessonId: ${d.data()["lessonId"]}');
+      }
 
       int totalSolvedQuestions = 0;
+      int totalCorrectAnswers = 0;
       int totalQuestions = 0;
 
+      // 3. Denominator: Sum up question counts of all topics in this lesson
+      debugPrint('📚 Calculating denominator from ${topics.length} topics...');
       for (var topic in topics) {
-        int topicQuestionCount = topic.averageQuestionCount;
-
-        // Get from cache if available (synchronous preference)
-        if (topicQuestionCount <= 0) {
+        int topicCount = topic.averageQuestionCount;
+        if (topicCount <= 0) {
           try {
             final prefs = await SharedPreferences.getInstance();
             final cacheKey = 'content_counts_${topic.id}';
             final cachedJson = prefs.getString(cacheKey);
             if (cachedJson != null) {
               final Map<String, dynamic> counts = jsonDecode(cachedJson);
-              topicQuestionCount = counts['testQuestionCount'] as int? ?? 0;
+              topicCount = counts['testQuestionCount'] as int? ?? 0;
             }
           } catch (_) {}
         }
+        totalQuestions += (topicCount > 0 ? topicCount : 0);
+      }
 
-        if (topicQuestionCount > 0) {
-          totalQuestions += topicQuestionCount;
-
-          // Check bulk maps instead of making individual Firestore calls
-          if (resultsMap.containsKey(topic.id)) {
-            final result = resultsMap[topic.id]!;
-            totalSolvedQuestions += result['totalQuestions'] as int? ?? 0;
-          } else if (progressMap.containsKey(topic.id)) {
-            final progress = progressMap[topic.id]!;
-            if (progress['currentQuestionIndex'] != null) {
-              totalSolvedQuestions +=
-                  (progress['currentQuestionIndex'] as int) + 1;
-            }
-          }
+      // 4. Numerator: Sum up all solved questions and CORRECT answers
+      for (var doc in resultsSnapshot.docs) {
+        final data = doc.data();
+        totalSolvedQuestions += ((data['totalQuestions'] ?? 0) as num).toInt();
+        totalCorrectAnswers += ((data['correctAnswers'] ?? 0) as num).toInt();
+      }
+      
+      for (var doc in ongoingSnapshot.docs) {
+        final data = doc.data();
+        if (data['currentQuestionIndex'] != null) {
+           totalSolvedQuestions += ((data['currentQuestionIndex'] as num).toInt()) + 1;
         }
+        totalCorrectAnswers += ((data['correctAnswers'] ?? 0) as num).toInt();
+      }
+
+      // Adjust totalQuestions if it's somehow less than solved questions
+      if (totalQuestions < totalSolvedQuestions) {
+        totalQuestions = totalSolvedQuestions;
       }
 
       // Calculate and save lesson progress
@@ -1157,10 +1165,15 @@ class ProgressService {
         progress = (totalSolvedQuestions / totalQuestions).clamp(0.0, 1.0);
       }
 
+      final subjectScore = totalCorrectAnswers * 10;
+      debugPrint('📈 LESSON PROGRESS UPDATED: $lessonId');
+
       await _userProgressDoc.collection('lessons').doc(lessonId).set({
         'lessonId': lessonId,
         'progress': progress,
         'solvedQuestions': totalSolvedQuestions,
+        'correctAnswers': totalCorrectAnswers,
+        'score': subjectScore,
         'totalQuestions': totalQuestions,
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

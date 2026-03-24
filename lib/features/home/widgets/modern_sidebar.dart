@@ -9,6 +9,10 @@ import '../../../core/services/sidebar_service.dart';
 import '../../../core/models/sidebar_content.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/progress_service.dart';
+import '../pages/exams_page.dart';
+import '../pages/ranking_page.dart';
+
+
 
 class ModernSidebar extends StatefulWidget {
   final VoidCallback? onClose;
@@ -283,30 +287,62 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildFeatureGrid(BuildContext context, bool isDark) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _buildGlassFeatureCard(
-            context,
-            'Pomodoro',
-            'Odaklan',
-            Icons.timer_rounded,
-            const [Color(0xFF6366F1), Color(0xFF4F46E5)],
-            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModernPomodoroPage(standalonePomodoro: true))),
-            isDark,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildGlassFeatureCard(
+                context,
+                'Pomodoro',
+                'Odaklan',
+                Icons.timer_rounded,
+                const [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModernPomodoroPage(standalonePomodoro: true))),
+                isDark,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildGlassFeatureCard(
+                context,
+                'Yapay Zeka',
+                'Asistan',
+                Icons.auto_awesome_rounded,
+                const [Color(0xFFA855F7), Color(0xFF7C3AED)],
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantPage())),
+                isDark,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildGlassFeatureCard(
-            context,
-            'Yapay Zeka',
-            'Asistan',
-            Icons.auto_awesome_rounded,
-            const [Color(0xFFA855F7), Color(0xFF7C3AED)],
-            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantPage())),
-            isDark,
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildGlassFeatureCard(
+                context,
+                'Denemeler',
+                'Sınavlar',
+                Icons.assignment_rounded,
+                const [Color(0xFFF59E0B), Color(0xFFD97706)],
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamsPage())),
+                isDark,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildGlassFeatureCard(
+                context,
+                'Sıralama',
+                'Liderler',
+                Icons.emoji_events_rounded,
+                const [Color(0xFF10B981), Color(0xFF059669)],
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RankingPage())),
+                isDark,
+              ),
+            ),
+          ],
         ),
       ],
     );

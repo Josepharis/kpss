@@ -94,23 +94,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _checkHomePageShowcase() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shown = prefs.getBool('showcase_home_shown') ?? false;
-    if (!shown) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Biraz bekle animasyonlar bitsin
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) {
-            ShowCaseWidget.of(context).startShowCase([
-              ShowcaseKeys.menuKey,
-              ShowcaseKeys.scoreKey,
-              ShowcaseKeys.lessonsTabKey,
-            ]);
-            prefs.setBool('showcase_home_shown', true);
-          }
-        });
-      });
-    }
+    return; // Şimdilik tanıtım kapalı
   }
 
   void _clearStaticMemoryCaches() {

@@ -4,8 +4,7 @@ import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/subscription_service.dart';
-import 'onboarding_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -120,16 +119,10 @@ class _SplashScreenState extends State<SplashScreen>
     final authService = AuthService();
     final isLoggedIn = await authService.isLoggedIn();
 
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingShown = prefs.getBool('onboarding_shown') ?? false;
+
 
     if (mounted) {
-      if (!onboardingShown) {
-        // İlk giriş, tanıtım ekranına gönder
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const OnboardingPage()),
-        );
-      } else if (isLoggedIn) {
+      if (isLoggedIn) {
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
         Navigator.of(context).pushReplacementNamed('/login');
