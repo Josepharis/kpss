@@ -19,6 +19,7 @@ import '../../../core/services/subscription_service.dart';
 import '../widgets/quick_access_section.dart';
 import '../../../core/models/study_program.dart';
 import '../../../core/services/study_program_service.dart';
+import '../../../core/services/lessons_service.dart';
 import '../widgets/modern_sidebar.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../../../core/constants/showcase_keys.dart';
@@ -189,15 +190,23 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadOngoingContent() async {
     try {
+      final lessonsService = LessonsService();
       final results = await Future.wait([
         _progressService.getOngoingTests(),
         _progressService.getOngoingPodcasts(),
         _progressService.getOngoingFlashCards(),
+        lessonsService.getHiddenTopics(),
       ]);
 
-      final tests = results[0] as List<OngoingTest>;
-      final podcasts = results[1] as List<OngoingPodcast>;
-      final flashCards = results[2] as List<OngoingFlashCard>;
+      final allTests = results[0] as List<OngoingTest>;
+      final allPodcasts = results[1] as List<OngoingPodcast>;
+      final allFlashCards = results[2] as List<OngoingFlashCard>;
+      final hiddenTopicIds = results[3] as List<String>;
+
+      // Filter out hidden topics
+      final tests = allTests.where((t) => !hiddenTopicIds.contains(t.topicId)).toList();
+      final podcasts = allPodcasts.where((p) => !hiddenTopicIds.contains(p.topicId)).toList();
+      final flashCards = allFlashCards.where((f) => !hiddenTopicIds.contains(f.topicId)).toList();
 
       final prefs = await SharedPreferences.getInstance();
       final uid = _authService.getUserId();

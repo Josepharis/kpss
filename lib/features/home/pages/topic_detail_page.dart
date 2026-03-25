@@ -58,6 +58,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
   AiMaterial? _aiMaterial;
   int _userNoteCount = 0;
   bool _isLoadingTests = false;
+  List<String> _topicHiddenTypes = [];
 
   @override
   void initState() {
@@ -99,6 +100,15 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
       // Erişim var, içerikleri kontrol et (arka planda)
       if (mounted) {
+        // Topic content visibility
+        _lessonsService.getTopicHiddenContentTypes().then((allHidden) {
+          if (mounted) {
+            setState(() {
+              _topicHiddenTypes = allHidden[_topic.id] ?? [];
+            });
+          }
+        });
+
         // Cache geçerliyse Storage'dan çekme, sadece cache yoksa veya geçersizse çek
         _loadContentCountsIfNeeded();
 
@@ -117,10 +127,18 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
 
   Future<void> _navigateToTestDirectly() async {
     final qService = QuestionsService();
-    final availableTests = await qService.getAvailableTestsByTopic(
-      _topic.id,
-      _topic.lessonId,
-    );
+    final results = await Future.wait([
+      qService.getAvailableTestsByTopic(_topic.id, _topic.lessonId),
+      _lessonsService.getHiddenItems(),
+    ]);
+
+    final allTests = results[0] as List<Map<String, dynamic>>;
+    final hiddenItems = results[1] as List<String>;
+
+    final availableTests = allTests.where((test) {
+      final itemId = 'test_${_topic.id}_${test['fileName']}';
+      return !hiddenItems.contains(itemId);
+    }).toList();
 
     if (!mounted) return;
 
@@ -812,7 +830,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     }
 
     // Konu Anlatımı
-    if (widget.lessonName.toLowerCase() != 'türkçe') {
+    if (widget.lessonName.toLowerCase() != 'türkçe' && !_topicHiddenTypes.contains('pdf')) {
       allCards.add(
         _buildModernPathCard(
           context: context,
@@ -846,7 +864,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       );
     }
     // Çıkmış Sorular
-    if (widget.lessonName.toLowerCase() != 'matematik') {
+    if (widget.lessonName.toLowerCase() != 'matematik' && !_topicHiddenTypes.contains('questions')) {
       allCards.add(
         _buildModernPathCard(
           context: context,
@@ -865,78 +883,80 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
       );
     }
     // Testler
-    allCards.add(
-      _buildModernPathCard(
-        context: context,
-        type: 'tests',
-        title: 'Konu Testleri',
-        count: _isLoadingContent ? 0 : _topic.averageQuestionCount,
-        countLabel: 'soru',
-        icon: Icons.checklist_rtl_rounded,
-        color: getCardColor('tests'),
-        isSmallScreen: isSmallScreen,
-        isDark: isDark,
-        isTestCompleted: _isTestCompleted,
-        attemptCount: _attemptCount,
-        isLoading: _isLoadingTests,
-        onTap: () async {
-          if (_isLoadingTests) return;
-          setState(() => _isLoadingTests = true);
-          
-          final qService = QuestionsService();
-          final availableTests = await qService.getAvailableTestsByTopic(
-            _topic.id,
-            _topic.lessonId,
-          );
-          
-          if (!mounted) return;
-          setState(() => _isLoadingTests = false);
+    if (!_topicHiddenTypes.contains('tests')) {
+      allCards.add(
+        _buildModernPathCard(
+          context: context,
+          type: 'tests',
+          title: 'Konu Testleri',
+          count: _isLoadingContent ? 0 : _topic.averageQuestionCount,
+          countLabel: 'soru',
+          icon: Icons.checklist_rtl_rounded,
+          color: getCardColor('tests'),
+          isSmallScreen: isSmallScreen,
+          isDark: isDark,
+          isTestCompleted: _isTestCompleted,
+          attemptCount: _attemptCount,
+          isLoading: _isLoadingTests,
+          onTap: () async {
+            if (_isLoadingTests) return;
+            setState(() => _isLoadingTests = true);
+            
+            final qService = QuestionsService();
+            final availableTests = await qService.getAvailableTestsByTopic(
+              _topic.id,
+              _topic.lessonId,
+            );
+            
+            if (!mounted) return;
+            setState(() => _isLoadingTests = false);
 
-          if (availableTests.length > 1) {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TestsListPage(
-                  topicName: _topic.name,
-                  lessonId: _topic.lessonId,
-                  topicId: _topic.id,
-                  testCount: availableTests.length,
-                  tests: availableTests,
+            if (availableTests.length > 1) {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TestsListPage(
+                    topicName: _topic.name,
+                    lessonId: _topic.lessonId,
+                    topicId: _topic.id,
+                    testCount: availableTests.length,
+                    tests: availableTests,
+                  ),
                 ),
-              ),
-            );
-            if (result == true && mounted) {
-              final mainScreen = MainScreen.of(context);
-              if (mainScreen != null) mainScreen.refreshHomePage();
-            }
-          } else {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TestsPage(
-                  topicName: _topic.name,
-                  testCount: availableTests.isNotEmpty
-                      ? availableTests[0]['questionCount']
-                      : (_isLoadingContent ? 0 : _topic.averageQuestionCount),
-                  lessonId: _topic.lessonId,
-                  topicId: _topic.id,
-                  testFileName: availableTests.isNotEmpty
-                      ? availableTests[0]['fileName']
-                      : null,
+              );
+              if (result == true && mounted) {
+                final mainScreen = MainScreen.of(context);
+                if (mainScreen != null) mainScreen.refreshHomePage();
+              }
+            } else {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TestsPage(
+                    topicName: _topic.name,
+                    testCount: availableTests.isNotEmpty
+                        ? availableTests[0]['questionCount']
+                        : (_isLoadingContent ? 0 : _topic.averageQuestionCount),
+                    lessonId: _topic.lessonId,
+                    topicId: _topic.id,
+                    testFileName: availableTests.isNotEmpty
+                        ? availableTests[0]['fileName']
+                        : null,
+                  ),
                 ),
-              ),
-            );
-            if (result == true && mounted) {
-              final mainScreen = MainScreen.of(context);
-              if (mainScreen != null) mainScreen.refreshHomePage();
-              _checkTestCompletion();
+              );
+              if (result == true && mounted) {
+                final mainScreen = MainScreen.of(context);
+                if (mainScreen != null) mainScreen.refreshHomePage();
+                _checkTestCompletion();
+              }
             }
-          }
-        },
-      ),
-    );
+          },
+        ),
+      );
+    }
     // Podcastler
-    if (widget.lessonName.toLowerCase() != 'matematik') {
+    if (widget.lessonName.toLowerCase() != 'matematik' && !_topicHiddenTypes.contains('podcasts')) {
       allCards.add(
         _buildModernPathCard(
           context: context,
@@ -970,7 +990,7 @@ class _TopicDetailPageState extends State<TopicDetailPage> {
     }
 
     // Bilgi Kartları
-    if (widget.lessonName.toLowerCase() != 'matematik') {
+    if (widget.lessonName.toLowerCase() != 'matematik' && !_topicHiddenTypes.contains('flashcards')) {
       allCards.add(
         _buildModernPathCard(
           context: context,

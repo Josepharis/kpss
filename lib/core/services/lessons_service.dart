@@ -30,6 +30,117 @@ class LessonsService {
         .replaceAll('ç', 'c');
   }
 
+  /// Stream hidden lesson IDs
+  Stream<List<String>> streamHiddenLessons() {
+    return _firestore.collection('settings').doc('lessons_visibility').snapshots().map((doc) {
+      if (doc.exists) {
+        return List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+      return [];
+    });
+  }
+
+  /// Stream hidden category IDs
+  Stream<List<String>> streamHiddenCategories() {
+    return _firestore.collection('settings').doc('categories_visibility').snapshots().map((doc) {
+      if (doc.exists) {
+        return List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+      return [];
+    });
+  }
+
+  /// Stream hidden topic IDs
+  Stream<List<String>> streamHiddenTopics() {
+    return _firestore.collection('settings').doc('topics_visibility').snapshots().map((doc) {
+      if (doc.exists) {
+        return List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+      return [];
+    });
+  }
+
+  /// Get hidden items (specific tests, PDFs, etc.)
+  Future<List<String>> getHiddenItems() async {
+    try {
+      final doc = await _firestore.collection('settings').doc('items_visibility').get();
+      if (doc.exists) {
+        return List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting hidden items: $e');
+      return [];
+    }
+  }
+
+  /// Toggle item hidden status
+  Future<void> toggleItemHiddenStatus(String itemId, bool isHidden) async {
+    final docRef = _firestore.collection('settings').doc('items_visibility');
+    try {
+      final doc = await docRef.get();
+      List<String> hiddenIds = [];
+      if (doc.exists) {
+        hiddenIds = List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+
+      if (isHidden) {
+        if (!hiddenIds.contains(itemId)) hiddenIds.add(itemId);
+      } else {
+        hiddenIds.remove(itemId);
+      }
+
+      await docRef.set({'hidden': hiddenIds}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error toggling item visibility: $e');
+    }
+  }
+
+  /// Get hidden content types per topic
+  /// Returns a map where key is topicId and value is list of hidden types (e.g., 'questions', 'podcasts')
+  Future<Map<String, List<String>>> getTopicHiddenContentTypes() async {
+    try {
+      final doc = await _firestore.collection('settings').doc('topic_content_visibility').get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final Map<String, List<String>> result = {};
+        data.forEach((key, value) {
+          result[key] = List<String>.from(value ?? []);
+        });
+        return result;
+      }
+      return {};
+    } catch (e) {
+      debugPrint('Error getting topic hidden content types: $e');
+      return {};
+    }
+  }
+
+  /// Toggle content type visibility for a specific topic
+  Future<void> toggleTopicContentTypeHiddenStatus(String topicId, String contentType, bool isHidden) async {
+    final docRef = _firestore.collection('settings').doc('topic_content_visibility');
+    try {
+      final doc = await docRef.get();
+      Map<String, dynamic> data = {};
+      if (doc.exists) {
+        data = doc.data() as Map<String, dynamic>;
+      }
+
+      List<String> hiddenTypes = List<String>.from(data[topicId] ?? []);
+      
+      if (isHidden) {
+        if (!hiddenTypes.contains(contentType)) hiddenTypes.add(contentType);
+      } else {
+        hiddenTypes.remove(contentType);
+      }
+
+      data[topicId] = hiddenTypes;
+      await docRef.set(data);
+    } catch (e) {
+      debugPrint('Error toggling topic content type visibility: $e');
+    }
+  }
+
   /// Get all lessons
   Future<List<Lesson>> getAllLessons() async {
     try {
@@ -167,40 +278,143 @@ class LessonsService {
 
   /// Toggle topic hidden status
   Future<void> toggleTopicHiddenStatus(String topicId, bool isHidden) async {
+    final docRef = _firestore.collection('settings').doc('topics_visibility');
+
     try {
-      final docRef = _firestore.collection('settings').doc('topics_visibility');
-      if (isHidden) {
-        await docRef.set({
-          'hidden': FieldValue.arrayUnion([topicId])
-        }, SetOptions(merge: true));
-      } else {
-        await docRef.set({
-          'hidden': FieldValue.arrayRemove([topicId])
-        }, SetOptions(merge: true));
-      }
-      
-      // Update cache
-      final prefs = await SharedPreferences.getInstance();
-      final cachedJson = prefs.getString('hidden_topics_cache');
-      List<String> currentHidden = [];
-      if (cachedJson != null) {
-        currentHidden = List<String>.from(jsonDecode(cachedJson));
-      } else {
-        final doc = await docRef.get();
-        if (doc.exists) {
-          final data = doc.data() as Map<String, dynamic>;
-          currentHidden = List<String>.from(data['hidden'] ?? []);
-        }
+      final doc = await docRef.get();
+      List<String> hiddenIds = [];
+
+      if (doc.exists) {
+        hiddenIds = List<String>.from(doc.data()?['hidden'] ?? []);
       }
 
-      if (isHidden && !currentHidden.contains(topicId)) {
-        currentHidden.add(topicId);
-      } else if (!isHidden && currentHidden.contains(topicId)) {
-        currentHidden.remove(topicId);
+      if (isHidden) {
+        if (!hiddenIds.contains(topicId)) {
+          hiddenIds.add(topicId);
+        }
+      } else {
+        hiddenIds.remove(topicId);
       }
-      await prefs.setString('hidden_topics_cache', jsonEncode(currentHidden));
+
+      await docRef.set({'hidden': hiddenIds}, SetOptions(merge: true));
+      
+      // Update local cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('hidden_topics_cache', jsonEncode(hiddenIds));
     } catch (e) {
       debugPrint('Error toggling topic hidden status: $e');
+    }
+  }
+
+  /// Get all hidden lesson IDs
+  Future<List<String>> getHiddenLessons() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Try cache
+      final cachedJson = prefs.getString('hidden_lessons_cache');
+      if (cachedJson != null) {
+        return List<String>.from(jsonDecode(cachedJson));
+      }
+      
+      // Firestore
+      final doc = await _firestore.collection('settings').doc('lessons_visibility').get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final hidden = List<String>.from(data['hidden'] ?? []);
+        await prefs.setString('hidden_lessons_cache', jsonEncode(hidden));
+        return hidden;
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting hidden lessons: $e');
+      return [];
+    }
+  }
+
+  /// Toggle lesson hidden status
+  Future<void> toggleLessonHiddenStatus(String lessonId, bool isHidden) async {
+    final docRef = _firestore.collection('settings').doc('lessons_visibility');
+
+    try {
+      final doc = await docRef.get();
+      List<String> hiddenIds = [];
+
+      if (doc.exists) {
+        hiddenIds = List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+
+      if (isHidden) {
+        if (!hiddenIds.contains(lessonId)) {
+          hiddenIds.add(lessonId);
+        }
+      } else {
+        hiddenIds.remove(lessonId);
+      }
+
+      await docRef.set({'hidden': hiddenIds}, SetOptions(merge: true));
+      
+      // Update local cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('hidden_lessons_cache', jsonEncode(hiddenIds));
+    } catch (e) {
+      debugPrint('Error toggling lesson hidden status: $e');
+    }
+  }
+
+  /// Get all hidden category IDs
+  Future<List<String>> getHiddenCategories() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Try cache
+      final cachedJson = prefs.getString('hidden_categories_cache');
+      if (cachedJson != null) {
+        return List<String>.from(jsonDecode(cachedJson));
+      }
+      
+      // Firestore
+      final doc = await _firestore.collection('settings').doc('categories_visibility').get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final hidden = List<String>.from(data['hidden'] ?? []);
+        await prefs.setString('hidden_categories_cache', jsonEncode(hidden));
+        return hidden;
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting hidden categories: $e');
+      return [];
+    }
+  }
+
+  /// Toggle category hidden status
+  Future<void> toggleCategoryHiddenStatus(String categoryId, bool isHidden) async {
+    final docRef = _firestore.collection('settings').doc('categories_visibility');
+
+    try {
+      final doc = await docRef.get();
+      List<String> hiddenIds = [];
+
+      if (doc.exists) {
+        hiddenIds = List<String>.from(doc.data()?['hidden'] ?? []);
+      }
+
+      if (isHidden) {
+        if (!hiddenIds.contains(categoryId)) {
+          hiddenIds.add(categoryId);
+        }
+      } else {
+        hiddenIds.remove(categoryId);
+      }
+
+      await docRef.set({'hidden': hiddenIds}, SetOptions(merge: true));
+      
+      // Update local cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('hidden_categories_cache', jsonEncode(hiddenIds));
+    } catch (e) {
+      debugPrint('Error toggling category hidden status: $e');
     }
   }
 

@@ -11,6 +11,7 @@ import '../../../core/services/progress_service.dart';
 import '../../../core/widgets/option_text_with_underline.dart';
 import '../../../core/widgets/formatted_text.dart';
 import '../../../core/widgets/premium_snackbar.dart';
+import '../../../core/widgets/report_error_dialog.dart';
 import '../../../../main.dart';
 
 class TestsPage extends StatefulWidget {
@@ -1501,6 +1502,9 @@ class _TestsPageState extends State<TestsPage> {
 
   Widget _buildStatusHeader(bool isDark, bool isSmallScreen) {
     final progress = (_currentQuestionIndex + 1) / _questions.length;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 380;
+    
     return Column(
       children: [
         Row(
@@ -1511,10 +1515,12 @@ class _TestsPageState extends State<TestsPage> {
               children: [
                 _buildInfoChip(
                   icon: Icons.tag_rounded,
-                  label:
-                      'Soru ${_currentQuestionIndex + 1}/${_questions.length}',
+                  label: isNarrow 
+                    ? '${_currentQuestionIndex + 1}/${_questions.length}'
+                    : 'Soru ${_currentQuestionIndex + 1}/${_questions.length}',
                   color: const Color(0xFF2563EB),
                   isDark: isDark,
+                  isNarrow: isNarrow,
                 ),
                 if (_isRetake) ...[
                   const SizedBox(height: 6),
@@ -1529,9 +1535,11 @@ class _TestsPageState extends State<TestsPage> {
             ),
             Row(
               children: [
-                _buildSaveButton(isDark),
-                const SizedBox(width: 8),
-                _buildTimerChip(isDark),
+                _buildReportButton(isDark, isNarrow),
+                SizedBox(width: isNarrow ? 4 : 8),
+                _buildSaveButton(isDark, isNarrow),
+                SizedBox(width: isNarrow ? 4 : 8),
+                _buildTimerChip(isDark, isNarrow),
               ],
             ),
           ],
@@ -1547,6 +1555,7 @@ class _TestsPageState extends State<TestsPage> {
     required String label,
     required Color color,
     required bool isDark,
+    bool isNarrow = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1559,11 +1568,11 @@ class _TestsPageState extends State<TestsPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 10,
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -1573,7 +1582,7 @@ class _TestsPageState extends State<TestsPage> {
     );
   }
 
-  Widget _buildSaveButton(bool isDark) {
+  Widget _buildSaveButton(bool isDark, [bool isNarrow = false]) {
     final isSaved = _savedQuestionIds.contains(
       _questions[_currentQuestionIndex].id,
     );
@@ -1631,18 +1640,20 @@ class _TestsPageState extends State<TestsPage> {
                       ? Colors.white
                       : (isDark ? Colors.white70 : const Color(0xFF64748B)),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  isSaved ? 'KAYDEDİLDİ' : 'KAYDET',
-                  style: TextStyle(
-                    fontSize: 10, // Reduced from 11
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
-                    color: isSaved
-                        ? Colors.white
-                        : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                if (!isNarrow) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    isSaved ? 'KAYDEDİLDİ' : 'KAYDET',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                      color: isSaved
+                          ? Colors.white
+                          : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1651,7 +1662,7 @@ class _TestsPageState extends State<TestsPage> {
     );
   }
 
-  Widget _buildTimerChip(bool isDark) {
+  Widget _buildTimerChip(bool isDark, [bool isNarrow = false]) {
     final isWarning = _remainingSeconds < 10;
     final color = isWarning ? const Color(0xFFEF4444) : const Color(0xFF2563EB);
 
@@ -1666,15 +1677,18 @@ class _TestsPageState extends State<TestsPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.timer_outlined, size: 16, color: color),
-          const SizedBox(width: 6),
-          Text(
-            '${_remainingSeconds}s',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: color,
+          if (!isNarrow) ...[
+            const SizedBox(width: 6),
+            Text(
+              '${_remainingSeconds ~/ 60}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1713,6 +1727,76 @@ class _TestsPageState extends State<TestsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildReportButton(bool isDark, [bool isNarrow = false]) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showErrorReportDialog,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.08),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.report_gmailerrorred_rounded,
+                  size: 14,
+                  color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                ),
+                if (!isNarrow) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    'HATA BİLDİR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showErrorReportDialog() {
+    if (_questions.isEmpty || _currentQuestionIndex >= _questions.length) {
+      return;
+    }
+
+    final currentQuestion = _questions[_currentQuestionIndex];
+
+    showDialog(
+      context: context,
+      builder: (context) => ReportErrorDialog(
+        contentId: currentQuestion.id,
+        contentType: 'question',
+        topicId: widget.topicId,
+        topicName: widget.topicName,
+        lessonId: widget.lessonId,
+        contentPreview: currentQuestion.question,
+      ),
     );
   }
 

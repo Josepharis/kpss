@@ -12,6 +12,7 @@ import '../../../core/services/lessons_service.dart';
 import '../../../core/services/flash_card_cache_service.dart';
 import '../../../core/services/saved_cards_service.dart';
 import '../../../core/widgets/premium_snackbar.dart';
+import '../../../core/widgets/report_error_dialog.dart';
 import '../../../../main.dart';
 
 class FlashCardsPage extends StatefulWidget {
@@ -199,10 +200,20 @@ class _FlashCardsPageState extends State<FlashCardsPage>
 
       if (_cards.isEmpty && mounted) setState(() => _isLoading = true);
 
+      final hiddenItems = await _lessonsService.getHiddenItems();
+
       if (downloadFiles.isNotEmpty) {
         Future(() async {
           for (final entry in downloadFiles.entries) {
+            final fileName = entry.key; // This is the file name
             final file = entry.value;
+            
+            final itemId = 'flashcard_${widget.topicId}_$fileName';
+            if (hiddenItems.contains(itemId)) {
+              debugPrint('⏭️ Skipping hidden flashcard file: $fileName');
+              continue;
+            }
+
             try {
               final cards = await FlashCardCacheService.cacheFlashCardsByPath(
                 file['url']!,
@@ -364,6 +375,23 @@ class _FlashCardsPageState extends State<FlashCardsPage>
         );
       }
     }
+  }
+
+  void _showErrorReportDialog() {
+    if (_cards.isEmpty || _currentCardIndex >= _cards.length) return;
+    final card = _cards[_currentCardIndex];
+
+    showDialog(
+      context: context,
+      builder: (context) => ReportErrorDialog(
+        contentId: card.id,
+        contentType: 'flash_card',
+        topicId: widget.topicId,
+        topicName: widget.topicName,
+        lessonId: widget.lessonId,
+        contentPreview: card.frontText,
+      ),
+    );
   }
 
   @override
@@ -685,6 +713,7 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -962,7 +991,8 @@ class _FlashCardsPageState extends State<FlashCardsPage>
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              _buildSmallReportButton(),
             ],
           ),
         ],
@@ -1065,6 +1095,40 @@ class _FlashCardsPageState extends State<FlashCardsPage>
             isPrimary: true,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSmallReportButton() {
+    return GestureDetector(
+      onTap: _showErrorReportDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.report_gmailerrorred_rounded,
+              size: 14,
+              color: Colors.white.withOpacity(0.9),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'HATA BİLDİR',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/questions_service.dart';
+import '../../../core/services/lessons_service.dart';
 import 'tests_page.dart';
 
 class TestsListPage extends StatefulWidget {
@@ -26,34 +27,50 @@ class TestsListPage extends StatefulWidget {
 class _TestsListPageState extends State<TestsListPage> {
   late List<Map<String, dynamic>> _tests;
   bool _isLoadingCounts = false;
+  final LessonsService _lessonsService = LessonsService();
+  List<String> _hiddenItems = [];
 
   @override
   void initState() {
     super.initState();
     _tests = List<Map<String, dynamic>>.from(widget.tests);
-    _loadMissingCounts();
+    _loadAll();
   }
 
-  Future<void> _loadMissingCounts() async {
-    // Check if any check marks or question counts are missing/zero
-    if (_tests.every((t) => (t['questionCount'] as int? ?? 0) > 0)) return;
-
+  Future<void> _loadAll() async {
     if (mounted) setState(() => _isLoadingCounts = true);
     
+    try {
+      final results = await Future.wait([
+        _lessonsService.getHiddenItems(),
+        _loadMissingCounts(),
+      ]);
+      
+      if (mounted) {
+        setState(() {
+          _hiddenItems = results[0] as List<String>;
+          // Filter tests after loading counts and hidden items
+          _tests = _tests.where((test) {
+            final itemId = 'test_${widget.topicId}_${test['fileName']}';
+            return !_hiddenItems.contains(itemId);
+          }).toList();
+          _isLoadingCounts = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingCounts = false);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadMissingCounts() async {
     final qService = QuestionsService();
-    
-    // Refresh the list from storage/cache
     final updatedTests = await qService.getAvailableTestsByTopic(
       widget.topicId,
       widget.lessonId,
     );
-
-    if (mounted) {
-      setState(() {
-        _tests = updatedTests;
-        _isLoadingCounts = false;
-      });
-    }
+    
+    _tests = updatedTests;
+    return updatedTests;
   }
 
   @override

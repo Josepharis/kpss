@@ -252,8 +252,13 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
             ),
             // Content
             Expanded(
-              child: StreamBuilder<List<Lesson>>(
-                stream: _lessonsService.streamAllLessons(),
+              child: StreamBuilder<List<dynamic>>(
+                // Combine lessons and hidden settings
+                stream: _lessonsService.streamAllLessons().asyncMap((lessons) async {
+                  final hiddenLessons = await _lessonsService.getHiddenLessons();
+                  final hiddenCategories = await _lessonsService.getHiddenCategories();
+                  return [lessons, hiddenLessons, hiddenCategories];
+                }),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -289,7 +294,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                     );
                   }
 
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  if (!snapshot.hasData || snapshot.data![0].isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -313,17 +318,24 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                     );
                   }
 
-                  final allLessons = _filterLessons(snapshot.data!);
-                  final genelKultur = _filterLessons(
-                    allLessons
-                        .where((l) => l.category == 'genel_kultur')
-                        .toList(),
-                  );
-                  final genelYetenek = _filterLessons(
-                    allLessons
-                        .where((l) => l.category == 'genel_yetenek')
-                        .toList(),
-                  );
+                  final List<Lesson> lessonsFromSnapshot = snapshot.data![0] as List<Lesson>;
+                  final List<String> hiddenLessons = snapshot.data![1] as List<String>;
+                  final List<String> hiddenCategories = snapshot.data![2] as List<String>;
+
+                  // Use real-time filtered lessons
+                  final allLessons = _filterLessons(lessonsFromSnapshot)
+                      .where((l) => !hiddenLessons.contains(l.id))
+                      .toList();
+                  
+                  final genelKultur = allLessons
+                      .where((l) => l.category == 'genel_kultur')
+                      .toList();
+                  final genelYetenek = allLessons
+                      .where((l) => l.category == 'genel_yetenek')
+                      .toList();
+                  final alanDersleri = allLessons
+                      .where((l) => l.category == 'alan_dersleri')
+                      .toList();
 
                   return ListView(
                     padding: EdgeInsets.fromLTRB(
@@ -333,7 +345,7 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                       isSmallScreen ? 10 : 12,
                     ),
                     children: [
-                      if (genelKultur.isNotEmpty)
+                      if (genelKultur.isNotEmpty && !hiddenCategories.contains('genel_kultur'))
                         _buildCategorySection(
                           context: context,
                           title: _getCategoryTitle('genel_kultur'),
@@ -342,13 +354,22 @@ class _LessonsPageState extends State<LessonsPage> with WidgetsBindingObserver {
                           isTablet: isTablet,
                           orientation: orientation,
                         ),
-                      if (genelKultur.isNotEmpty && genelYetenek.isNotEmpty)
+                      if (genelKultur.isNotEmpty && genelYetenek.isNotEmpty && !hiddenCategories.contains('genel_kultur') && !hiddenCategories.contains('genel_yetenek'))
                         const SizedBox(height: 16),
-                      if (genelYetenek.isNotEmpty)
+                      if (genelYetenek.isNotEmpty && !hiddenCategories.contains('genel_yetenek'))
                         _buildCategorySection(
                           context: context,
                           title: _getCategoryTitle('genel_yetenek'),
                           lessons: genelYetenek,
+                          isSmallScreen: isSmallScreen,
+                          isTablet: isTablet,
+                          orientation: orientation,
+                        ),
+                      if (alanDersleri.isNotEmpty && !hiddenCategories.contains('alan_dersleri'))
+                        _buildCategorySection(
+                          context: context,
+                          title: _getCategoryTitle('alan_dersleri'),
+                          lessons: alanDersleri,
                           isSmallScreen: isSmallScreen,
                           isTablet: isTablet,
                           orientation: orientation,

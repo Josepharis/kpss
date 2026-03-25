@@ -403,13 +403,28 @@ class _PdfsPageState extends State<PdfsPage> {
 
       // Cache'e kaydet (hızlı erişim için)
       try {
+        final hiddenItems = await _lessonsService.getHiddenItems();
+        
+        // Filter PDFs
+        _pdfs = _pdfs.where((pdf) {
+          final url = pdf['pdfUrl'] ?? '';
+          final fileName = url.split('/').last.split('?').first;
+          // In some cases, we need to decode the name
+          String decodedFileName = fileName;
+          try { decodedFileName = Uri.decodeComponent(fileName); } catch(_) {}
+          
+          final itemId = 'pdf_${widget.topicId}_$decodedFileName';
+          // Check both encoded and decoded just in case
+          return !hiddenItems.contains(itemId) && !hiddenItems.contains('pdf_${widget.topicId}_$fileName');
+        }).toList();
+
         final prefs = await SharedPreferences.getInstance();
         final cacheKey = 'pdfs_list_${widget.topicId}';
         final cacheTimeKey = 'pdfs_list_time_${widget.topicId}';
         final pdfsJson = jsonEncode(_pdfs);
         await prefs.setString(cacheKey, pdfsJson);
         await prefs.setInt(cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
-        print('✅ Saved ${_pdfs.length} PDFs to cache');
+        print('✅ Saved ${_pdfs.length} PDFs to cache after filtering');
       } catch (e) {
         print('⚠️ Error saving PDFs to cache: $e');
       }

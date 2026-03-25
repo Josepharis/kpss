@@ -11,6 +11,7 @@ import '../../../core/widgets/premium_snackbar.dart';
 import '../../../../main.dart';
 import 'subscription_page.dart';
 import 'about_app_page.dart';
+import '../../admin/pages/admin_error_reports_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -344,6 +345,22 @@ class _ProfilePageState extends State<ProfilePage> {
                                   isSmallScreen: isSmallScreen,
                                   isDark: isDark,
                                   color: Colors.redAccent,
+                                ),
+                                _buildDivider(isDark),
+                                _buildSettingTile(
+                                  icon: Icons.bug_report_rounded,
+                                  title: 'Hata Bildirimleri',
+                                  subtitle: 'İçerik hatalarını görüntüle',
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AdminErrorReportsPage(),
+                                    ),
+                                  ),
+                                  isSmallScreen: isSmallScreen,
+                                  isDark: isDark,
+                                  color: Colors.orangeAccent,
                                 ),
                               ],
                             ],

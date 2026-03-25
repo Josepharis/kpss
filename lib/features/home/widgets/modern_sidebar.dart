@@ -56,30 +56,32 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Future<void> _loadContent() async {
-    // Only show loading if we don't have any cached data at all
+    // We already have cached data in SidebarService if it was loaded before
     final hasCache = SidebarService.instance.hasCache;
     if (!hasCache) {
       if (mounted) setState(() => _isLoading = true);
-    }
-
-    try {
-      final futures = await Future.wait([
-        SidebarService.instance.getNews(),
-        SidebarService.instance.getDailyInfo(),
-        SidebarService.instance.getExamDates(),
-      ]);
-      
-      if (mounted) {
-        setState(() {
-          _news = futures[0] as List<NewsItem>;
-          _dailyInfo = futures[1] as DailyInfo;
-          _examDates = futures[2] as List<ExamDate>;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+    } else {
+      // If we have cache, don't show full-screen loader
       if (mounted) setState(() => _isLoading = false);
     }
+
+    // Fetch each piece of content independently to prevent blocking
+    SidebarService.instance.getNews().then((news) {
+      if (mounted) setState(() => _news = news);
+    }).catchError((_) {});
+
+    SidebarService.instance.getDailyInfo().then((info) {
+      if (mounted) setState(() => _dailyInfo = info);
+    }).catchError((_) {});
+
+    SidebarService.instance.getExamDates().then((dates) {
+      if (mounted) setState(() => _examDates = dates);
+    }).catchError((_) {});
+
+    // Final check to hide loading state if it was still showing
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted && _isLoading) setState(() => _isLoading = false);
+    });
   }
 
   Future<void> _launchURL(String? urlString) async {
@@ -493,7 +495,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -503,42 +505,30 @@ class _ModernSidebarState extends State<ModernSidebar> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.2), width: 1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.15), width: 1.5),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.tips_and_updates_rounded, color: Colors.blueAccent, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                _dailyInfo!.title,
-                style: TextStyle(
-                  color: isDark ? Colors.blueAccent.shade100 : Colors.blueAccent.shade700,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 11,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.tips_and_updates_rounded, color: Colors.blueAccent, size: 18),
           ),
-          const SizedBox(height: 12),
-          Text(
-            _dailyInfo!.content,
-            style: TextStyle(
-              color: isDark ? Colors.white70 : const Color(0xFF334155),
-              fontSize: 12,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              _dailyInfo!.content,
+              style: TextStyle(
+                color: isDark ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF334155),
+                fontSize: 12.5,
+                height: 1.6,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

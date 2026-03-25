@@ -7,6 +7,7 @@ import '../pages/podcasts_page.dart';
 import '../pages/flash_cards_page.dart';
 import '../pages/topic_detail_page.dart';
 import '../pages/pdfs_page.dart';
+import '../../../core/services/lessons_service.dart';
 import '../../../core/services/questions_service.dart';
 import '../pages/tests_page.dart';
 import '../pages/tests_list_page.dart';
@@ -32,10 +33,19 @@ class _QuickAccessSectionState extends State<QuickAccessSection> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await QuickAccessService.getQuickAccessItems();
+      final lessonsService = LessonsService();
+      final results = await Future.wait([
+        QuickAccessService.getQuickAccessItems(),
+        lessonsService.getHiddenTopics(),
+      ]);
+      
+      final items = results[0] as List<QuickAccessItem>;
+      final hiddenTopicIds = results[1] as List<String>;
+
       if (mounted) {
         setState(() {
-          _items = items;
+          // Filter out hidden topics
+          _items = items.where((item) => !hiddenTopicIds.contains(item.topicId)).toList();
           _isLoading = false;
         });
       }

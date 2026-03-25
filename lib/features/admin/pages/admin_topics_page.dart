@@ -4,6 +4,7 @@ import '../../../core/models/topic.dart';
 import '../../../core/services/lessons_service.dart';
 import 'admin_questions_page.dart';
 import 'admin_edit_question_page.dart';
+import 'admin_topic_content_visibility_page.dart';
 
 class AdminTopicsPage extends StatefulWidget {
   final Lesson lesson;
@@ -129,23 +130,41 @@ class _AdminTopicsPageState extends State<AdminTopicsPage> {
           style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
         ),
         trailing: widget.mode == 'publish'
-            ? Switch(
-                value: !_hiddenTopicIds.contains(topic.id), // True if visible (NOT hidden)
-                activeColor: const Color(0xFF4F46E5),
-                onChanged: (bool isVisible) async {
-                  final willBeHidden = !isVisible;
-                  setState(() {
-                    if (willBeHidden) {
-                      _hiddenTopicIds.add(topic.id);
-                    } else {
-                      _hiddenTopicIds.remove(topic.id);
-                    }
-                  });
-                  await _lessonsService.toggleTopicHiddenStatus(topic.id, willBeHidden);
-                },
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Switch(
+                    value: !_hiddenTopicIds.contains(topic.id), // True if visible (NOT hidden)
+                    activeColor: const Color(0xFF4F46E5),
+                    onChanged: (bool isVisible) async {
+                      final willBeHidden = !isVisible;
+                      setState(() {
+                        if (willBeHidden) {
+                          _hiddenTopicIds.add(topic.id);
+                        } else {
+                          _hiddenTopicIds.remove(topic.id);
+                        }
+                      });
+                      await _lessonsService.toggleTopicHiddenStatus(topic.id, willBeHidden);
+                    },
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+                ],
               )
             : const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-        onTap: widget.mode == 'publish' ? null : () {
+        onTap: () {
+          if (widget.mode == 'publish') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AdminTopicContentVisibilityPage(
+                  topic: topic,
+                  lessonName: widget.lesson.name,
+                ),
+              ),
+            );
+            return;
+          }
           if (widget.mode == 'add_question') {
             Navigator.push(
               context,

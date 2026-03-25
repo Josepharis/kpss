@@ -107,6 +107,19 @@ class _PodcastsPageState extends State<PodcastsPage>
       await _updateCachedFileUrls();
     }
 
+    // Filter hidden podcasts
+    final hiddenItems = await _lessonsService.getHiddenItems();
+    if (mounted) {
+      setState(() {
+        _podcasts = _podcasts.where((p) {
+          // Use filename from URL as item ID suffix
+          final fileName = p.audioUrl.split('/').last.split('?').first;
+          final itemId = 'podcast_${widget.topicId}_$fileName';
+          return !hiddenItems.contains(itemId);
+        }).toList();
+      });
+    }
+
     // İndirilen podcast durumlarını yükle (kalıcı olması için)
     await _loadDownloadedPodcastsStatus();
 
