@@ -106,12 +106,16 @@ class StudyProgram {
   final String title; // e.g. "Haftalık Çalışma Programı"
   final String subtitle; // e.g. "Genel Kültür • 7 Günlük Plan"
   final List<StudyProgramDay> days;
+  final String programType; // "weekly" | "monthly" | "custom" | "dated"
+  final int? startDateMillis;
 
   const StudyProgram({
     required this.createdAtMillis,
     required this.title,
     required this.subtitle,
     required this.days,
+    this.programType = 'weekly',
+    this.startDateMillis,
   });
 
   Map<String, dynamic> toMap() {
@@ -120,6 +124,8 @@ class StudyProgram {
       'title': title,
       'subtitle': subtitle,
       'days': days.map((d) => d.toMap()).toList(),
+      'programType': programType,
+      'startDateMillis': startDateMillis,
     };
   }
 
@@ -129,6 +135,7 @@ class StudyProgram {
       createdAtMillis: (map['createdAtMillis'] ?? 0) as int,
       title: (map['title'] ?? '') as String,
       subtitle: (map['subtitle'] ?? '') as String,
+      programType: (map['programType'] ?? 'weekly') as String,
       days: (daysRaw is List)
           ? daysRaw
                 .whereType<Map>()
@@ -137,6 +144,7 @@ class StudyProgram {
                 )
                 .toList()
           : const <StudyProgramDay>[],
+      startDateMillis: map['startDateMillis'] as int?,
     );
   }
 }

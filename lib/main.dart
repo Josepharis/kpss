@@ -19,6 +19,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/auth_service.dart';
 import 'features/admin/pages/admin_home_page.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,6 +134,16 @@ class _MyAppState extends State<MyApp> {
         '/home': (context) => const MainScreen(),
         '/admin': (context) => const _AdminGuardPage(),
       },
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('tr', 'TR'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('tr', 'TR'),
     );
   }
 }

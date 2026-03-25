@@ -39,7 +39,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
   late final Map<int, GlobalKey> _daySectionKeys;
   Timer? _autoScrollTimer;
   Offset? _lastDragGlobalPosition;
-  int _activeWeekday = DateTime.now().weekday;
+  int _activeDay = 1; // 1-indexed day
   StreamSubscription? _programSubscription;
 
   @override
@@ -53,13 +53,19 @@ class _MyProgramPageState extends State<MyProgramPage> {
   @override
   void initState() {
     super.initState();
-    _daySectionKeys = {for (var i = 1; i <= 7; i++) i: GlobalKey()};
+    _daySectionKeys = {};
     _load();
     _programSubscription = StudyProgramService.instance.onProgramUpdated.listen(
       (_) {
         if (mounted) _load();
       },
     );
+  }
+
+  void _ensureKeys(int dayCount) {
+    for (int i = 1; i <= dayCount; i++) {
+      _daySectionKeys[i] ??= GlobalKey();
+    }
   }
 
   Future<void> _load() async {
@@ -78,13 +84,29 @@ class _MyProgramPageState extends State<MyProgramPage> {
     if (!mounted) return;
     
     if (program == null) {
-      // If no program exists, automatically create an empty one and enter edit mode
-      // as requested by the USER (bypassing the empty alert state).
       await _createEmptyProgramAndEnterEdit();
     } else {
+      _ensureKeys(program.days.length);
       setState(() {
         _program = program;
         _loading = false;
+        if (program.programType == 'weekly') {
+          _activeDay = DateTime.now().weekday;
+        } else if (program.programType == 'dated' && program.startDateMillis != null) {
+          final now = DateTime.now();
+          final start = DateTime.fromMillisecondsSinceEpoch(program.startDateMillis!);
+          // normalize dates by setting to midnight to calculate correct day offset
+          final startMid = DateTime(start.year, start.month, start.day);
+          final nowMid = DateTime(now.year, now.month, now.day);
+          final diff = nowMid.difference(startMid).inDays;
+          if (diff >= 0 && diff < program.days.length) {
+            _activeDay = diff + 1;
+          } else {
+            _activeDay = 1;
+          }
+        } else {
+          _activeDay = 1;
+        }
       });
     }
   }
@@ -124,8 +146,10 @@ class _MyProgramPageState extends State<MyProgramPage> {
     }
   }
 
-  List<Color> _gradientForWeekday(int weekday) {
-    switch (weekday) {
+  List<Color> _gradientForWeekday(int day) {
+    // Ensure day cycles every 7 days
+    final cycleValue = ((day - 1) % 7) + 1;
+    switch (cycleValue) {
       case 1:
         return const [AppColors.gradientBlueStart, AppColors.gradientTealEnd];
       case 2:
@@ -153,17 +177,44 @@ class _MyProgramPageState extends State<MyProgramPage> {
     }
   }
 
-  Future<void> _createEmptyProgramAndEnterEdit() async {
+  Future<void> _createEmptyProgramAndEnterEdit({
+    String type = 'weekly',
+    int dayCount = 7,
+    DateTime? startDate,
+  }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
+    String title = 'Haftalık Plan';
+    if (type == 'monthly') title = 'Aylık Plan';
+    else if (type == 'custom' || type == 'dated') title = 'Özel Plan';
+
+    String subtitle = '7 Günlük Plan';
+    if (type == 'monthly') {
+      subtitle = '30 Günlük Plan';
+    } else if (type == 'custom') {
+      subtitle = '$dayCount Günlük Plan';
+    } else if (type == 'dated' && startDate != null) {
+      final endDate = startDate.add(Duration(days: dayCount - 1));
+      subtitle = '${startDate.day} ${_formatMonth(startDate.month)} – '
+          '${endDate.day} ${_formatMonth(endDate.month)}';
+    }
+
     final program = StudyProgram(
       createdAtMillis: now,
-      title: 'Programım',
-      subtitle: 'Manuel haftalık plan',
-      days: const <StudyProgramDay>[],
+      title: title,
+      subtitle: subtitle,
+      programType: type,
+      startDateMillis: startDate?.millisecondsSinceEpoch,
+      days: List.generate(
+        dayCount,
+        (i) => StudyProgramDay(weekday: i + 1, tasks: const []),
+      ),
     );
+    
+    _ensureKeys(dayCount);
     setState(() {
       _program = program;
       _editMode = true;
+      _activeDay = 1;
     });
     await _saveProgram(program);
   }
@@ -388,9 +439,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
     _lastDragGlobalPosition = null;
   }
 
-  Future<void> _scrollToWeekday(int weekday) async {
-    setState(() => _activeWeekday = weekday);
-    final ctx = _daySectionKeys[weekday]?.currentContext;
+  Future<void> _scrollToWeekday(int day) async {
+    setState(() => _activeDay = day);
+    final ctx = _daySectionKeys[day]?.currentContext;
     if (ctx == null) return;
     await Scrollable.ensureVisible(
       ctx,
@@ -537,7 +588,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _createEmptyProgramAndEnterEdit,
+                      onPressed: _showNewProgramDialog,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -547,7 +598,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
                       ),
                       icon: const Icon(Icons.edit_calendar_rounded),
                       label: const Text(
-                        'Haftalık Program Oluştur',
+                        'Yeni Program Oluştur',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
@@ -587,42 +638,58 @@ class _MyProgramPageState extends State<MyProgramPage> {
                 ? (maxW - contentMaxW) / 2
                 : (isCompact ? 12.0 : 16.0);
 
-            return ListView(
-              key: _listKey,
-              controller: _scrollController,
-              padding: const EdgeInsets.only(top: 10, bottom: 24),
+            return Column(
               children: [
-                _buildHeader(
-                  program: program,
-                  isDark: isDark,
-                  isCompact: isCompact,
-                  totalTasks: totalTasks,
-                  activeDays: activeDays,
-                  horizontalPadding: horizontal,
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: EdgeInsets.only(left: horizontal),
-                  child: _buildWeekStrip(
-                    program: program,
-                    isDark: isDark,
-                    isCompact: isCompact,
+                Container(
+                  color: isDark ? const Color(0xFF0B0F14) : const Color(0xFFF6F8FC),
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Column(
+                    children: [
+                      _buildHeader(
+                        program: program,
+                        isDark: isDark,
+                        isCompact: isCompact,
+                        totalTasks: totalTasks,
+                        activeDays: activeDays,
+                        horizontalPadding: horizontal,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDayStrip(
+                        program: program,
+                        isDark: isDark,
+                        horizontalPadding: horizontal,
+                        isCompact: isCompact,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                if (_editMode) ...[
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: horizontal),
-                    child: _buildEditHint(isDark),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      key: _listKey,
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 24),
+                      children: [
+                        if (_editMode) ...[
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: horizontal),
+                            child: _buildEditHint(isDark),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        ..._buildDaySections(
+                          program: program,
+                          isDark: isDark,
+                          compact: isCompact,
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                ],
-                ..._buildWeekSections(
-                  program: program,
-                  isDark: isDark,
-                  compact: isCompact,
                 ),
-                const SizedBox(height: 4),
               ],
             );
           },
@@ -669,9 +736,10 @@ class _MyProgramPageState extends State<MyProgramPage> {
     );
   }
 
-  Widget _buildWeekStrip({
+  Widget _buildDayStrip({
     required StudyProgram program,
     required bool isDark,
+    required double horizontalPadding,
     required bool isCompact,
   }) {
     final now = DateTime.now();
@@ -686,173 +754,437 @@ class _MyProgramPageState extends State<MyProgramPage> {
       7: 'Paz',
     };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Row(
-            children: [
-              Text(
-                'Haftalık Plan',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.3,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
+    final isWeekly = program.programType == 'weekly';
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.symmetric(vertical: 4, horizontal: horizontalPadding),
+      child: Row(
+        children: List.generate(program.days.length, (i) {
+          final idx = i + 1;
+          bool isToday = false;
+          String label = '';
+          final isDated = program.programType == 'dated' && program.startDateMillis != null;
+          final grad = _gradientForWeekday(idx);
+
+          if (isWeekly && idx <= 7) {
+            final date = weekStart.add(Duration(days: i));
+            isToday = date.year == now.year &&
+                      date.month == now.month &&
+                      date.day == now.day;
+            label = shortNames[idx] ?? '';
+          } else if (isDated) {
+            final date = DateTime.fromMillisecondsSinceEpoch(program.startDateMillis!).add(Duration(days: i));
+            isToday = date.year == now.year &&
+                      date.month == now.month &&
+                      date.day == now.day;
+            label = '${date.day}';
+          } else {
+            label = '$idx';
+          }
+
+          final isActive = idx == _activeDay;
+          final tasks = _tasksForWeekday(program, idx);
+
+          return Padding(
+            padding: EdgeInsets.only(right: i == program.days.length - 1 ? 0 : 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _scrollToWeekday(idx);
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuint,
+                  width: isWeekly ? 48 : 42,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: isToday
+                        ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: grad,
+                          )
+                        : null,
+                    color: isToday
+                        ? null
+                        : (isDark
+                              ? (isActive
+                                    ? grad[0].withOpacity(0.12)
+                                    : Colors.white.withOpacity(0.04))
+                              : (isActive
+                                    ? grad[0].withOpacity(0.08)
+                                    : Colors.white)),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isActive
+                          ? grad[0]
+                          : (isToday
+                                ? Colors.white.withOpacity(0.2)
+                                : (isDark
+                                      ? Colors.white.withOpacity(0.06)
+                                      : Colors.black.withOpacity(0.04))),
+                      width: isActive ? 1.5 : 1,
+                    ),
+                    boxShadow: [
+                      if (isToday || isActive)
+                        BoxShadow(
+                          color: grad[0].withOpacity(isActive ? 0.2 : 0.15),
+                          blurRadius: isActive ? 12 : 10,
+                          offset: Offset(0, isActive ? 4 : 4),
+                        ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: isWeekly ? 13 : 14,
+                          fontWeight: (isToday || isActive)
+                              ? FontWeight.w900
+                              : FontWeight.w700,
+                          color: isToday
+                              ? Colors.white
+                              : (isDark ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: isToday
+                              ? Colors.white.withOpacity(0.2)
+                              : (isDark
+                                    ? Colors.white.withOpacity(0.06)
+                                    : const Color(0xFFF1F5F9)),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${tasks.length}',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            color: isToday
+                                ? Colors.white
+                                : (isDark
+                                      ? Colors.white60
+                                      : Colors.black54),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              if (_editMode)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.gradientTealStart.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'DÜZENLEME MODU',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.gradientTealStart,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-          child: Row(
-            children: List.generate(7, (i) {
-              final weekday = i + 1;
-              final date = weekStart.add(Duration(days: i));
-              final isToday =
-                  date.year == now.year &&
-                  date.month == now.month &&
-                  date.day == now.day;
-              final isActive = weekday == _activeWeekday;
-              final tasks = _tasksForWeekday(program, weekday);
-              final grad = _gradientForWeekday(weekday);
+            ),
+          );
+        }),
+      ),
+    );
+  }
 
-              return Padding(
-                padding: EdgeInsets.only(right: i == 6 ? 0 : 8),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _scrollToWeekday(weekday);
-                    },
-                    borderRadius: BorderRadius.circular(14),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutQuint,
-                      width: 48,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: isToday
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: grad,
-                              )
-                            : null,
-                        color: isToday
-                            ? null
-                            : (isDark
-                                  ? (isActive
-                                        ? grad[0].withOpacity(0.12)
-                                        : Colors.white.withOpacity(0.04))
-                                  : (isActive
-                                        ? grad[0].withOpacity(0.08)
-                                        : Colors.white)),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isActive
-                              ? grad[0]
-                              : (isToday
-                                    ? Colors.white.withOpacity(0.2)
-                                    : (isDark
-                                          ? Colors.white.withOpacity(0.06)
-                                          : Colors.black.withOpacity(0.04))),
-                          width: isActive ? 1.5 : 1,
+  Widget _buildNewProgramButton(bool isDark) {
+    return TextButton.icon(
+      onPressed: _showNewProgramDialog,
+      icon: const Icon(Icons.edit_calendar_rounded, size: 18),
+      label: const Text(
+        'Planı Değiştir',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.gradientTealStart,
+        backgroundColor: AppColors.gradientTealStart.withOpacity(0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+    );
+  }
+
+  void _showNewProgramDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF111827) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 40,
+              offset: const Offset(0, -10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.gradientTealStart.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: AppColors.gradientTealStart,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Programını Güncelle',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
                         ),
-                        boxShadow: [
-                          if (isToday || isActive)
-                            BoxShadow(
-                              color: grad[0].withOpacity(isActive ? 0.2 : 0.15),
-                              blurRadius: isActive ? 12 : 10,
-                              offset: Offset(0, isActive ? 4 : 4),
-                            ),
-                        ],
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            shortNames[weekday] ?? '',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              color: isToday
-                                  ? Colors.white.withOpacity(0.8)
-                                  : (isDark ? Colors.white54 : Colors.black45),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${date.day}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              color: isToday
-                                  ? Colors.white
-                                  : (isDark ? Colors.white : Colors.black87),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              color: isToday
-                                  ? Colors.white.withOpacity(0.2)
-                                  : (isDark
-                                        ? Colors.white.withOpacity(0.06)
-                                        : const Color(0xFFF1F5F9)),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${tasks.length}',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w900,
-                                color: isToday
-                                    ? Colors.white
-                                    : (isDark
-                                          ? Colors.white60
-                                          : Colors.black54),
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Sana en uygun çalışma düzenini seç',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            _buildDialogOption(
+              icon: Icons.calendar_view_week_rounded,
+              title: 'Haftalık Program',
+              subtitle: '7 günlük standart çalışma düzeni',
+              onTap: () {
+                Navigator.pop(context);
+                _createEmptyProgramAndEnterEdit(type: 'weekly', dayCount: 7);
+              },
+            ),
+            _buildDialogOption(
+              icon: Icons.calendar_view_month_rounded,
+              title: 'Aylık Program',
+              subtitle: '30 günlük uzun süreli hedefler için',
+              onTap: () {
+                Navigator.pop(context);
+                _createEmptyProgramAndEnterEdit(type: 'monthly', dayCount: 30);
+              },
+            ),
+            _buildDialogOption(
+              icon: Icons.edit_calendar_rounded,
+              title: 'Özel Program',
+              subtitle: 'Belirlediğin gün sayısı kadar plan oluştur',
+              onTap: () {
+                Navigator.pop(context);
+                _showCustomDaySelector();
+              },
+            ),
+            _buildDialogOption(
+              icon: Icons.date_range_rounded,
+              title: 'Tarih Aralığı',
+              subtitle: 'Takvimden tarih seçerek nokta atışı plan yap',
+              onTap: () {
+                Navigator.pop(context);
+                _showDateRangePicker();
+              },
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.amber.withOpacity(0.2)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Yeni program oluşturduğunda mevcut programın silinecektir.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.amber,
                       ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCustomDaySelector() {
+    final controller = TextEditingController(text: '10');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gün Sayısı'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Örn: 10, 15, 45...',
+            suffixText: 'GÜN',
+          ),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İPTAL'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text) ?? 10;
+              Navigator.pop(context);
+              _createEmptyProgramAndEnterEdit(type: 'custom', dayCount: val);
+            },
+            child: const Text('OLUŞTUR'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDateRangePicker() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      locale: const Locale('tr', 'TR'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: AppColors.gradientTealStart,
                 ),
-              );
-            }),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (range != null) {
+      final days = range.end.difference(range.start).inDays + 1;
+      _createEmptyProgramAndEnterEdit(
+        type: 'dated',
+        dayCount: days,
+        startDate: range.start,
+      );
+    }
+  }
+
+  Widget _buildDialogOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      if (!isDark)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                    ],
+                  ),
+                  child: Icon(icon, color: AppColors.gradientTealStart, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: isDark ? Colors.white24 : Colors.black12,
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -864,203 +1196,40 @@ class _MyProgramPageState extends State<MyProgramPage> {
     required int activeDays,
     required double horizontalPadding,
   }) {
-    final progress = (activeDays / 7.0).clamp(0.0, 1.0);
-    final textPrimary = isDark ? Colors.white : AppColors.textPrimary;
-    final textSecondary = isDark ? Colors.white70 : AppColors.textSecondary;
-
-    Widget chip({
-      required IconData icon,
-      required String text,
-      required List<Color> gradient,
-    }) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: gradient),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 14, color: Colors.white),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.2,
-                color: textPrimary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title removed as requested by the user since it's in the AppBar
-                    const SizedBox(height: 4),
-                    // Subtitle removed as requested
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Buttons removed as requested
-            ],
-          ),
-          const SizedBox(height: 14),
-          _buildProgressBlock(
-            isDark: isDark,
-            textSecondary: textSecondary,
-            progress: progress,
-            totalTasks: totalTasks,
-            activeDays: activeDays,
-            chip: chip, // Pass the chip function
-            horizontalPadding: horizontalPadding,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBlock({
-    required bool isDark,
-    required Color textSecondary,
-    required double progress,
-    required int totalTasks,
-    required int activeDays,
-    required Widget Function({
-      required IconData icon,
-      required String text,
-      required List<Color> gradient,
-    })
-    chip,
-    required double horizontalPadding,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: chip(
-                icon: Icons.checklist_rounded,
-                text: '$totalTasks Görev',
-                gradient: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: chip(
-                icon: Icons.calendar_today_rounded,
-                text: '$activeDays/7 Gün',
-                gradient: [const Color(0xFF10B981), const Color(0xFF3B82F6)],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Haftalık İlerleme',
+                  program.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: textSecondary,
+                    fontSize: isCompact ? 22 : 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.6,
+                    height: 1.1,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                   ),
                 ),
                 Text(
-                  '${(progress * 100).toInt()}%',
+                  program.subtitle,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: isDark
-                        ? AppColors.gradientTealStart
-                        : AppColors.primaryBlue,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white70 : AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Container(
-              height: 6,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: UnconstrainedBox(
-                alignment: Alignment.centerLeft,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 1000),
-                  curve: Curves.easeOutCubic,
-                  height: 6,
-                  width:
-                      (MediaQuery.of(context).size.width -
-                          (MediaQuery.of(context).size.width > 860
-                              ? (MediaQuery.of(context).size.width - 860)
-                              : 32)) *
-                      progress,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        AppColors.gradientTealStart,
-                        AppColors.gradientBlueEnd,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.gradientTealStart.withOpacity(0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+          ),
+          _buildNewProgramButton(isDark),
+        ],
+      ),
     );
   }
 
@@ -1087,14 +1256,13 @@ class _MyProgramPageState extends State<MyProgramPage> {
 
   // (removed unused UI helpers)
 
-  List<Widget> _buildWeekSections({
+  List<Widget> _buildDaySections({
     required StudyProgram program,
     required bool isDark,
     required bool compact,
   }) {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-
     const longNames = {
       1: 'Pazartesi',
       2: 'Salı',
@@ -1105,31 +1273,53 @@ class _MyProgramPageState extends State<MyProgramPage> {
       7: 'Pazar',
     };
 
-    StudyProgramDay? dayForWeekday(int weekday) {
+    StudyProgramDay? dayForIndex(int idx) {
       for (final d in program.days) {
-        if (d.weekday == weekday) return d;
+        if (d.weekday == idx) return d;
       }
       return null;
     }
 
     final widgets = <Widget>[];
-    for (var i = 0; i < 7; i++) {
-      final weekday = i + 1;
-      final date = weekStart.add(Duration(days: i));
-      final isToday =
-          date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
+    final isWeekly = program.programType == 'weekly';
+
+    for (var i = 0; i < program.days.length; i++) {
+      final idx = i + 1;
+      
+      String dayTitle = '';
+      String dateLabel = '';
+      bool isToday = false;
+
+      final isDated = program.programType == 'dated' && program.startDateMillis != null;
+
+      if (isWeekly && idx <= 7) {
+        final date = weekStart.add(Duration(days: i));
+        isToday = date.year == now.year &&
+                  date.month == now.month &&
+                  date.day == now.day;
+        dayTitle = longNames[idx] ?? '';
+        dateLabel = '${date.day} ${_formatMonth(date.month)}';
+      } else if (isDated) {
+        final date = DateTime.fromMillisecondsSinceEpoch(program.startDateMillis!).add(Duration(days: i));
+        isToday = date.year == now.year &&
+                  date.month == now.month &&
+                  date.day == now.day;
+        dayTitle = '$idx. GÜN';
+        dateLabel = '${date.day} ${_formatMonth(date.month)}';
+      } else {
+        dayTitle = '$idx. GÜN';
+      }
+
       final tasks = _sortedTasks(
-        dayForWeekday(weekday)?.tasks ?? const <StudyProgramTask>[],
+        dayForIndex(idx)?.tasks ?? const <StudyProgramTask>[],
       );
-      final isActive = weekday == _activeWeekday;
+      final isActive = idx == _activeDay;
 
       widgets.add(
         _buildDaySection(
-          weekday: weekday,
-          dayTitle: longNames[weekday] ?? '',
-          dateLabel: '${date.day} ${_formatMonth(date.month)}',
+          weekday: idx,
+          dayTitle: dayTitle,
+          dateLabel: dateLabel,
           isToday: isToday,
           isActive: isActive,
           tasks: tasks,
@@ -1137,7 +1327,6 @@ class _MyProgramPageState extends State<MyProgramPage> {
           compact: compact,
         ),
       );
-      // Removed spacing: if (i != 6) widgets.add(const SizedBox(height: 4));
     }
     return widgets;
   }
@@ -1164,7 +1353,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
     Widget card({required bool dropHighlight}) {
       return AnimatedContainer(
         duration: const Duration(milliseconds: 400),
-        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(20),
@@ -1204,7 +1393,7 @@ class _MyProgramPageState extends State<MyProgramPage> {
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1223,9 +1412,9 @@ class _MyProgramPageState extends State<MyProgramPage> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          dayTitle.characters.first,
-                          style: const TextStyle(
-                            fontSize: 14,
+                          dayTitle.contains('.') ? dayTitle.split('.').first : dayTitle.characters.first,
+                          style: TextStyle(
+                            fontSize: dayTitle.contains('.') && dayTitle.split('.').first.length > 1 ? 12 : 14,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                           ),
@@ -1435,262 +1624,86 @@ class _MyProgramPageState extends State<MyProgramPage> {
     required bool compact,
   }) {
     final grad = _gradientForKind(task.kind);
-    final c = _colorForKind(task.kind);
 
     IconData kindIcon(String k) {
       switch (k) {
-        case 'test':
-          return Icons.quiz_rounded;
-        case 'video':
-          return Icons.play_circle_filled_rounded;
-        case 'podcast':
-          return Icons.podcasts_rounded;
-        case 'tekrar':
-          return Icons.restart_alt_rounded;
-        case 'konu':
-          return Icons.menu_book_rounded;
-        default:
-          return Icons.more_horiz_rounded;
+        case 'test': return Icons.quiz_rounded;
+        case 'video': return Icons.play_circle_filled_rounded;
+        case 'podcast': return Icons.podcasts_rounded;
+        case 'tekrar': return Icons.restart_alt_rounded;
+        case 'konu': return Icons.menu_book_rounded;
+        default: return Icons.more_horiz_rounded;
       }
     }
 
     final lesson = task.lesson.trim();
     final topic = task.topic.trim();
     final primary = (lesson.isNotEmpty || topic.isNotEmpty)
-        ? [
-            if (lesson.isNotEmpty) lesson,
-            if (topic.isNotEmpty) topic,
-          ].join(' – ')
+        ? [if (lesson.isNotEmpty) lesson, if (topic.isNotEmpty) topic].join(' – ')
         : task.title;
-    final secondary = (lesson.isNotEmpty || topic.isNotEmpty)
-        ? task.title
-        : (task.notes.trim());
+    final secondary = (lesson.isNotEmpty || topic.isNotEmpty) ? task.title : (task.notes.trim());
 
-    Widget content = Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _editMode
-            ? () => _showTaskEditor(weekday: weekday, existing: task)
-            : null,
-        onLongPress: _editMode
-            ? null
-            : () {
-                HapticFeedback.heavyImpact();
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  barrierColor: Colors.black26,
-                  isScrollControlled: true,
-                  builder: (context) => Container(
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF0F172A).withOpacity(0.9)
-                          : Colors.white.withOpacity(0.9),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(36),
-                      ),
-                      border: Border.all(
-                        color: (isDark ? Colors.white : Colors.black)
-                            .withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(36),
-                      ),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 30,
-                                height: 4,
-                                margin: const EdgeInsets.only(bottom: 20),
-                                decoration: BoxDecoration(
-                                  color: (isDark ? Colors.white : Colors.black)
-                                      .withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(colors: grad),
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: grad[0].withOpacity(0.2),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      kindIcon(task.kind),
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          primary,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w900,
-                                            color: isDark
-                                                ? Colors.white
-                                                : AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          "Görev İşlemleri",
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color:
-                                                (isDark
-                                                        ? Colors.white
-                                                        : AppColors
-                                                              .textSecondary)
-                                                    .withOpacity(0.5),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 24),
-                              _buildModernActionCard(
-                                icon: task.isCompleted
-                                    ? Icons.undo_rounded
-                                    : Icons.check_circle_rounded,
-                                title: task.isCompleted ? "Geri Al" : "Tamamla",
-                                desc: task.isCompleted
-                                    ? "Görevi yapılacaklara geri taşı"
-                                    : "Çalışmanı başarıyla bitirdiğini işaretle",
-                                color: task.isCompleted
-                                    ? Colors.amber
-                                    : Colors.green,
-                                isDark: isDark,
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  _toggleTaskCompletion(weekday, task);
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              _buildModernActionCard(
-                                icon: Icons.delete_forever_rounded,
-                                title: "Görevi Kaldır",
-                                desc: "Bu dersi programdan kalıcı olarak siler",
-                                color: Colors.red,
-                                isDark: isDark,
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  _deleteTask(weekday, task);
-                                },
-                              ),
-                              SizedBox(
-                                height: MediaQuery.of(context).padding.bottom,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-        splashColor: c.withValues(alpha: isDark ? 0.18 : 0.10),
-        highlightColor: c.withValues(alpha: isDark ? 0.10 : 0.06),
-        child: Opacity(
-          opacity: task.isCompleted ? 0.5 : 1.0,
+    Widget content = Opacity(
+      opacity: task.isCompleted ? 0.6 : 1.0,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _editMode
+              ? () => _showTaskEditor(weekday: weekday, existing: task)
+              : null,
+          onLongPress: _editMode
+              ? null
+              : () {
+                  HapticFeedback.heavyImpact();
+                  _showTaskActions(weekday, task, isDark, grad);
+                },
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: compact ? 8 : 10,
+              horizontal: 12,
+              vertical: compact ? 10 : 12,
             ),
             child: Row(
               children: [
+                // Kind Icon (Static, Always there)
                 Container(
-                  width: 3.5,
-                  height: 28,
-                  margin: const EdgeInsets.only(right: 8),
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: task.isCompleted
-                          ? [Colors.grey, Colors.grey.withOpacity(0.5)]
-                          : [
-                              grad[0].withValues(alpha: 0.95),
-                              grad[1].withValues(alpha: 0.80),
-                            ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                if (_editMode) ...[
-                  Icon(
-                    Icons.drag_indicator_rounded,
-                    size: 16,
-                    color: isDark ? Colors.white38 : Colors.black26,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: task.isCompleted
-                          ? [
-                              Colors.grey.withOpacity(0.6),
-                              Colors.grey.withOpacity(0.4),
-                            ]
-                          : grad.map((x) => x.withValues(alpha: 0.95)).toList(),
+                      colors: grad.map((x) => x.withValues(alpha: 0.95)).toList(),
                     ),
                     borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: grad[0].withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
-                    task.isCompleted
-                        ? Icons.check_rounded
-                        : kindIcon(task.kind),
-                    size: 15,
+                    kindIcon(task.kind),
+                    size: 16,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
+                // Texts
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         primary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.2,
+                          letterSpacing: -0.3,
                           color: isDark ? Colors.white : AppColors.textPrimary,
-                          decoration: task.isCompleted
-                              ? TextDecoration.lineThrough
-                              : null,
+                          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       if (secondary.trim().isNotEmpty) ...[
@@ -1702,60 +1715,45 @@ class _MyProgramPageState extends State<MyProgramPage> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? Colors.white54
-                                : AppColors.textSecondary,
-                            decoration: task.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
+                            color: isDark ? Colors.white54 : AppColors.textSecondary,
+                            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                           ),
                         ),
                       ],
                     ],
                   ),
                 ),
+                // Modern Action Buttons (Tick & Delete)
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: task.isCompleted
-                        ? Colors.grey.withOpacity(0.2)
-                        : grad[0].withValues(alpha: isDark ? 0.15 : 0.08),
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(
-                      color: task.isCompleted
-                          ? Colors.grey.withOpacity(0.3)
-                          : grad[0].withValues(alpha: isDark ? 0.2 : 0.1),
-                      width: 0.5,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_editMode) ...[
+                      _buildCompactAction(
+                        icon: Icons.delete_outline_rounded,
+                        color: Colors.red.withOpacity(0.7),
+                        isDark: isDark,
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          _deleteTask(weekday, task);
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    _buildCompactAction(
+                      icon: task.isCompleted 
+                          ? Icons.check_circle_rounded 
+                          : Icons.check_circle_outline_rounded,
+                      color: task.isCompleted ? Colors.green : (isDark ? Colors.white24 : Colors.black12),
+                      isDark: isDark,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _toggleTaskCompletion(weekday, task);
+                      },
+                      filled: task.isCompleted,
                     ),
-                  ),
-                  child: Text(
-                    task.kind.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                      color: task.isCompleted
-                          ? Colors.grey
-                          : (isDark ? grad[0].withValues(alpha: 0.9) : grad[0]),
-                    ),
-                  ),
+                  ],
                 ),
-                if (_editMode) ...[
-                  const SizedBox(width: 2),
-                  IconButton(
-                    tooltip: 'Sil',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _deleteTask(weekday, task),
-                    icon: Icon(
-                      Icons.delete_outline_rounded,
-                      color: isDark ? Colors.white70 : Colors.black54,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -1781,6 +1779,91 @@ class _MyProgramPageState extends State<MyProgramPage> {
       ),
       childWhenDragging: Opacity(opacity: 0.35, child: content),
       child: content,
+    );
+  }
+
+  Widget _buildCompactAction({
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? color.withOpacity(0.12) : Colors.transparent,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+      ),
+    );
+  }
+
+  void _showTaskActions(int weekday, StudyProgramTask task, bool isDark, List<Color> grad) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F172A).withOpacity(0.95) : Colors.white.withOpacity(0.95),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  _buildModernActionCard(
+                    icon: task.isCompleted ? Icons.radio_button_off_rounded : Icons.check_circle_rounded,
+                    title: task.isCompleted ? "Yapılmadı Bitirilenlerden Kaldır" : "Görevi Bitirildi Olarak Seç",
+                    desc: task.isCompleted ? "Görevi yapılacaklara geri taşı" : "Çalışmanı başarıyla bitirdiğini işaretle",
+                    color: task.isCompleted ? Colors.amber : Colors.green,
+                    isDark: isDark,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _toggleTaskCompletion(weekday, task);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildModernActionCard(
+                    icon: Icons.delete_forever_rounded,
+                    title: "Görevi Programdan Sil",
+                    desc: "Bu dersi programdan kalıcı olarak siler",
+                    color: Colors.red,
+                    isDark: isDark,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _deleteTask(weekday, task);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
